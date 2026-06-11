@@ -1,9 +1,18 @@
-// Job engine: scheduled, immediate, and bulk operations across devices.
+// Job engine: scheduled, immediate, recurring, and bulk operations across devices.
+import { createRequire } from 'node:module';
 import { query } from '../db.js';
-import { devicePushConfig } from './deviceComms.js';
+import { devicePushConfig, bouncePort } from './deviceComms.js';
 import { backupDevice, checkDrift } from './configService.js';
 import { renderTemplate } from './templateService.js';
 import { upgradeFirmware } from './firmwareService.js';
+
+// cron-parser is CJS; use createRequire for ESM compatibility
+const require = createRequire(import.meta.url);
+const cronParser = require('cron-parser') as { parseExpression: (expr: string) => { next(): { toDate(): Date } } };
+
+function nextCronDate(expr: string): Date {
+  return cronParser.parseExpression(expr).next().toDate();
+}
 
 export interface NewJob {
   type: string;
@@ -16,13 +25,13 @@ export interface NewJob {
 }
 
 export async function createJob(job: NewJob): Promise<{ id: string; status: string }> {
+  const nextRunAt = job.cron ? nextCronDate(job.cron) : null;
   const { rows } = await query(
-    `INSERT INTO jobs (type, name, payload, device_ids, schedule_at, cron, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, status`,
+    `INSERT INTO jobs (type, name, payload, device_ids, schedule_at, cron, next_run_at, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, status`,
     [job.type, job.name, JSON.stringify(job.payload), job.deviceIds,
-     job.scheduleAt, job.cron ?? null, job.createdBy]);
+     job.scheduleAt, job.cron ?? null, nextRunAt, job.createdBy]);
   if (!job.scheduleAt && !job.cron) {
-    // immediate: run async, don't block the request
     runJob(rows[0].id).catch(err => console.error(`job ${rows[0].id} failed:`, err));
   }
   return rows[0];
@@ -34,7 +43,7 @@ export async function runJob(jobId: string): Promise<void> {
     `UPDATE jobs SET status='running', started_at=now()
      WHERE id=$1 AND status='pending' RETURNING *`, [jobId]);
   const job = claim.rows[0];
-  if (!job) return; // already claimed/cancelled
+  if (!job) return;
 
   let allOk = true;
   for (const deviceId of job.device_ids as string[]) {
@@ -48,8 +57,17 @@ export async function runJob(jobId: string): Promise<void> {
         [jobId, deviceId, (err as Error).message]);
     }
   }
-  await query(`UPDATE jobs SET status=$1, finished_at=now() WHERE id=$2`,
-    [allOk ? 'done' : 'failed', jobId]);
+
+  if (job.cron) {
+    // Recurring: reset to pending with the next scheduled run time
+    const next = nextCronDate(job.cron);
+    await query(
+      `UPDATE jobs SET status='pending', started_at=NULL, finished_at=NULL, next_run_at=$2 WHERE id=$1`,
+      [jobId, next]);
+  } else {
+    await query(`UPDATE jobs SET status=$1, finished_at=now() WHERE id=$2`,
+      [allOk ? 'done' : 'failed', jobId]);
+  }
 }
 
 async function runJobOnDevice(job: any, deviceId: string): Promise<string> {
@@ -77,16 +95,35 @@ async function runJobOnDevice(job: any, deviceId: string): Promise<string> {
     }
     case 'firmware_upgrade':
       return upgradeFirmware(deviceId, payload.imageId as string);
+    case 'bounce_port': {
+      const port = payload.port as string;
+      if (!port) throw new Error('bounce_port job requires payload.port');
+      return bouncePort(deviceId, port);
+    }
+    case 'custom': {
+      const lines = Array.isArray(payload.lines) ? payload.lines as string[] : [];
+      if (!lines.length) throw new Error('custom job requires payload.lines array');
+      return devicePushConfig(deviceId, lines, payload.save !== false);
+    }
     default:
       throw new Error(`Unknown job type: ${job.type}`);
   }
 }
 
-/** Called by the scheduler tick: run any due scheduled jobs. */
+/** Called by the scheduler tick: run any one-shot jobs that are due. */
 export async function runDueJobs(): Promise<void> {
   const { rows } = await query(
-    `SELECT id FROM jobs WHERE status='pending' AND schedule_at IS NOT NULL AND schedule_at <= now()`);
+    `SELECT id FROM jobs WHERE status='pending' AND schedule_at IS NOT NULL AND schedule_at <= now() AND cron IS NULL`);
   for (const row of rows) {
     runJob(row.id).catch(err => console.error(`scheduled job ${row.id} failed:`, err));
+  }
+}
+
+/** Called by the scheduler tick: run any recurring cron jobs that are due. */
+export async function runCronJobs(): Promise<void> {
+  const { rows } = await query(
+    `SELECT id FROM jobs WHERE status='pending' AND cron IS NOT NULL AND next_run_at <= now()`);
+  for (const row of rows) {
+    runJob(row.id).catch(err => console.error(`cron job ${row.id} failed:`, err));
   }
 }

@@ -63,6 +63,7 @@ export default function Clients() {
               <thead>
                 <tr className="border-b border-slate-100 text-left">
                   <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">MAC</th>
+                  <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">IP</th>
                   <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Device</th>
                   <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Port</th>
                   <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">VLAN</th>
@@ -74,6 +75,7 @@ export default function Clients() {
                 {results.map(r => (
                   <tr key={r.id} className="hover:bg-slate-50/80 transition">
                     <td className="py-3 pr-4 font-mono text-xs text-slate-700">{r.mac}</td>
+                    <td className="py-3 pr-4 font-mono text-xs text-slate-600">{r.ip_address ?? '—'}</td>
                     <td className="py-3 pr-4">
                       <Link
                         to={`/devices/${r.device_id}`}

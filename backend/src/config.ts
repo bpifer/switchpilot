@@ -25,6 +25,7 @@ export const config = {
     complianceCron: process.env.COMPLIANCE_CRON ?? '*/15 * * * *'
   },
   firmwareDir: process.env.FIRMWARE_DIR ?? '/data/firmware',
+  syslogPort: parseInt(process.env.SYSLOG_PORT ?? '514', 10),
   smtp: {
     host: process.env.SMTP_HOST ?? '',
     port: parseInt(process.env.SMTP_PORT ?? '587', 10),

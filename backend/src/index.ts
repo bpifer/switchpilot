@@ -22,6 +22,10 @@ import topologyRoutes from './routes/topology.js';
 import firmwareRoutes from './routes/firmware.js';
 import analyticsRoutes from './routes/analytics.js';
 import clientRoutes from './routes/clients.js';
+import maintenanceRoutes from './routes/maintenance.js';
+import discoveryRoutes from './routes/discovery.js';
+import wsRoutes from './routes/ws.js';
+import { startSyslogListener } from './services/syslogService.js';
 
 async function main() {
   const app = Fastify({ logger: true, bodyLimit: 10 * 1024 * 1024 });
@@ -79,12 +83,16 @@ async function main() {
   await app.register(firmwareRoutes);
   await app.register(analyticsRoutes);
   await app.register(clientRoutes);
+  await app.register(maintenanceRoutes);
+  await app.register(discoveryRoutes);
+  await app.register(wsRoutes);
 
   await migrate();
   await seedAdmin();
   await redis.connect().catch(err => app.log.warn(`redis unavailable: ${err.message}`));
 
   startScheduler();
+  startSyslogListener();
 
   await app.listen({ port: config.port, host: '0.0.0.0' });
   app.log.info(`SwitchPilot API listening on :${config.port} — docs at /docs`);

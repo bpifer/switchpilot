@@ -10,19 +10,33 @@ export interface ShowVersionInfo {
 }
 
 export function parseShowVersion(output: string): ShowVersionInfo {
-  const hostname = output.match(/^(\S+)\s+uptime is/m)?.[1] ?? '';
-  // IOS: "Model number : WS-C2960X-48FPD-L" / IOS-XE: "Model Number : C9300-48P"
+  // NX-OS uses "Device name:" instead of "<hostname> uptime is"
+  const hostname =
+    output.match(/Device name:\s*(\S+)/)?.[1] ??
+    output.match(/^(\S+)\s+uptime is/m)?.[1] ?? '';
+
+  // NX-OS: "cisco N5K-C5596UP Chassis" or "cisco Nexus5596UP"
+  // IOS:   "Model number : WS-C2960X-48FPD-L"
+  // IOS-XE: "Model Number : C9300-48P"
   const model =
     output.match(/Model [Nn]umber\s*:\s*(\S+)/)?.[1] ??
-    output.match(/^cisco\s+(WS-\S+|C9\d{3}\S*)\s+/m)?.[1] ?? '';
+    output.match(/^cisco\s+(N[59357][Kk]-\S+|N[0-9]{4}\S*|WS-\S+|C9\d{3}\S*)\s+/m)?.[1] ??
+    output.match(/Hardware\s*\n\s*cisco\s+(\S+)/m)?.[1] ?? '';
+
   const serial =
     output.match(/System [Ss]erial [Nn]umber\s*:\s*(\S+)/)?.[1] ??
     output.match(/Processor board ID\s+(\S+)/)?.[1] ?? '';
+
+  // NX-OS: "NXOS: version 7.3(9)N1(1)" or "system: version 9.3(8)"
   const iosVersion =
+    output.match(/(?:NXOS|system):\s+version\s+([\w.()]+)/i)?.[1] ??
     output.match(/Version\s+([\w.()]+?)[,\s]/)?.[1] ?? '';
 
   let uptimeSeconds = 0;
-  const up = output.match(/uptime is\s+(.+)/)?.[1] ?? '';
+  // NX-OS: "Kernel uptime is 0 day(s), 3 hour(s), 14 minute(s), 22 second(s)"
+  const nxUp = output.match(/Kernel uptime is\s+(.+)/)?.[1] ?? '';
+  const iosUp = output.match(/uptime is\s+(.+)/)?.[1] ?? '';
+  const up = nxUp || iosUp;
   const grab = (re: RegExp) => parseInt(up.match(re)?.[1] ?? '0', 10);
   uptimeSeconds =
     grab(/(\d+)\s+year/) * 31536000 +
@@ -125,8 +139,16 @@ export function parseCpu(output: string): { fiveSec: number; oneMin: number; fiv
   };
 }
 
-/** Parse `show processes memory` Processor pool line → used %. */
+/** Parse `show processes memory` (IOS/IOS-XE) or `show system resources` (NX-OS) → used %. */
 export function parseMemory(output: string): number {
+  // NX-OS: "Memory usage:   4031440K total,  3101988K used,   929452K free"
+  const nxos = output.match(/Memory usage:\s*(\d+)K total,\s*(\d+)K used/i);
+  if (nxos) {
+    const total = parseInt(nxos[1], 10);
+    const used = parseInt(nxos[2], 10);
+    return total > 0 ? Math.round((used / total) * 1000) / 10 : 0;
+  }
+  // IOS/IOS-XE
   const m = output.match(/Processor Pool Total:\s*(\d+)\s+Used:\s*(\d+)/i)
     ?? output.match(/Processor\s+\S+\s+(\d+)\s+(\d+)\s+\d+/);
   if (!m) return 0;
@@ -255,6 +277,25 @@ export function parseVlanBrief(output: string): { id: number; name: string; port
     }
   }
   return vlans;
+}
+
+export interface ArpEntry { ip: string; mac: string; }
+
+/**
+ * Parse `show ip arp` (IOS/IOS-XE) or `show ip arp` (NX-OS) output.
+ * Returns ip→mac mappings; useful for correlating MAC-table entries with IP addresses.
+ */
+export function parseArpTable(output: string): ArpEntry[] {
+  const entries: ArpEntry[] = [];
+  for (const line of output.split('\n')) {
+    // IOS/IOS-XE: "Internet  10.0.1.1   0   aabb.cc00.0100  ARPA  Vlan10"
+    const ios = line.match(/^Internet\s+([\d.]+)\s+\S+\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s/i);
+    if (ios) { entries.push({ ip: ios[1], mac: ios[2].toLowerCase() }); continue; }
+    // NX-OS: "10.0.0.1        00:05:40  0050.568c.0001  Ethernet1/1"
+    const nxos = line.match(/^([\d.]+)\s+\S+\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s/i);
+    if (nxos) entries.push({ ip: nxos[1], mac: nxos[2].toLowerCase() });
+  }
+  return entries;
 }
 
 /** Normalize short interface names: Gi1/0/1 → GigabitEthernet1/0/1 (for config commands). */

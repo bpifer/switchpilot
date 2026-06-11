@@ -18,7 +18,7 @@ export default async function clientRoutes(app: FastifyInstance) {
       if (q) params.push(`%${q.replace(/[%_]/g, '\\$&')}%`);
 
       const { rows } = await query(
-        `SELECT ct.id, ct.mac, ct.port_name, ct.vlan, ct.first_seen, ct.last_seen,
+        `SELECT ct.id, ct.mac, ct.ip_address, ct.port_name, ct.vlan, ct.first_seen, ct.last_seen,
                 d.id AS device_id, d.hostname, d.mgmt_ip,
                 p.description AS port_description
          FROM client_tracking ct
@@ -48,7 +48,7 @@ export default async function clientRoutes(app: FastifyInstance) {
       if (port) params.push(port);
 
       const { rows } = await query(
-        `SELECT ct.id, ct.mac, ct.port_name, ct.vlan, ct.first_seen, ct.last_seen,
+        `SELECT ct.id, ct.mac, ct.ip_address, ct.port_name, ct.vlan, ct.first_seen, ct.last_seen,
                 p.description AS port_description
          FROM client_tracking ct
          LEFT JOIN ports p ON p.device_id = ct.device_id AND p.name = ct.port_name

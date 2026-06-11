@@ -36,11 +36,12 @@ export default async function jobRoutes(app: FastifyInstance) {
       body: {
         type: 'object', required: ['type', 'deviceIds'],
         properties: {
-          type: { type: 'string', enum: ['config_push', 'backup', 'compliance'] },
+          type: { type: 'string', enum: ['config_push', 'backup', 'compliance', 'firmware_upgrade', 'bounce_port', 'custom'] },
           name: { type: 'string' },
           payload: { type: 'object' },
           deviceIds: { type: 'array', items: { type: 'string' }, minItems: 1 },
-          scheduleAt: { type: 'string', format: 'date-time' }
+          scheduleAt: { type: 'string', format: 'date-time' },
+          cron: { type: 'string', description: 'Cron expression for recurring jobs (e.g. "0 2 * * *")' }
         }
       }
     }
@@ -53,6 +54,7 @@ export default async function jobRoutes(app: FastifyInstance) {
       payload: b.payload ?? {},
       deviceIds: b.deviceIds,
       scheduleAt: b.scheduleAt ? new Date(b.scheduleAt) : null,
+      cron: b.cron ?? null,
       createdBy: me.username
     });
     await audit(me.username, 'job.create', b.type, { deviceIds: b.deviceIds }, req.ip);

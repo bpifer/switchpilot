@@ -125,6 +125,44 @@
         "saveConfig": "write memory",
         "installAdd": "install add file bootflash:{file} activate commit"
       }
+    },
+    "nexus5k": {
+      "label": "Nexus 5000/5500/5600 Series",
+      "modelPatterns": ["^N5[Kk]-C5[0-9]", "^N55-", "^N56-"],
+      "os": "nxos",
+      "capabilities": {
+        "ssh": true, "snmp": true, "restconf": false, "netconf": false,
+        "poe": false, "stacking": false, "layer3": true,
+        "cableTest": false, "qos": "nxos", "vlanMax": 4094,
+        "archiveRollback": false, "installMode": true,
+        "tempSensor": true, "dual_psu": true, "vpc": true
+      },
+      "commands": {
+        "cpu": "show processes cpu | include CPU utilization",
+        "memory": "show system resources | include Memory",
+        "env": "show environment",
+        "saveConfig": "copy running-config startup-config",
+        "installAdd": "install all nxos bootflash:{file}"
+      }
+    },
+    "nexus9k": {
+      "label": "Nexus 9000 Series",
+      "modelPatterns": ["^N9[Kk]-", "^N93[0-9]", "^N95[0-9]", "^N97[0-9]"],
+      "os": "nxos",
+      "capabilities": {
+        "ssh": true, "snmp": true, "restconf": true, "netconf": true,
+        "poe": false, "stacking": false, "layer3": true,
+        "cableTest": false, "qos": "nxos", "vlanMax": 4094,
+        "archiveRollback": false, "installMode": true,
+        "tempSensor": true, "dual_psu": true, "vpc": true
+      },
+      "commands": {
+        "cpu": "show processes cpu | include CPU utilization",
+        "memory": "show system resources | include Memory",
+        "env": "show environment",
+        "saveConfig": "copy running-config startup-config",
+        "installAdd": "install all nxos bootflash:{file}"
+      }
     }
   }
 }

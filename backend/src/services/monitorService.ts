@@ -6,7 +6,7 @@ import { snmpProbe } from '../cisco/snmpClient.js';
 import {
   parseShowVersion, parseInterfacesStatus, parseMacTable, parseCdpNeighborsDetail,
   parseLldpNeighborsDetail, parseCpu, parseMemory, parseEnvironment, parsePowerInline,
-  parsePowerInlineTotals, parseShowSwitch, parseInterfaceErrors, parseVlanBrief
+  parsePowerInlineTotals, parseShowSwitch, parseInterfaceErrors, parseVlanBrief, parseArpTable
 } from '../cisco/parsers.js';
 import { resolveCapabilities } from '../cisco/capabilities.js';
 import { getDevice, sshTargetFor, snmpTargetFor, type DeviceRow } from './deviceComms.js';
@@ -63,9 +63,14 @@ export async function refreshDevice(deviceId: string): Promise<void> {
     const caps = ver.model ? resolveCapabilities(ver.model, ver.iosVersion) : device.capabilities;
 
     // --- health ---
+    const os = (caps as any).os as string;
     const cpu = parseCpu(await session.exec('show processes cpu | include CPU utilization'));
-    const mem = parseMemory(await session.exec('show processes memory | include Processor'));
-    const envCmd = (caps as any).os === 'iosxe' ? 'show environment all' : 'show env all';
+    const memCmd = os === 'nxos'
+      ? 'show system resources | include Memory'
+      : 'show processes memory | include Processor';
+    const mem = parseMemory(await session.exec(memCmd));
+    const envCmd = os === 'nxos' ? 'show environment' :
+                   os === 'iosxe' ? 'show environment all' : 'show env all';
     const env = parseEnvironment(await session.exec(envCmd).catch(() => ''));
 
     // --- stack ---
@@ -104,6 +109,11 @@ export async function refreshDevice(deviceId: string): Promise<void> {
     const errors = parseInterfaceErrors(
       await session.exec('show interfaces | include (line protocol|input errors|output errors|minute rate)').catch(() => '')
     );
+
+    // ARP table for IP→MAC correlation (layer-3 devices only; access switches have empty ARP tables)
+    const arpRaw = (caps as any).layer3
+      ? await session.exec('show ip arp').catch(() => '') : '';
+    const ipByMac = new Map(parseArpTable(arpRaw).map(e => [e.mac, e.ip]));
 
     const macsByPort = new Map<string, { macs: string[]; vlan: number }>();
     for (const m of macs) {
@@ -146,15 +156,18 @@ export async function refreshDevice(deviceId: string): Promise<void> {
         [deviceId, i.name, err?.inBps ?? null, err?.outBps ?? null,
          err?.inputErrors ?? 0, err?.outputErrors ?? 0, i.status]);
 
-      // client tracking: upsert each dynamic MAC seen on this port
+      // client tracking: upsert each dynamic MAC seen on this port, include IP if known
       if (portEntry) {
         for (const mac of portEntry.macs) {
+          const ip = ipByMac.get(mac) ?? null;
           await query(
-            `INSERT INTO client_tracking (device_id, port_name, mac, vlan, first_seen, last_seen)
-             VALUES ($1,$2,$3,$4,now(),now())
+            `INSERT INTO client_tracking (device_id, port_name, mac, vlan, ip_address, first_seen, last_seen)
+             VALUES ($1,$2,$3,$4,$5::inet,now(),now())
              ON CONFLICT (device_id, mac) DO UPDATE SET
-               port_name=$2, vlan=$4, last_seen=now()`,
-            [deviceId, i.name, mac, portEntry.vlan]);
+               port_name=$2, vlan=$4,
+               ip_address=COALESCE($5::inet, client_tracking.ip_address),
+               last_seen=now()`,
+            [deviceId, i.name, mac, portEntry.vlan, ip]);
         }
       }
 

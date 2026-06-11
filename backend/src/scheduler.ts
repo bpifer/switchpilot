@@ -4,9 +4,9 @@ import cron from 'node-cron';
 import { query } from './db.js';
 import { config } from './config.js';
 import { pollStatus, refreshDevice } from './services/monitorService.js';
-import { checkDrift } from './services/configService.js';
-import { backupDevice } from './services/configService.js';
-import { runDueJobs } from './services/jobService.js';
+import { checkDrift, backupDevice } from './services/configService.js';
+import { raiseAlert, resolveAlert } from './services/alertService.js';
+import { runDueJobs, runCronJobs } from './services/jobService.js';
 import type { DeviceRow } from './services/deviceComms.js';
 
 const CONCURRENCY = 8;
@@ -36,20 +36,28 @@ export function startScheduler(): void {
   // full metric/port/topology refresh
   setInterval(() => {
     eachDevice(async d => {
-      if (d.status === 'offline') return; // skip known-dead devices on the heavy poll
+      if (d.status === 'offline') return;
       await refreshDevice(d.id);
     }, 'metrics refresh').catch(err => console.error('metrics sweep failed:', err));
   }, config.poll.metricsIntervalSec * 1000);
 
-  // due scheduled jobs — every 30s
+  // due one-shot scheduled jobs + recurring cron jobs — every 30s
   setInterval(() => {
     runDueJobs().catch(err => console.error('due-job runner failed:', err));
+    runCronJobs().catch(err => console.error('cron-job runner failed:', err));
   }, 30_000);
 
-  // nightly config backups
+  // nightly config backups — alert if config changed since last backup
   cron.schedule(config.poll.backupCron, () => {
     eachDevice(async d => {
-      if (d.status !== 'offline') await backupDevice(d.id, 'scheduler');
+      if (d.status === 'offline') return;
+      const result = await backupDevice(d.id, 'scheduler');
+      if (result.changed) {
+        await raiseAlert(d.id, 'config_changed', 'warning',
+          `Out-of-band config change detected on ${d.hostname || d.mgmt_ip}`);
+      } else {
+        await resolveAlert(d.id, 'config_changed');
+      }
     }, 'nightly backup').catch(err => console.error('backup sweep failed:', err));
   });
 
@@ -62,14 +70,12 @@ export function startScheduler(): void {
 
   // prune history daily at 03:30
   cron.schedule('30 3 * * *', async () => {
-    // device_metrics: keep 400 days (supports 1-year chart + buffer)
     await query(`DELETE FROM device_metrics WHERE ts < now() - interval '400 days'`);
-    // port_metrics: keep 90 days
     await query(`DELETE FROM port_metrics WHERE recorded_at < now() - interval '90 days'`);
-    // client_tracking: keep clients seen in last year
     await query(`DELETE FROM client_tracking WHERE last_seen < now() - interval '1 year'`);
-    // resolved alerts: keep 90 days
     await query(`DELETE FROM alerts WHERE resolved_at IS NOT NULL AND resolved_at < now() - interval '90 days'`);
+    // clean up expired maintenance windows older than 30 days
+    await query(`DELETE FROM maintenance_windows WHERE ends_at < now() - interval '30 days'`);
   });
 
   console.log(

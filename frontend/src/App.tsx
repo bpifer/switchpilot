@@ -13,6 +13,9 @@ import Topology from './pages/Topology';
 import Users from './pages/Users';
 import Analytics from './pages/Analytics';
 import Clients from './pages/Clients';
+import Maintenance from './pages/Maintenance';
+import Discovery from './pages/Discovery';
+import { useWebSocket } from './hooks/useWebSocket';
 
 export interface Me {
   id: string;
@@ -21,7 +24,7 @@ export interface Me {
   role: 'superadmin' | 'netadmin' | 'helpdesk' | 'readonly';
 }
 
-const ICONS = {
+const ICONS: Record<string, string> = {
   dashboard: 'M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z',
   devices:   'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
   topology:  'M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z',
@@ -30,7 +33,9 @@ const ICONS = {
   alerts:    'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
   analytics: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z',
   clients:   'M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z',
-  users:     'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
+  users:       'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
+  maintenance: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+  discovery:   'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7',
 };
 
 const NAV = [
@@ -40,9 +45,11 @@ const NAV = [
   { to: '/templates', label: 'Templates', icon: ICONS.templates },
   { to: '/jobs',      label: 'Jobs',      icon: ICONS.jobs },
   { to: '/alerts',    label: 'Alerts',    icon: ICONS.alerts },
-  { to: '/analytics', label: 'Analytics', icon: ICONS.analytics },
-  { to: '/clients',   label: 'Clients',   icon: ICONS.clients },
-  { to: '/users',     label: 'Users',     icon: ICONS.users, role: 'superadmin' },
+  { to: '/analytics',   label: 'Analytics',   icon: ICONS.analytics },
+  { to: '/clients',     label: 'Clients',     icon: ICONS.clients },
+  { to: '/maintenance', label: 'Maintenance', icon: ICONS.maintenance },
+  { to: '/discovery',   label: 'Discovery',   icon: ICONS.discovery },
+  { to: '/users',       label: 'Users',       icon: ICONS.users, role: 'superadmin' },
 ];
 
 function Initials({ name }: { name: string }) {
@@ -60,7 +67,12 @@ function Initials({ name }: { name: string }) {
 export default function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
+  const [liveAlertCount, setLiveAlertCount] = useState(0);
   const navigate = useNavigate();
+
+  useWebSocket(msg => {
+    if (msg.type === 'alert') setLiveAlertCount(n => n + 1);
+  });
 
   useEffect(() => {
     if (!getToken()) { setLoading(false); return; }
@@ -124,7 +136,12 @@ export default function App() {
               {({ isActive }) => (
                 <>
                   <Icon d={n.icon} className={`h-4 w-4 shrink-0 ${isActive ? 'text-brand-400' : ''}`} />
-                  {n.label}
+                  <span className="flex-1">{n.label}</span>
+                  {n.to === '/alerts' && liveAlertCount > 0 && (
+                    <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                      {liveAlertCount > 99 ? '99+' : liveAlertCount}
+                    </span>
+                  )}
                 </>
               )}
             </NavLink>
@@ -162,6 +179,8 @@ export default function App() {
           <Route path="/topology" element={<Topology />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/clients" element={<Clients />} />
+          <Route path="/maintenance" element={<Maintenance />} />
+          <Route path="/discovery" element={<Discovery />} />
           {me.role === 'superadmin' && <Route path="/users" element={<Users />} />}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

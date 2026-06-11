@@ -1,13 +1,14 @@
 import nodemailer from 'nodemailer';
 import { query } from '../db.js';
 import { config } from '../config.js';
+import { internalEvents } from '../events.js';
 
 export type Severity = 'info' | 'warning' | 'critical';
 
 /**
  * Record an alert and fan out notifications.
- * Deduplicates: an open (unresolved) alert of the same kind on the same device
- * suppresses repeat notifications.
+ * Deduplicates open alerts of the same kind on the same device.
+ * Suppressed if the device is inside an active maintenance window.
  */
 export async function raiseAlert(
   deviceId: string | null,
@@ -15,6 +16,17 @@ export async function raiseAlert(
   severity: Severity,
   message: string
 ): Promise<void> {
+  // Suppress during active maintenance windows
+  if (deviceId) {
+    const mw = await query(
+      `SELECT id FROM maintenance_windows
+       WHERE now() BETWEEN starts_at AND ends_at
+       AND (cardinality(device_ids) = 0 OR $1::uuid = ANY(device_ids))
+       LIMIT 1`,
+      [deviceId]);
+    if (mw.rowCount) return;
+  }
+
   const existing = await query(
     `SELECT id FROM alerts WHERE device_id IS NOT DISTINCT FROM $1 AND kind=$2 AND resolved_at IS NULL`,
     [deviceId, kind]);
@@ -23,6 +35,9 @@ export async function raiseAlert(
   await query(
     'INSERT INTO alerts (device_id, severity, kind, message) VALUES ($1,$2,$3,$4)',
     [deviceId, severity, kind, message]);
+
+  // Emit for WebSocket subscribers
+  internalEvents.emit('alert', { deviceId, kind, severity, message, ts: new Date().toISOString() });
 
   let hostname = 'platform';
   if (deviceId) {
@@ -52,7 +67,6 @@ async function sendEmail(subject: string, body: string): Promise<void> {
     secure: config.smtp.port === 465,
     auth: config.smtp.user ? { user: config.smtp.user, pass: config.smtp.pass } : undefined
   });
-  // Recipients: all enabled admin users with an email address
   const { rows } = await query(
     `SELECT email FROM users WHERE enabled AND email IS NOT NULL AND role IN ('superadmin','netadmin')`);
   const to = rows.map(r => r.email).join(',');

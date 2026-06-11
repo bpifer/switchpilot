@@ -6,7 +6,7 @@ const capDb = require('./capabilities.json') as CapabilityDatabase;
 export interface FamilyDef {
   label: string;
   modelPatterns: string[];
-  os: 'ios' | 'iosxe';
+  os: 'ios' | 'iosxe' | 'nxos';
   capabilities: Record<string, unknown>;
   commands: Record<string, string>;
 }
