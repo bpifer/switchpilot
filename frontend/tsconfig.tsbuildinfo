@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/api.ts","./src/main.tsx","./src/components/portgrid.tsx","./src/components/ui.tsx","./src/pages/alerts.tsx","./src/pages/dashboard.tsx","./src/pages/devicedetail.tsx","./src/pages/devices.tsx","./src/pages/jobs.tsx","./src/pages/login.tsx","./src/pages/templates.tsx","./src/pages/topology.tsx","./src/pages/users.tsx"],"version":"5.9.3"}

@@ -32,12 +32,21 @@ export async function startMockDevice(opts: MockDeviceOptions = {}): Promise<Run
   const responses = opts.responses ?? {};
   const reject = opts.rejectConfigContaining ?? [];
 
-  const server = new Server({ hostKeys: [hostKey()] }, client => {
+  const server = new Server({
+    hostKeys: [hostKey()],
+    // The real CiscoSshSession offers legacy + modern kex; pin the server to
+    // algorithms ssh2 can actually serve (group-exchange is client-only in ssh2)
+    // so negotiation lands on ecdh/curve25519 instead of failing the handshake.
+    algorithms: {
+      kex: ['curve25519-sha256', 'ecdh-sha2-nistp256', 'diffie-hellman-group14-sha256', 'diffie-hellman-group14-sha1']
+    }
+  }, client => {
     client.on('authentication', ctx => ctx.accept());
     client.on('ready', () => {
       client.on('session', accept => {
         const session = accept();
-        session.on('pty', (_a, _r, accept) => accept && accept());
+        // ssh2 session requests pass (accept, reject, info) — accept is first.
+        session.on('pty', accept => accept && accept());
         session.on('shell', accept => {
           const stream = accept();
           let mode: 'exec' | 'config' = 'exec';

@@ -9,7 +9,8 @@ describe('familyForModel', () => {
     expect(familyForModel('C9200L-48P-4G')).toBe('catalyst9200');
     expect(familyForModel('C9300-48UXM')).toBe('catalyst9300');
     expect(familyForModel('C9404R')).toBe('catalyst9400');
-    expect(familyForModel('N9K-C9336C')).toBeNull();
+    // Nexus 9000 is a recognised NX-OS family (added with NX-OS support)
+    expect(familyForModel('N9K-C9336C')).toBe('nexus9k');
   });
 });
 

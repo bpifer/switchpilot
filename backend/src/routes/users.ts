@@ -64,7 +64,7 @@ export default async function userRoutes(app: FastifyInstance) {
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const { id } = req.params as any;
     const b = req.body as any;
     const me = req.user as any;
