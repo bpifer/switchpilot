@@ -6,6 +6,24 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: switchpilot
+          POSTGRES_PASSWORD: switchpilot
+          POSTGRES_DB: switchpilot
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U switchpilot"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: '5432'
+      POSTGRES_USER: switchpilot
+      POSTGRES_PASSWORD: switchpilot
+      POSTGRES_DB: switchpilot
+      RUN_DB_TESTS: '1'   # enables the HTTP route tests (tests/api.test.ts)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

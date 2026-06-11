@@ -9,6 +9,7 @@ import { raiseAlert, resolveAlert } from './services/alertService.js';
 import { drainJobQueue, reapStaleJobs } from './services/jobService.js';
 import { gitGc } from './services/configVersioning.js';
 import { evaluateAllCompliance } from './services/complianceService.js';
+import { isLeader } from './leader.js';
 import type { DeviceRow } from './services/deviceComms.js';
 
 const CONCURRENCY = 8;
@@ -30,13 +31,19 @@ async function eachDevice(fn: (d: DeviceRow) => Promise<void>, label: string): P
 }
 
 export function startScheduler(): void {
+  // Device sweeps and maintenance crons run ONLY on the leader so a horizontally
+  // scaled deployment doesn't poll/back-up every device once per replica.
+  // The job queue drain + reaper run everywhere (SKIP LOCKED distributes work).
+
   // fast reachability poll
   setInterval(() => {
+    if (!isLeader()) return;
     eachDevice(pollStatus, 'status poll').catch(err => console.error('status poll sweep failed:', err));
   }, config.poll.statusIntervalSec * 1000);
 
   // full metric/port/topology refresh
   setInterval(() => {
+    if (!isLeader()) return;
     eachDevice(async d => {
       if (d.status === 'offline') return;
       await refreshDevice(d.id);
@@ -56,6 +63,7 @@ export function startScheduler(): void {
 
   // nightly config backups — alert if config changed since last backup
   cron.schedule(config.poll.backupCron, () => {
+    if (!isLeader()) return;
     eachDevice(async d => {
       if (d.status === 'offline') return;
       const result = await backupDevice(d.id, 'scheduler');
@@ -70,6 +78,7 @@ export function startScheduler(): void {
 
   // drift checks (running config vs pinned baseline) + rule-based compliance scoring
   cron.schedule(config.poll.complianceCron, () => {
+    if (!isLeader()) return;
     eachDevice(async d => {
       if (d.status !== 'offline') await checkDrift(d.id);
     }, 'drift check').catch(err => console.error('drift sweep failed:', err));
@@ -78,6 +87,7 @@ export function startScheduler(): void {
 
   // prune history daily at 03:30
   cron.schedule('30 3 * * *', async () => {
+    if (!isLeader()) return;
     await query(`DELETE FROM device_metrics WHERE ts < now() - interval '400 days'`);
     await query(`DELETE FROM port_metrics WHERE recorded_at < now() - interval '90 days'`);
     await query(`DELETE FROM client_tracking WHERE last_seen < now() - interval '1 year'`);

@@ -34,7 +34,8 @@ Communicates directly over **SSH and SNMP** — no Cisco DNA Center, no Meraki l
 - **Config-change alerting** — scheduler detects changed backups and raises a `config_changed` alert
 - **Notifications** — Email (SMTP), Microsoft Teams webhook, Slack webhook
 - **Maintenance windows** — suppress alerts for planned outages; scoped to all devices or a specific list
-- **Real-time push** — WebSocket endpoint (`/ws`) streams alerts to the dashboard instantly via Redis pub/sub (scales across multiple API replicas)
+- **Real-time push** — authenticated WebSocket endpoint (`/ws`, JWT required) streams alerts to the dashboard instantly via Redis pub/sub (scales across multiple API replicas)
+- **Prometheus metrics** — `GET /metrics` exposes process defaults plus SwitchPilot gauges (devices by status, open alerts by severity, job queue depth) and an HTTP latency histogram, ready to scrape into Grafana/Datadog
 
 ### Endpoint Tracking
 - **Endpoint Inventory** — MAC table + ARP correlation gives you every endpoint: IP, MAC, vendor (150+ OUI prefixes), reverse-DNS hostname, port, switch, VLAN; export to CSV
@@ -66,6 +67,7 @@ Communicates directly over **SSH and SNMP** — no Cisco DNA Center, no Meraki l
 ### Automation
 - **Scheduled jobs** — one-shot or recurring (cron expressions); config push, backup, compliance check, firmware upgrade, port bounce, custom commands
 - **Cluster-safe job engine** — jobs are claimed atomically with Postgres `FOR UPDATE SKIP LOCKED`, so any number of API/worker replicas can run side-by-side with no double execution. Running jobs heartbeat; a reaper requeues work orphaned by a crashed worker. Failed jobs retry with exponential backoff (`maxAttempts`), and the Jobs page streams **live per-device progress** over WebSocket with a one-click **retry failed**.
+- **Horizontal scaling** — job execution is distributed across all replicas, while the device-polling/backup/compliance cron sweeps run on a single **leader** elected via a Postgres advisory lock (auto-failover if the leader dies). The API Deployment ships with `replicas: 2`.
 - **Event triggers** — device_offline, cpu_high, temp_high, psu_fail, fan_fail, port_down, port_flapping, config_drift → notify / restore baseline / run template / disable port
 
 ### Security & Access Control
