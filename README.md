@@ -105,9 +105,11 @@ API docs: **http://localhost:3000/docs**
 | Variable | Default | Description |
 |---|---|---|
 | `POSTGRES_PASSWORD` | `switchpilot` | **Required in production** |
-| `JWT_SECRET` | `dev-only-secret` | **Required in production** — 32+ random chars |
-| `CREDENTIAL_KEY` | `00…00` (32 bytes hex) | AES-256-GCM key for credential encryption |
+| `JWT_SECRET` | `dev-only-secret` | **Required in production** — 32+ random chars. With `NODE_ENV=production` the API **refuses to start** if left at the default. |
+| `CREDENTIAL_KEY` | `00…00` (32 bytes hex) | AES-256-GCM key for credential encryption. Same hard-fail in production if left at the default. |
 | `REDIS_URL` | `redis://redis:6379` | Redis connection string |
+| `ALLOWED_ORIGINS` | — | Comma-separated CORS allow-list (e.g. `https://switchpilot.corp`). Unset reflects any origin (dev only). |
+| `ENABLE_API_DOCS` | `true` | Serve Swagger UI at `/docs`. Set `false` to hide the API schema in production. |
 | `FIRMWARE_DIR` | `/data/firmware` | Where IOS image files are stored |
 | `CONFIG_HISTORY_DIR` | `/data/config-history` | Git repo for config version history |
 | `SYSLOG_PORT` | `514` | UDP syslog receive port |

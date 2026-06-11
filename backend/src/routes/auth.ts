@@ -10,6 +10,8 @@ import { getPolicy, roleRequiresMfa, passwordExpired, assertPasswordAllowed } fr
 
 export default async function authRoutes(app: FastifyInstance) {
   app.post('/api/auth/login', {
+    // Tight per-IP throttle to blunt credential-stuffing/brute-force attempts.
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
     schema: {
       tags: ['auth'],
       body: {

@@ -6,6 +6,12 @@ export function ldapEnabled(): boolean {
   return Boolean(config.ldap.url && config.ldap.searchBase);
 }
 
+/** Escape a value for safe use inside an LDAP search filter (RFC 4515).
+ *  The filter metacharacters are \ * ( ) and NUL. */
+export function escapeLdapFilter(value: string): string {
+  return value.replace(/[\\*()\0]/g, c => '\\' + c.charCodeAt(0).toString(16).padStart(2, '0'));
+}
+
 /**
  * Authenticate against LDAP / Active Directory.
  * 1. Bind with the service account, 2. find the user DN + group memberships,
@@ -22,12 +28,13 @@ export async function ldapAuthenticate(
 
   try {
     await bind(config.ldap.bindDn, config.ldap.bindPassword);
+    const safe = escapeLdapFilter(username);
     const entry: any = await new Promise((resolve, reject) => {
       client.search(
         config.ldap.searchBase,
         {
           scope: 'sub',
-          filter: `(|(sAMAccountName=${username})(uid=${username}))`,
+          filter: `(|(sAMAccountName=${safe})(uid=${safe}))`,
           attributes: ['dn', 'displayName', 'mail', 'memberOf']
         },
         (err: Error | null, res: any) => {

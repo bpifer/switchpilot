@@ -1,12 +1,14 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 
 import { config } from './config.js';
-import { migrate, seedAdmin } from './db.js';
+import { migrate, seedAdmin, query } from './db.js';
 import { redis, initPubSub } from './redis.js';
 import { startScheduler } from './scheduler.js';
 
@@ -36,35 +38,53 @@ import { startSyslogListener } from './services/syslogService.js';
 async function main() {
   const app = Fastify({ logger: true, bodyLimit: 10 * 1024 * 1024 });
 
-  await app.register(cors, { origin: true, credentials: true });
+  // Refuse to run in production with the built-in development secrets.
+  if (config.nodeEnv === 'production') {
+    if (config.jwtSecret === 'dev-only-secret') throw new Error('JWT_SECRET must be set in production');
+    if (config.credentialKey === '00'.repeat(32)) throw new Error('CREDENTIAL_KEY must be set in production');
+  }
+
+  // Security headers. CSP is disabled here because the API serves JSON + the
+  // Swagger UI (which uses inline scripts); the SPA is served by its own nginx.
+  await app.register(helmet, { contentSecurityPolicy: false });
+  await app.register(cors, {
+    origin: config.allowedOrigins ?? true,   // explicit list in prod; reflect any origin in dev
+    credentials: true
+  });
+  // Global request throttle; auth routes get a tighter per-route limit (see auth.ts).
+  await app.register(rateLimit, { max: 300, timeWindow: '1 minute' });
   await app.register(jwt, { secret: config.jwtSecret, sign: { expiresIn: config.jwtExpires } });
   await app.register(multipart);
 
-  await app.register(swagger, {
-    openapi: {
-      info: {
-        title: 'SwitchPilot API',
-        description: 'Cisco switch management platform — devices, ports, VLANs, configs, monitoring, alerting, firmware, automation, users.',
-        version: '1.0.0'
-      },
-      components: {
-        securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } }
-      },
-      security: [{ bearerAuth: [] }]
-    }
-  });
-  await app.register(swaggerUi, { routePrefix: '/docs' });
+  if (config.enableDocs) {
+    await app.register(swagger, {
+      openapi: {
+        info: {
+          title: 'SwitchPilot API',
+          description: 'Cisco switch management platform — devices, ports, VLANs, configs, monitoring, alerting, firmware, automation, users.',
+          version: '1.0.0'
+        },
+        components: {
+          securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } }
+        },
+        security: [{ bearerAuth: [] }]
+      }
+    });
+    await app.register(swaggerUi, { routePrefix: '/docs' });
+  }
 
-  app.get('/api/health', { schema: { tags: ['system'] } }, async () => ({
-    status: 'ok',
-    redis: redis.status,
-    time: new Date().toISOString()
-  }));
+  app.get('/api/health', { schema: { tags: ['system'] } }, async (_req, reply) => {
+    let db = 'ok';
+    try { await query('SELECT 1'); } catch { db = 'down'; }
+    const status = db === 'ok' ? 'ok' : 'degraded';
+    return reply.code(status === 'ok' ? 200 : 503).send({
+      status, db, redis: redis.status, time: new Date().toISOString()
+    });
+  });
 
   // Dashboard summary
   app.get('/api/summary', { schema: { tags: ['system'] } }, async (req, reply) => {
     try { await req.jwtVerify(); } catch { return reply.code(401).send({ error: 'Authentication required' }); }
-    const { query } = await import('./db.js');
     const [devices, alerts, jobs] = await Promise.all([
       query(`SELECT status, count(*)::int AS n FROM devices GROUP BY status`),
       query(`SELECT severity, count(*)::int AS n FROM alerts WHERE resolved_at IS NULL GROUP BY severity`),
@@ -108,7 +128,7 @@ async function main() {
   startSyslogListener();
 
   await app.listen({ port: config.port, host: '0.0.0.0' });
-  app.log.info(`SwitchPilot API listening on :${config.port} — docs at /docs`);
+  app.log.info(`SwitchPilot API listening on :${config.port}${config.enableDocs ? ' — docs at /docs' : ''}`);
 }
 
 main().catch(err => {

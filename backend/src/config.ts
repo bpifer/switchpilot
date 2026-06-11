@@ -5,7 +5,14 @@ function req(name: string, fallback?: string): string {
 }
 
 export const config = {
+  nodeEnv: process.env.NODE_ENV ?? 'development',
   port: parseInt(process.env.API_PORT ?? '3000', 10),
+  // Comma-separated allowed CORS origins; unset = reflect any origin (dev convenience).
+  allowedOrigins: process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
+    : null,
+  // Serve Swagger UI at /docs. Default on; set ENABLE_API_DOCS=false to hide the schema in prod.
+  enableDocs: process.env.ENABLE_API_DOCS !== 'false',
   db: {
     host: process.env.POSTGRES_HOST ?? 'localhost',
     port: parseInt(process.env.POSTGRES_PORT ?? '5432', 10),

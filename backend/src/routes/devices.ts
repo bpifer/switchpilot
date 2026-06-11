@@ -161,10 +161,18 @@ export default async function deviceRoutes(app: FastifyInstance) {
     const { id } = req.params as any;
     const b = req.body as any;
     const me = req.user as any;
-    if (b.siteId !== undefined) await query('UPDATE devices SET site_id=$1 WHERE id=$2', [b.siteId, id]);
-    if (b.location !== undefined) await query('UPDATE devices SET location=$1 WHERE id=$2', [b.location, id]);
-    if (b.credentialId !== undefined) await query('UPDATE devices SET credential_id=$1 WHERE id=$2', [b.credentialId, id]);
-    if (b.monitorEnabled !== undefined) await query('UPDATE devices SET monitor_enabled=$1 WHERE id=$2', [b.monitorEnabled, id]);
+    // Build one atomic UPDATE from whichever fields were supplied.
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    const add = (col: string, val: unknown) => { params.push(val); sets.push(`${col}=$${params.length}`); };
+    if (b.siteId !== undefined) add('site_id', b.siteId);
+    if (b.location !== undefined) add('location', b.location);
+    if (b.credentialId !== undefined) add('credential_id', b.credentialId);
+    if (b.monitorEnabled !== undefined) add('monitor_enabled', b.monitorEnabled);
+    if (sets.length) {
+      params.push(id);
+      await query(`UPDATE devices SET ${sets.join(', ')} WHERE id=$${params.length}`, params);
+    }
     await audit(me.username, 'device.update', id, b, req.ip);
     return { ok: true };
   });

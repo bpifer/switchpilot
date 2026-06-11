@@ -32,7 +32,8 @@ export function useWebSocket(onEvent: (e: WsEvent) => void): void {
       const token = getToken();
       if (!token || stopped) return;
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      ws = new WebSocket(`${proto}//${location.host}/ws`);
+      // The /ws endpoint authenticates this token before accepting the upgrade.
+      ws = new WebSocket(`${proto}//${location.host}/ws?token=${encodeURIComponent(token)}`);
 
       ws.onmessage = e => {
         try { handlerRef.current(JSON.parse(e.data)); } catch { /* ignore malformed */ }
