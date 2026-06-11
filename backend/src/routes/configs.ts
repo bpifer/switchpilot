@@ -6,6 +6,7 @@ import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
 import { deviceExec, devicePushConfig } from '../services/deviceComms.js';
 import { backupDevice } from '../services/configService.js';
+import { gitLog, gitShow } from '../services/configVersioning.js';
 
 export default async function configRoutes(app: FastifyInstance) {
   // Live running/startup config
@@ -84,6 +85,26 @@ export default async function configRoutes(app: FastifyInstance) {
       `backup ${a.rows[0].created_at}`, bLabel, a.rows[0].content, bContent, '', '', { context: 3 });
     return { diff: patch, identical: patch.split('\n').length <= 5 };
   });
+
+  // Git commit history for a device's config file
+  app.get('/api/devices/:id/config/git-log', { preHandler: requireRole('readonly'), schema: { tags: ['configs'] } },
+    async (req) => {
+      const { id } = req.params as any;
+      const { rows } = await query('SELECT hostname FROM devices WHERE id=$1', [id]);
+      if (!rows[0]) return [];
+      return gitLog(rows[0].hostname);
+    });
+
+  // Show config content at a specific git SHA
+  app.get('/api/devices/:id/config/git-show/:sha', { preHandler: requireRole('readonly'), schema: { tags: ['configs'] } },
+    async (req, reply) => {
+      const { id, sha } = req.params as any;
+      const { rows } = await query('SELECT hostname FROM devices WHERE id=$1', [id]);
+      if (!rows[0]) return reply.code(404).send({ error: 'Device not found' });
+      const content = await gitShow(sha, rows[0].hostname);
+      if (!content) return reply.code(404).send({ error: 'Commit not found' });
+      return { sha, content };
+    });
 
   // Push arbitrary config lines (netadmin only)
   app.post('/api/devices/:id/config/push', {

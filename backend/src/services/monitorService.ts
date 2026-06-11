@@ -1,4 +1,5 @@
 // Polls devices over SSH/SNMP, updates inventory/port/topology state, raises alerts.
+import dns from 'node:dns/promises';
 import { query } from '../db.js';
 import { redis } from '../redis.js';
 import { CiscoSshSession } from '../cisco/sshClient.js';
@@ -9,6 +10,8 @@ import {
   parsePowerInlineTotals, parseShowSwitch, parseInterfaceErrors, parseVlanBrief, parseArpTable
 } from '../cisco/parsers.js';
 import { resolveCapabilities } from '../cisco/capabilities.js';
+import { lookupLifecycle } from '../cisco/lifecycle.js';
+import { lookupVendor } from '../cisco/oui.js';
 import { getDevice, sshTargetFor, snmpTargetFor, type DeviceRow } from './deviceComms.js';
 import { raiseAlert, resolveAlert } from './alertService.js';
 import { runAutomationTrigger } from './automationService.js';
@@ -80,16 +83,22 @@ export async function refreshDevice(deviceId: string): Promise<void> {
       stack = parseShowSwitch(await session.exec('show switch').catch(() => ''));
     }
 
+    const resolvedModel = ver.model || device.model;
+    const lifecycle = lookupLifecycle(resolvedModel);
+
     await query(
       `UPDATE devices SET hostname=$1, model=$2, serial_number=$3, ios_version=$4,
          uptime_seconds=$5, cpu_pct=$6, mem_pct=$7, temperature_c=$8,
          psu_status=$9, fan_status=$10, stack_members=$11, capabilities=$12,
+         eos_date=$13, eol_date=$14, recommended_release=$15,
          status='online', last_seen_at=now()
-       WHERE id=$13`,
-      [ver.hostname || device.hostname, ver.model || device.model, ver.serial, ver.iosVersion,
+       WHERE id=$16`,
+      [ver.hostname || device.hostname, resolvedModel, ver.serial, ver.iosVersion,
        ver.uptimeSeconds, cpu.fiveMin, mem, env.temperatureC,
        JSON.stringify(env.psu), JSON.stringify(env.fans), JSON.stringify(stack),
-       JSON.stringify(caps), deviceId]);
+       JSON.stringify(caps),
+       lifecycle?.eos ?? null, lifecycle?.eol ?? null, lifecycle?.recommendedRelease ?? '',
+       deviceId]);
 
     // fetch PoE before device_metrics insert so totals are available
     const poeRaw = (caps as any).poe ? await session.exec('show power inline').catch(() => '') : '';
@@ -157,18 +166,25 @@ export async function refreshDevice(deviceId: string): Promise<void> {
         [deviceId, i.name, err?.inBps ?? null, err?.outBps ?? null,
          err?.inputErrors ?? 0, err?.outputErrors ?? 0, i.status]);
 
-      // client tracking: upsert each dynamic MAC seen on this port, include IP if known
+      // client tracking: upsert each dynamic MAC seen on this port, include IP/vendor/PTR if known
       if (portEntry) {
         for (const mac of portEntry.macs) {
           const ip = ipByMac.get(mac) ?? null;
+          const vendor = lookupVendor(mac);
+          let ptr: string | null = null;
+          if (ip) {
+            try { ptr = (await dns.reverse(ip))[0] ?? null; } catch { /* no PTR record */ }
+          }
           await query(
-            `INSERT INTO client_tracking (device_id, port_name, mac, vlan, ip_address, first_seen, last_seen)
-             VALUES ($1,$2,$3,$4,$5::inet,now(),now())
+            `INSERT INTO client_tracking (device_id, port_name, mac, vlan, ip_address, vendor, ptr_hostname, first_seen, last_seen)
+             VALUES ($1,$2,$3,$4,$5::inet,$6,$7,now(),now())
              ON CONFLICT (device_id, mac) DO UPDATE SET
                port_name=$2, vlan=$4,
                ip_address=COALESCE($5::inet, client_tracking.ip_address),
+               vendor=COALESCE($6, client_tracking.vendor),
+               ptr_hostname=COALESCE($7, client_tracking.ptr_hostname),
                last_seen=now()`,
-            [deviceId, i.name, mac, portEntry.vlan, ip]);
+            [deviceId, i.name, mac, portEntry.vlan, ip, vendor, ptr]);
         }
       }
 

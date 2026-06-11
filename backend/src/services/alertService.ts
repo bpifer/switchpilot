@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 import { query } from '../db.js';
 import { config } from '../config.js';
-import { internalEvents } from '../events.js';
+import { publishEvent } from '../redis.js';
 
 export type Severity = 'info' | 'warning' | 'critical';
 
@@ -36,8 +36,8 @@ export async function raiseAlert(
     'INSERT INTO alerts (device_id, severity, kind, message) VALUES ($1,$2,$3,$4)',
     [deviceId, severity, kind, message]);
 
-  // Emit for WebSocket subscribers
-  internalEvents.emit('alert', { deviceId, kind, severity, message, ts: new Date().toISOString() });
+  // Fan out to all connected API instances via Redis pub/sub
+  publishEvent({ type: 'alert', data: { deviceId, kind, severity, message, ts: new Date().toISOString() } }).catch(() => {});
 
   let hostname = 'platform';
   if (deviceId) {

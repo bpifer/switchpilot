@@ -7,7 +7,7 @@ import swaggerUi from '@fastify/swagger-ui';
 
 import { config } from './config.js';
 import { migrate, seedAdmin } from './db.js';
-import { redis } from './redis.js';
+import { redis, initPubSub } from './redis.js';
 import { startScheduler } from './scheduler.js';
 
 import authRoutes from './routes/auth.js';
@@ -24,6 +24,9 @@ import analyticsRoutes from './routes/analytics.js';
 import clientRoutes from './routes/clients.js';
 import maintenanceRoutes from './routes/maintenance.js';
 import discoveryRoutes from './routes/discovery.js';
+import locateRoutes from './routes/locate.js';
+import poeRoutes from './routes/poe.js';
+import campaignRoutes from './routes/campaigns.js';
 import wsRoutes from './routes/ws.js';
 import { startSyslogListener } from './services/syslogService.js';
 
@@ -85,11 +88,15 @@ async function main() {
   await app.register(clientRoutes);
   await app.register(maintenanceRoutes);
   await app.register(discoveryRoutes);
+  await app.register(locateRoutes);
+  await app.register(poeRoutes);
+  await app.register(campaignRoutes);
   await app.register(wsRoutes);
 
   await migrate();
   await seedAdmin();
   await redis.connect().catch(err => app.log.warn(`redis unavailable: ${err.message}`));
+  await initPubSub().catch(err => app.log.warn(`redis pub/sub unavailable: ${err.message}`));
 
   startScheduler();
   startSyslogListener();

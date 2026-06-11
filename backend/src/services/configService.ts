@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { query } from '../db.js';
 import { deviceExec, devicePushConfig } from './deviceComms.js';
 import { raiseAlert } from './alertService.js';
+import { commitConfig } from './configVersioning.js';
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
@@ -25,10 +26,19 @@ export async function backupDevice(deviceId: string, takenBy = 'scheduler'): Pro
     'SELECT id, sha256 FROM config_backups WHERE device_id=$1 ORDER BY created_at DESC LIMIT 1', [deviceId]);
   if (latest.rows[0]?.sha256 === hash) return { id: latest.rows[0].id, changed: false };
 
+  // Fetch hostname for git commit message
+  const dev = await query('SELECT hostname FROM devices WHERE id=$1', [deviceId]);
+  const hostname = dev.rows[0]?.hostname ?? deviceId;
+
+  const gitSha = await commitConfig(
+    hostname, content,
+    `${hostname}: backup by ${takenBy} at ${new Date().toISOString()}`
+  );
+
   const { rows } = await query(
-    `INSERT INTO config_backups (device_id, kind, content, sha256, taken_by)
-     VALUES ($1,'running',$2,$3,$4) RETURNING id`,
-    [deviceId, content, hash, takenBy]);
+    `INSERT INTO config_backups (device_id, kind, content, sha256, taken_by, git_sha)
+     VALUES ($1,'running',$2,$3,$4,$5) RETURNING id`,
+    [deviceId, content, hash, takenBy, gitSha ?? null]);
   return { id: rows[0].id, changed: true };
 }
 
