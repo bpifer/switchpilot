@@ -85,15 +85,15 @@ export async function refreshDevice(deviceId: string): Promise<void> {
        JSON.stringify(env.psu), JSON.stringify(env.fans), JSON.stringify(stack),
        JSON.stringify(caps), deviceId]);
 
+    // fetch PoE before device_metrics insert so totals are available
+    const poeRaw = (caps as any).poe ? await session.exec('show power inline').catch(() => '') : '';
+    const poeTotals = poeRaw ? parsePowerInlineTotals(poeRaw) : null;
+
     await query(
       `INSERT INTO device_metrics (device_id, cpu_pct, mem_pct, temperature_c, poe_watts_used, poe_watts_capacity)
        VALUES ($1,$2,$3,$4,$5,$6)`,
       [deviceId, cpu.fiveMin, mem, env.temperatureC,
        poeTotals?.used ?? null, poeTotals?.capacity ?? null]);
-
-    // fetch PoE early so totals are available for device_metrics insert
-    const poeRaw = (caps as any).poe ? await session.exec('show power inline').catch(() => '') : '';
-    const poeTotals = poeRaw ? parsePowerInlineTotals(poeRaw) : null;
 
     await evaluateHealthAlerts(deviceId, device.hostname, cpu.fiveMin, mem, env);
 
