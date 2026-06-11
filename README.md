@@ -1,7 +1,7 @@
-# SwitchPilot — Cisco Switch Management Platform
+# SwitchPilot - Cisco Switch Management Platform
 
 A self-hosted, enterprise-grade management dashboard for Cisco Catalyst and Nexus switches.
-Communicates directly over **SSH and SNMP** — no Cisco DNA Center, no Meraki licensing, no cloud dependency.
+Communicates directly over **SSH and SNMP** - no Cisco DNA Center, no Meraki licensing, no cloud dependency.
 
 ---
 
@@ -16,12 +16,12 @@ Communicates directly over **SSH and SNMP** — no Cisco DNA Center, no Meraki l
 
 ### Configuration
 - **Backup & restore** — scheduled automatic backups, on-demand, restore any snapshot
-- **Git versioning** — every backup commits to a local git repo (`/data/config-history`), laid out as `configs/<site>/<hostname>.cfg`; the commit **author** is the user who triggered it and **Reason** / **Ticket** are recorded as commit trailers for audit. Browse the per-device history timeline, view config at any commit, and diff any two versions in the UI (or via `GET /api/devices/:id/config/git-log`, `…/git-show/:sha`, `…/git-diff`). The repo is auto-`gc`'d nightly.
+- **Git versioning** - every backup commits to a local git repo (`/data/config-history`), laid out as `configs/<site>/<hostname>.cfg`; the commit **author** is the user who triggered it and **Reason** / **Ticket** are recorded as commit trailers for audit. Browse the per-device history timeline, view config at any commit, and diff any two versions in the UI (or via `GET /api/devices/:id/config/git-log`, `…/git-show/:sha`, `…/git-diff`). The repo is auto-`gc`'d nightly.
 - **Diff** — compare any two backups or a backup against live running config
 - **Push & templates** — send arbitrary config lines or render reusable templates (VLANs, interfaces, port security, QoS, ACLs, trunks, STP, SNMP, NTP, AAA)
-- **Rollback** — one-click restore of any historical git commit onto the device (current config snapshotted first, so rollbacks are themselves reversible) — Git for switches
+- **Rollback** - one-click restore of any historical git commit onto the device (current config snapshotted first, so rollbacks are themselves reversible) - Git for switches
 - **Drift detection** — compare running config to a pinned baseline; optional auto-remediation
-- **Compliance engine** — define rules (line/regex present/absent) scoped to all devices or a site; every device's latest config is scored against them. Fleet + per-device compliance %, per-rule pass/fail rollup, severity-weighted critical-failure flags, and one-click **remediation** that pushes a rule's fix lines. Seeded with a best-practice ruleset (NTP, AAA, TACACS+, syslog, SNMPv3-only, no-telnet, enable secret). Evaluated on the compliance cron and on demand.
+- **Compliance engine** - define rules (line/regex present/absent) scoped to all devices or a site; every device's latest config is scored against them. Fleet + per-device compliance %, per-rule pass/fail rollup, severity-weighted critical-failure flags, and one-click **remediation** that pushes a rule's fix lines. Seeded with a best-practice ruleset (NTP, AAA, TACACS+, syslog, SNMPv3-only, no-telnet, enable secret). Evaluated on the compliance cron and on demand.
 
 ### Port Management
 - **Graphical front-panel** — port status, VLAN, speed, PoE watts
@@ -29,24 +29,24 @@ Communicates directly over **SSH and SNMP** — no Cisco DNA Center, no Meraki l
 - **Historical metrics** — per-port bandwidth and error counters over time
 
 ### Monitoring & Alerting
-- **Continuous polling** — online/offline, CPU, memory, temperature, PSU/fan, port flapping, interface errors
-- **Syslog ingest** — UDP syslog receiver (port 514); parses link-down, config-change, PoE-fault, and hardware-error events from IOS and NX-OS
-- **Config-change alerting** — scheduler detects changed backups and raises a `config_changed` alert
-- **Notifications** — Email (SMTP), Microsoft Teams webhook, Slack webhook
-- **Maintenance windows** — suppress alerts for planned outages; scoped to all devices or a specific list
-- **Real-time push** — authenticated WebSocket endpoint (`/ws`, JWT required) streams alerts to the dashboard instantly via Redis pub/sub (scales across multiple API replicas)
-- **Prometheus metrics** — `GET /metrics` exposes process defaults plus SwitchPilot gauges (devices by status, open alerts by severity, job queue depth) and an HTTP latency histogram, ready to scrape into Grafana/Datadog
+- **Continuous polling** - online/offline, CPU, memory, temperature, PSU/fan, port flapping, interface errors
+- **Syslog ingest** - UDP syslog receiver (port 514); parses link-down, config-change, PoE-fault, and hardware-error events from IOS and NX-OS
+- **Config-change alerting** - scheduler detects changed backups and raises a `config_changed` alert
+- **Notifications** - Email (SMTP), Microsoft Teams webhook, Slack webhook
+- **Maintenance windows** - suppress alerts for planned outages; scoped to all devices or a specific list
+- **Real-time push** - authenticated WebSocket endpoint (`/ws`, JWT required) streams alerts to the dashboard instantly via Redis pub/sub (scales across multiple API replicas)
+- **Prometheus metrics** - `GET /metrics` exposes process defaults plus SwitchPilot gauges (devices by status, open alerts by severity, job queue depth) and an HTTP latency histogram, ready to scrape into Grafana/Datadog
 
 ### Endpoint Tracking
-- **Endpoint Inventory** — MAC table + ARP correlation gives you every endpoint: IP, MAC, vendor (150+ OUI prefixes), reverse-DNS hostname, port, switch, VLAN; export to CSV
-- **Endpoint Locator** — search by IP, MAC (any format), or hostname; returns Switch, Port, VLAN, CDP/LLDP Neighbor, Site instantly
-- **Client history** — track every port and switch a MAC address has been seen on over time
+- **Endpoint Inventory** - MAC table + ARP correlation gives you every endpoint: IP, MAC, vendor (150+ OUI prefixes), reverse-DNS hostname, port, switch, VLAN; export to CSV
+- **Endpoint Locator** - search by IP, MAC (any format), or hostname; returns Switch, Port, VLAN, CDP/LLDP Neighbor, Site instantly
+- **Client history** - track every port and switch a MAC address has been seen on over time
 
 ### Network Intelligence
-- **Topology** — Layer-2 maps built from CDP/LLDP neighbor data
-- **ARP/IP correlation** — layer-3 switches supply IP→MAC mapping; populates `ip_address` on every tracked endpoint
-- **CDP/LLDP discovery** — suggests unmanaged neighbors as onboarding candidates
-- **VLAN visualization** — per-device VLAN table with port membership
+- **Topology** - Layer-2 maps built from CDP/LLDP neighbor data
+- **ARP/IP correlation** - layer-3 switches supply IP→MAC mapping; populates `ip_address` on every tracked endpoint
+- **CDP/LLDP discovery** - suggests unmanaged neighbors as onboarding candidates
+- **VLAN visualization** - per-device VLAN table with port membership
 
 ### PoE Dashboard
 - Per-switch utilization: used watts, total budget, remaining headroom
@@ -60,28 +60,28 @@ Communicates directly over **SSH and SNMP** — no Cisco DNA Center, no Meraki l
 - Super Admins can add/edit/delete catalog entries in the UI — correct dates or add new models without a code release (ready for a future Cisco EoX feed import)
 
 ### Firmware Management
-- **Image upload** — server-side MD5 verification; images served for `copy http:` transfers
-- **Compliance tracking** — set a target version per platform family; report which devices are behind
-- **Ring-based campaigns** — staged rollouts across Pilot / Production / Critical rings with configurable wait days between rings; manual or automatic advancement
+- **Image upload** - server-side MD5 verification; images served for `copy http:` transfers
+- **Compliance tracking** - set a target version per platform family; report which devices are behind
+- **Ring-based campaigns** - staged rollouts across Pilot / Production / Critical rings with configurable wait days between rings; manual or automatic advancement
 
 ### Automation
-- **Scheduled jobs** — one-shot or recurring (cron expressions); config push, backup, compliance check, firmware upgrade, port bounce, custom commands
-- **Cluster-safe job engine** — jobs are claimed atomically with Postgres `FOR UPDATE SKIP LOCKED`, so any number of API/worker replicas can run side-by-side with no double execution. Running jobs heartbeat; a reaper requeues work orphaned by a crashed worker. Failed jobs retry with exponential backoff (`maxAttempts`), and the Jobs page streams **live per-device progress** over WebSocket with a one-click **retry failed**.
-- **Horizontal scaling** — job execution is distributed across all replicas, while the device-polling/backup/compliance cron sweeps run on a single **leader** elected via a Postgres advisory lock (auto-failover if the leader dies). The API Deployment ships with `replicas: 2`.
-- **Event triggers** — device_offline, cpu_high, temp_high, psu_fail, fan_fail, port_down, port_flapping, config_drift → notify / restore baseline / run template / disable port
+- **Scheduled jobs** - one-shot or recurring (cron expressions); config push, backup, compliance check, firmware upgrade, port bounce, custom commands
+- **Cluster-safe job engine** - jobs are claimed atomically with Postgres `FOR UPDATE SKIP LOCKED`, so any number of API/worker replicas can run side-by-side with no double execution. Running jobs heartbeat; a reaper requeues work orphaned by a crashed worker. Failed jobs retry with exponential backoff (`maxAttempts`), and the Jobs page streams **live per-device progress** over WebSocket with a one-click **retry failed**.
+- **Horizontal scaling** - job execution is distributed across all replicas, while the device-polling/backup/compliance cron sweeps run on a single **leader** elected via a Postgres advisory lock (auto-failover if the leader dies). The API Deployment ships with `replicas: 2`.
+- **Event triggers** - device_offline, cpu_high, temp_high, psu_fail, fan_fail, port_down, port_flapping, config_drift → notify / restore baseline / run template / disable port
 
 ### Security & Access Control
-- **RBAC** — Super Admin / Network Admin / Help Desk / Read Only
-- **Auth** — local accounts, LDAP/Active Directory, TOTP MFA
-- **Configurable security policy** (Super Admin) —
-  - **Password complexity** — min length + upper/lower/digit/symbol requirements, enforced on every password set
-  - **Password expiry** — optional max age forces a change at next login
-  - **Account lockout** — lock after N failed attempts for a configurable window; one-click unlock
-  - **MFA enforcement** — require TOTP enrollment org-wide or for specific roles; users are gated into a forced enrollment screen until compliant
-- **Forced security gate** — users with a pending password change or MFA enrollment cannot use the app until they complete it
-- **Credential vault** — AES-256-GCM encrypted SSH and SNMP credentials
-- **Tamper-evident audit log** — every write action recorded with username and IP, and each entry is **hash-chained** to the previous one; a one-click integrity check detects any edit, deletion, or reordering
-- **Full REST API** — OpenAPI/Swagger docs at `/docs`
+- **RBAC** - Super Admin / Network Admin / Help Desk / Read Only
+- **Auth** - local accounts, LDAP/Active Directory, TOTP MFA
+- **Configurable security policy** (Super Admin) -
+  - **Password complexity** - min length + upper/lower/digit/symbol requirements, enforced on every password set
+  - **Password expiry** - optional max age forces a change at next login
+  - **Account lockout** - lock after N failed attempts for a configurable window; one-click unlock
+  - **MFA enforcement** - require TOTP enrollment org-wide or for specific roles; users are gated into a forced enrollment screen until compliant
+- **Forced security gate** - users with a pending password change or MFA enrollment cannot use the app until they complete it
+- **Credential vault** - AES-256-GCM encrypted SSH and SNMP credentials
+- **Tamper-evident audit log** - every write action recorded with username and IP, and each entry is **hash-chained** to the previous one; a one-click integrity check detects any edit, deletion, or reordering
+- **Full REST API** - OpenAPI/Swagger docs at `/docs`
 
 ---
 
