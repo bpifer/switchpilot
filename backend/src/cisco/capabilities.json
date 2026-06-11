@@ -1,0 +1,130 @@
+{
+  "families": {
+    "catalyst2960": {
+      "label": "Catalyst 2960 Series",
+      "modelPatterns": ["^WS-C2960"],
+      "os": "ios",
+      "capabilities": {
+        "ssh": true, "snmp": true, "restconf": false, "netconf": false,
+        "poe": "model", "stacking": "model", "layer3": false,
+        "cableTest": true, "qos": "mls", "vlanMax": 255,
+        "archiveRollback": false, "installMode": false,
+        "tempSensor": false, "dual_psu": "model"
+      },
+      "commands": {
+        "cpu": "show processes cpu | include five",
+        "memory": "show processes memory | include Processor",
+        "env": "show env all",
+        "poe": "show power inline",
+        "tdr": "test cable-diagnostics tdr interface {port}",
+        "saveConfig": "write memory"
+      }
+    },
+    "catalyst3560": {
+      "label": "Catalyst 3560 Series",
+      "modelPatterns": ["^WS-C3560"],
+      "os": "ios",
+      "capabilities": {
+        "ssh": true, "snmp": true, "restconf": false, "netconf": false,
+        "poe": "model", "stacking": false, "layer3": true,
+        "cableTest": true, "qos": "mls", "vlanMax": 1005,
+        "archiveRollback": true, "installMode": false,
+        "tempSensor": true, "dual_psu": "model"
+      },
+      "commands": {
+        "cpu": "show processes cpu | include five",
+        "memory": "show processes memory | include Processor",
+        "env": "show env all",
+        "poe": "show power inline",
+        "tdr": "test cable-diagnostics tdr interface {port}",
+        "saveConfig": "write memory"
+      }
+    },
+    "catalyst3750": {
+      "label": "Catalyst 3750 Series",
+      "modelPatterns": ["^WS-C3750"],
+      "os": "ios",
+      "capabilities": {
+        "ssh": true, "snmp": true, "restconf": false, "netconf": false,
+        "poe": "model", "stacking": true, "layer3": true,
+        "cableTest": true, "qos": "mls", "vlanMax": 1005,
+        "archiveRollback": true, "installMode": false,
+        "tempSensor": true, "dual_psu": "model"
+      },
+      "commands": {
+        "cpu": "show processes cpu | include five",
+        "memory": "show processes memory | include Processor",
+        "env": "show env all",
+        "poe": "show power inline",
+        "stack": "show switch",
+        "tdr": "test cable-diagnostics tdr interface {port}",
+        "saveConfig": "write memory"
+      }
+    },
+    "catalyst9200": {
+      "label": "Catalyst 9200 Series",
+      "modelPatterns": ["^C9200"],
+      "os": "iosxe",
+      "capabilities": {
+        "ssh": true, "snmp": true, "restconf": true, "netconf": true,
+        "poe": "model", "stacking": true, "layer3": true,
+        "cableTest": true, "qos": "mqc", "vlanMax": 4094,
+        "archiveRollback": true, "installMode": true,
+        "tempSensor": true, "dual_psu": true
+      },
+      "commands": {
+        "cpu": "show processes cpu | include five",
+        "memory": "show processes memory | include Processor",
+        "env": "show environment all",
+        "poe": "show power inline",
+        "stack": "show switch",
+        "tdr": "test cable-diagnostics tdr interface {port}",
+        "saveConfig": "write memory",
+        "installAdd": "install add file flash:{file} activate commit"
+      }
+    },
+    "catalyst9300": {
+      "label": "Catalyst 9300 Series",
+      "modelPatterns": ["^C9300"],
+      "os": "iosxe",
+      "capabilities": {
+        "ssh": true, "snmp": true, "restconf": true, "netconf": true,
+        "poe": "model", "stacking": true, "layer3": true,
+        "cableTest": true, "qos": "mqc", "vlanMax": 4094,
+        "archiveRollback": true, "installMode": true,
+        "tempSensor": true, "dual_psu": true
+      },
+      "commands": {
+        "cpu": "show processes cpu | include five",
+        "memory": "show processes memory | include Processor",
+        "env": "show environment all",
+        "poe": "show power inline",
+        "stack": "show switch",
+        "tdr": "test cable-diagnostics tdr interface {port}",
+        "saveConfig": "write memory",
+        "installAdd": "install add file flash:{file} activate commit"
+      }
+    },
+    "catalyst9400": {
+      "label": "Catalyst 9400 Series",
+      "modelPatterns": ["^C9400", "^C94\\d{2}R?"],
+      "os": "iosxe",
+      "capabilities": {
+        "ssh": true, "snmp": true, "restconf": true, "netconf": true,
+        "poe": "model", "stacking": false, "layer3": true,
+        "cableTest": true, "qos": "mqc", "vlanMax": 4094,
+        "archiveRollback": true, "installMode": true,
+        "tempSensor": true, "dual_psu": true, "modular": true
+      },
+      "commands": {
+        "cpu": "show processes cpu | include five",
+        "memory": "show processes memory | include Processor",
+        "env": "show environment all",
+        "poe": "show power inline",
+        "tdr": "test cable-diagnostics tdr interface {port}",
+        "saveConfig": "write memory",
+        "installAdd": "install add file bootflash:{file} activate commit"
+      }
+    }
+  }
+}
