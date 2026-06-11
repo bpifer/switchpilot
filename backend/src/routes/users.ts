@@ -3,13 +3,15 @@ import bcrypt from 'bcryptjs';
 import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
+import { assertPasswordAllowed } from '../auth/securityPolicy.js';
 
 export default async function userRoutes(app: FastifyInstance) {
   app.get('/api/users', { preHandler: requireRole('superadmin'), schema: { tags: ['users'] } },
     async () => {
       const { rows } = await query(
         `SELECT id, username, display_name, email, auth_source, role, mfa_enabled, enabled,
-                created_at, last_login_at
+                created_at, last_login_at, failed_login_count,
+                (locked_until IS NOT NULL AND locked_until > now()) AS locked
          FROM users ORDER BY username`);
       return rows;
     });
@@ -33,8 +35,12 @@ export default async function userRoutes(app: FastifyInstance) {
   }, async (req, reply) => {
     const b = req.body as any;
     const me = req.user as any;
+    if (b.authSource !== 'ldap') {
+      if (!b.password) return reply.code(400).send({ error: 'Password required for local accounts' });
+      try { await assertPasswordAllowed(b.password); }
+      catch (err: any) { return reply.code(400).send({ error: err.message }); }
+    }
     const hash = b.authSource !== 'ldap' && b.password ? await bcrypt.hash(b.password, 12) : null;
-    if (b.authSource !== 'ldap' && !hash) return reply.code(400).send({ error: 'Password required for local accounts' });
     const { rows } = await query(
       `INSERT INTO users (username, display_name, email, role, password_hash, auth_source, must_change_password)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, username, role`,
@@ -66,8 +72,10 @@ export default async function userRoutes(app: FastifyInstance) {
     if (b.enabled !== undefined) await query('UPDATE users SET enabled=$1 WHERE id=$2', [b.enabled, id]);
     if (b.displayName !== undefined) await query('UPDATE users SET display_name=$1 WHERE id=$2', [b.displayName, id]);
     if (b.password) {
+      try { await assertPasswordAllowed(b.password); }
+      catch (err: any) { return reply.code(400).send({ error: err.message }); }
       const hash = await bcrypt.hash(b.password, 12);
-      await query(`UPDATE users SET password_hash=$1, must_change_password=TRUE WHERE id=$2 AND auth_source='local'`, [hash, id]);
+      await query(`UPDATE users SET password_hash=$1, must_change_password=TRUE, password_changed_at=now() WHERE id=$2 AND auth_source='local'`, [hash, id]);
     }
     await audit(me.username, 'user.update', id, b.password ? { ...b, password: '***' } : b, req.ip);
     return { ok: true };

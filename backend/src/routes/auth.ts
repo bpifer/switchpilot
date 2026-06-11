@@ -6,6 +6,7 @@ import { audit } from '../audit.js';
 import { encryptSecret, decryptSecret } from '../crypto/secrets.js';
 import { ldapAuthenticate, ldapEnabled } from '../auth/ldap.js';
 import { requireRole } from '../auth/rbac.js';
+import { getPolicy, roleRequiresMfa, passwordExpired, assertPasswordAllowed } from '../auth/securityPolicy.js';
 
 export default async function authRoutes(app: FastifyInstance) {
   app.post('/api/auth/login', {
@@ -25,6 +26,14 @@ export default async function authRoutes(app: FastifyInstance) {
     const { username, password, totp } = req.body as { username: string; password: string; totp?: string };
     const { rows } = await query('SELECT * FROM users WHERE username=$1 AND enabled', [username]);
     let user = rows[0];
+    const policy = await getPolicy();
+
+    // Account lockout: refuse before checking the password if the account is locked.
+    if (user?.locked_until && new Date(user.locked_until) > new Date()) {
+      await audit(username, 'login.locked_out', '', {}, req.ip);
+      const mins = Math.ceil((new Date(user.locked_until).getTime() - Date.now()) / 60000);
+      return reply.code(423).send({ error: `Account locked. Try again in ${mins} minute(s).` });
+    }
 
     let ok = false;
     if (user?.auth_source === 'local' && user.password_hash) {
@@ -46,6 +55,17 @@ export default async function authRoutes(app: FastifyInstance) {
     }
 
     if (!ok || !user) {
+      // Count the failure and lock the account once the threshold is reached (local accounts we can track).
+      if (user && policy.lockout_threshold > 0) {
+        const failures = (user.failed_login_count ?? 0) + 1;
+        if (failures >= policy.lockout_threshold) {
+          const until = new Date(Date.now() + policy.lockout_minutes * 60_000);
+          await query('UPDATE users SET failed_login_count=$1, locked_until=$2 WHERE id=$3', [failures, until, user.id]);
+          await audit(username, 'login.locked', '', { failures }, req.ip);
+        } else {
+          await query('UPDATE users SET failed_login_count=$1 WHERE id=$2', [failures, user.id]);
+        }
+      }
       await audit(username, 'login.failed', '', {}, req.ip);
       return reply.code(401).send({ error: 'Invalid username or password' });
     }
@@ -59,14 +79,25 @@ export default async function authRoutes(app: FastifyInstance) {
       }
     }
 
-    await query('UPDATE users SET last_login_at=now() WHERE id=$1', [user.id]);
+    // Successful auth: clear any failure/lock state.
+    await query('UPDATE users SET last_login_at=now(), failed_login_count=0, locked_until=NULL WHERE id=$1', [user.id]);
+
+    // Password expiry → force a change on next use.
+    let mustChange = user.must_change_password;
+    if (passwordExpired(user.password_changed_at, policy)) {
+      if (!mustChange) await query('UPDATE users SET must_change_password=TRUE WHERE id=$1', [user.id]);
+      mustChange = true;
+    }
+    // MFA enforcement: this role must enroll before using the app.
+    const mfaSetupRequired = roleRequiresMfa(user.role, policy) && !user.mfa_enabled;
+
     await audit(username, 'login', '', { source: user.auth_source }, req.ip);
     const token = app.jwt.sign({ sub: user.id, username: user.username, role: user.role });
     return {
       token,
       user: {
         id: user.id, username: user.username, displayName: user.display_name,
-        role: user.role, mustChangePassword: user.must_change_password
+        role: user.role, mustChangePassword: mustChange, mfaSetupRequired
       }
     };
   });
@@ -89,8 +120,15 @@ export default async function authRoutes(app: FastifyInstance) {
     if (!(await bcrypt.compare(currentPassword, user.password_hash))) {
       return reply.code(401).send({ error: 'Current password is incorrect' });
     }
+    if (await bcrypt.compare(newPassword, user.password_hash)) {
+      return reply.code(400).send({ error: 'New password must differ from the current one' });
+    }
+    try { await assertPasswordAllowed(newPassword); }
+    catch (err: any) { return reply.code(400).send({ error: err.message }); }
     const hash = await bcrypt.hash(newPassword, 12);
-    await query('UPDATE users SET password_hash=$1, must_change_password=FALSE WHERE id=$2', [hash, me.sub]);
+    await query(
+      'UPDATE users SET password_hash=$1, must_change_password=FALSE, password_changed_at=now() WHERE id=$2',
+      [hash, me.sub]);
     await audit(me.username, 'password.change', '', {}, req.ip);
     return { ok: true };
   });
@@ -133,6 +171,9 @@ export default async function authRoutes(app: FastifyInstance) {
       const { rows } = await query(
         'SELECT id, username, display_name, email, role, mfa_enabled, must_change_password FROM users WHERE id=$1',
         [me.sub]);
-      return rows[0];
+      const user = rows[0];
+      if (!user) return user;
+      const policy = await getPolicy();
+      return { ...user, mfa_setup_required: roleRequiresMfa(user.role, policy) && !user.mfa_enabled };
     });
 }

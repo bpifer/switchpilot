@@ -29,6 +29,7 @@ import poeRoutes from './routes/poe.js';
 import campaignRoutes from './routes/campaigns.js';
 import lifecycleRoutes from './routes/lifecycle.js';
 import complianceRoutes from './routes/compliance.js';
+import securityRoutes from './routes/security.js';
 import wsRoutes from './routes/ws.js';
 import { startSyslogListener } from './services/syslogService.js';
 
@@ -95,6 +96,7 @@ async function main() {
   await app.register(campaignRoutes);
   await app.register(lifecycleRoutes);
   await app.register(complianceRoutes);
+  await app.register(securityRoutes);
   await app.register(wsRoutes);
 
   await migrate();

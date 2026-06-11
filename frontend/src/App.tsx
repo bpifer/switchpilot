@@ -20,6 +20,7 @@ import PoE from './pages/PoE';
 import Lifecycle from './pages/Lifecycle';
 import Campaigns from './pages/Campaigns';
 import Compliance from './pages/Compliance';
+import SecurityGate from './pages/SecurityGate';
 import { useWebSocket } from './hooks/useWebSocket';
 
 export interface Me {
@@ -27,6 +28,9 @@ export interface Me {
   username: string;
   display_name: string;
   role: 'superadmin' | 'netadmin' | 'helpdesk' | 'readonly';
+  mfa_enabled?: boolean;
+  must_change_password?: boolean;
+  mfa_setup_required?: boolean;
 }
 
 const ICONS: Record<string, string> = {
@@ -116,6 +120,18 @@ export default function App() {
       <Routes>
         <Route path="*" element={<Login onLogin={u => { setMe(u); navigate('/'); }} />} />
       </Routes>
+    );
+  }
+
+  // Forced security steps: a change-password or MFA-enrollment requirement blocks
+  // the app until satisfied.
+  if (me.must_change_password || me.mfa_setup_required) {
+    return (
+      <SecurityGate
+        me={me}
+        onComplete={() => api<Me>('/api/auth/me').then(setMe).catch(() => setToken(null))}
+        onLogout={() => { setToken(null); setMe(null); }}
+      />
     );
   }
 

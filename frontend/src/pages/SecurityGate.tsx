@@ -1,0 +1,130 @@
+import { useState } from 'react';
+import { api } from '../api';
+import type { Me } from '../App';
+
+/**
+ * Blocking screen shown after login when policy requires the user to change
+ * their password and/or enroll in MFA before they can use the app.
+ * Handles one requirement at a time; onComplete refetches `me` so App re-evaluates.
+ */
+export default function SecurityGate({ me, onComplete, onLogout }: {
+  me: Me; onComplete: () => void; onLogout: () => void;
+}) {
+  const needPassword = !!me.must_change_password;
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-brand-900 px-4">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 text-center">
+          <h1 className="text-2xl font-bold tracking-tight text-white">Secure your account</h1>
+          <p className="mt-1 text-sm text-slate-400">
+            {needPassword ? 'A password change is required before you continue.'
+              : 'Multi-factor authentication is required for your role.'}
+          </p>
+        </div>
+        <div className="rounded-2xl bg-white p-8 shadow-2xl ring-1 ring-white/10">
+          {needPassword
+            ? <ChangePassword onDone={onComplete} />
+            : <EnrollMfa username={me.username} onDone={onComplete} />}
+          <button onClick={onLogout} className="mt-4 w-full text-center text-xs text-slate-400 hover:text-slate-600">
+            Sign out
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const inputCls = 'w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20';
+
+function ChangePassword({ onDone }: { onDone: () => void }) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (next !== confirm) { setError('New passwords do not match'); return; }
+    setBusy(true);
+    try {
+      await api('/api/auth/change-password', { method: 'POST', body: { currentPassword: current, newPassword: next } });
+      onDone();
+    } catch (err: any) { setError(err.message ?? 'Could not change password'); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <form onSubmit={submit}>
+      {error && <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{error}</div>}
+      <label className="mb-1.5 block text-sm font-medium text-slate-700">Current password</label>
+      <input type="password" className={`${inputCls} mb-4`} value={current} onChange={e => setCurrent(e.target.value)} autoComplete="current-password" autoFocus />
+      <label className="mb-1.5 block text-sm font-medium text-slate-700">New password</label>
+      <input type="password" className={`${inputCls} mb-4`} value={next} onChange={e => setNext(e.target.value)} autoComplete="new-password" />
+      <label className="mb-1.5 block text-sm font-medium text-slate-700">Confirm new password</label>
+      <input type="password" className={`${inputCls} mb-5`} value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password" />
+      <button disabled={busy} className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-60">
+        {busy ? 'Saving…' : 'Change password'}
+      </button>
+    </form>
+  );
+}
+
+function EnrollMfa({ username, onDone }: { username: string; onDone: () => void }) {
+  const [secret, setSecret] = useState('');
+  const [otpauth, setOtpauth] = useState('');
+  const [totp, setTotp] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function begin() {
+    setBusy(true); setError('');
+    try {
+      const r = await api<{ secret: string; otpauthUrl: string }>('/api/auth/mfa/setup', { method: 'POST' });
+      setSecret(r.secret); setOtpauth(r.otpauthUrl);
+    } catch (err: any) { setError(err.message); }
+    finally { setBusy(false); }
+  }
+
+  async function confirm(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true); setError('');
+    try {
+      await api('/api/auth/mfa/confirm', { method: 'POST', body: { totp } });
+      onDone();
+    } catch (err: any) { setError(err.message ?? 'Invalid code'); }
+    finally { setBusy(false); }
+  }
+
+  if (!secret) {
+    return (
+      <div>
+        {error && <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        <p className="mb-4 text-sm text-slate-600">
+          Set up an authenticator app (Google Authenticator, Authy, 1Password, etc.) to generate sign-in codes.
+        </p>
+        <button onClick={begin} disabled={busy} className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60">
+          {busy ? 'Preparing…' : 'Begin MFA setup'}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={confirm}>
+      {error && <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      <p className="mb-2 text-sm text-slate-600">Add this secret to your authenticator app for <strong>{username}</strong>:</p>
+      <div className="mb-3 break-all rounded-lg bg-slate-100 px-3 py-2 text-center font-mono text-sm tracking-wide text-slate-800">{secret}</div>
+      <details className="mb-4 text-xs text-slate-500">
+        <summary className="cursor-pointer">Show otpauth:// URL</summary>
+        <div className="mt-1 break-all rounded bg-slate-50 p-2 font-mono">{otpauth}</div>
+      </details>
+      <label className="mb-1.5 block text-sm font-medium text-slate-700">Enter the 6-digit code</label>
+      <input className={`${inputCls} mb-5`} value={totp} inputMode="numeric" onChange={e => setTotp(e.target.value)} autoFocus />
+      <button disabled={busy || totp.length < 6} className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60">
+        {busy ? 'Verifying…' : 'Enable MFA'}
+      </button>
+    </form>
+  );
+}

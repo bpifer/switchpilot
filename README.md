@@ -71,8 +71,14 @@ Communicates directly over **SSH and SNMP** — no Cisco DNA Center, no Meraki l
 ### Security & Access Control
 - **RBAC** — Super Admin / Network Admin / Help Desk / Read Only
 - **Auth** — local accounts, LDAP/Active Directory, TOTP MFA
+- **Configurable security policy** (Super Admin) —
+  - **Password complexity** — min length + upper/lower/digit/symbol requirements, enforced on every password set
+  - **Password expiry** — optional max age forces a change at next login
+  - **Account lockout** — lock after N failed attempts for a configurable window; one-click unlock
+  - **MFA enforcement** — require TOTP enrollment org-wide or for specific roles; users are gated into a forced enrollment screen until compliant
+- **Forced security gate** — users with a pending password change or MFA enrollment cannot use the app until they complete it
 - **Credential vault** — AES-256-GCM encrypted SSH and SNMP credentials
-- **Audit log** — every write action recorded with username and IP
+- **Tamper-evident audit log** — every write action recorded with username and IP, and each entry is **hash-chained** to the previous one; a one-click integrity check detects any edit, deletion, or reordering
 - **Full REST API** — OpenAPI/Swagger docs at `/docs`
 
 ---
@@ -123,7 +129,8 @@ cisco-switch-manager/
 │   │   ├── 003_maintenance_cron_arp.sql
 │   │   ├── 004_lifecycle_rings_inventory.sql
 │   │   ├── 005_job_reliability_lifecycle_catalog.sql
-│   │   └── 006_compliance_engine.sql
+│   │   ├── 006_compliance_engine.sql
+│   │   └── 007_security_hardening.sql
 │   └── src/
 │       ├── cisco/           # SSH client, SNMP, parsers, capability DB, OUI, lifecycle
 │       ├── routes/          # Fastify route handlers

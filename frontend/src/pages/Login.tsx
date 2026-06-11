@@ -20,10 +20,9 @@ export default function Login({ onLogin }: { onLogin: (me: Me) => void }) {
         body: { username, password, ...(totp ? { totp } : {}) }
       });
       setToken(res.token);
+      // /me carries must_change_password and mfa_setup_required; App's SecurityGate
+      // enforces them, so we just hand off the fresh profile.
       const me = await api<Me>('/api/auth/me');
-      if (res.user.mustChangePassword) {
-        alert('Your password must be changed. Use your profile/API to set a new password (minimum 12 characters).');
-      }
       onLogin(me);
     } catch (err: any) {
       if (err.message?.includes('MFA code required')) setMfaRequired(true);
