@@ -107,10 +107,9 @@ export default function Campaigns() {
 
   return (
     <div>
-      <PageHeader
-        title="Firmware Campaigns"
-        actions={<Button variant="primary" onClick={() => setShowCreate(true)}>New Campaign</Button>}
-      />
+      <PageHeader title="Firmware Campaigns">
+        <Button variant="primary" onClick={() => setShowCreate(true)}>New Campaign</Button>
+      </PageHeader>
 
       <div className="px-6 py-4 space-y-4">
         {/* Ring inventory */}
