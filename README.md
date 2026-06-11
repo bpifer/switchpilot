@@ -163,6 +163,16 @@ cd frontend && npm install && npm run dev
 cd backend && npm test
 ```
 
+### Testing
+
+The backend suite (Vitest) runs without any hardware or database:
+
+- **Pure parsers** — `show version/interfaces/mac/cdp/vlan/arp/power/env` across IOS, IOS-XE and NX-OS samples
+- **Mock Cisco SSH device** (`tests/helpers/mockCiscoDevice.ts`) — a fake IOS device (shell channel, enable mode, config mode, canned `show` output) that the **real** `CiscoSshSession` connects to over loopback, exercising the prompt/read loop, exec extraction and config-error handling end-to-end
+- **Compliance evaluator, security policy, RBAC, capability DB, OUI/lifecycle** — pure-function coverage
+
+CI (`.github/workflows/ci.yml`) typechecks both backend (`tsc --noEmit`) and frontend (`tsc -b && vite build`), runs the tests, and builds both Docker images on every push.
+
 ---
 
 ## Supported Hardware
