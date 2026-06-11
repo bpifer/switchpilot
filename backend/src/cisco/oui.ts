@@ -68,15 +68,14 @@ const OUI: Record<string, string> = {
   // Lenovo
   '000C29': 'VMware', '005056': 'VMware', '001C14': 'VMware',  // VMware virtual
   '00505A': 'IBM', '08003E': 'Motorola', '001EC2': 'Intel',
-  '001B21': 'Intel', '002170': 'Intel', '286ED4': 'Intel', '8086F2': 'Intel',
-  '3497F6': 'Intel NUC', 'A4C3F0': 'Intel',
+  '001B21': 'Intel', '286ED4': 'Intel', '8086F2': 'Intel', 'A4C3F0': 'Intel',
   // Broadcom / Realtek (common PC NICs)
   '001018': 'Broadcom', '001A1E': 'Broadcom', '18C086': 'Broadcom',
   '44A842': 'Broadcom', '5C0A5B': 'Broadcom', '88F77C': 'Broadcom',
   'E89D37': 'Broadcom', 'D8B377': 'Realtek', '00E04C': 'Realtek',
   '006B8E': 'Realtek', '4CAD97': 'Realtek', '788CB5': 'Realtek',
   // Axis Communications (cameras)
-  '00408C': 'Axis', 'ACCC8E': 'Axis', 'B8A44E': 'Axis', 'D4F521': 'Axis',
+  '00408C': 'Axis', 'B8A44E': 'Axis', 'D4F521': 'Axis',
   // Hikvision (cameras)
   'C8F740': 'Hikvision', 'BC3400': 'Hikvision', '4C1844': 'Hikvision',
   '280CDB': 'Hikvision', 'A40C66': 'Hikvision',
