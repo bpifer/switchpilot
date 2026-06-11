@@ -91,14 +91,16 @@ export async function refreshDevice(deviceId: string): Promise<void> {
       [deviceId, cpu.fiveMin, mem, env.temperatureC,
        poeTotals?.used ?? null, poeTotals?.capacity ?? null]);
 
+    // fetch PoE early so totals are available for device_metrics insert
+    const poeRaw = (caps as any).poe ? await session.exec('show power inline').catch(() => '') : '';
+    const poeTotals = poeRaw ? parsePowerInlineTotals(poeRaw) : null;
+
     await evaluateHealthAlerts(deviceId, device.hostname, cpu.fiveMin, mem, env);
 
     // --- ports ---
     const ifaces = parseInterfacesStatus(await session.exec('show interfaces status'));
     const macs = parseMacTable(await session.exec('show mac address-table').catch(() => ''));
-    const poeRaw = (caps as any).poe ? await session.exec('show power inline').catch(() => '') : '';
     const poe = poeRaw ? parsePowerInline(poeRaw) : [];
-    const poeTotals = poeRaw ? parsePowerInlineTotals(poeRaw) : null;
     const errors = parseInterfaceErrors(
       await session.exec('show interfaces | include (line protocol|input errors|output errors|minute rate)').catch(() => '')
     );
