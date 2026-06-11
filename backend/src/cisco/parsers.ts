@@ -75,12 +75,26 @@ export function parseInterfacesStatus(output: string): InterfaceStatus[] {
 
 export interface MacEntry { vlan: number; mac: string; type: string; port: string; }
 
-/** Parse `show mac address-table`. */
+/** Parse `show mac address-table` — handles IOS, IOS-XE, and NX-OS (which prefixes entries with `*`). */
 export function parseMacTable(output: string): MacEntry[] {
   const entries: MacEntry[] = [];
   for (const line of output.split('\n')) {
-    const m = line.match(/^\s*(\d+)\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(\S+)\s+(\S+)\s*$/i);
-    if (m) entries.push({ vlan: parseInt(m[1], 10), mac: m[2].toLowerCase(), type: m[3], port: m[4] });
+    // Skip header/separator lines
+    if (/^\s*[-+]+/.test(line) || /Legend|VLAN.*MAC.*TYPE|Total number/i.test(line)) continue;
+    // Find the MAC address; it's always in cisco dotted format
+    const macMatch = line.match(/([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})/i);
+    if (!macMatch) continue;
+    // Strip leading * (NX-OS) and split on whitespace
+    const parts = line.trim().replace(/^\*\s*/, '').split(/\s+/);
+    const macIdx = parts.findIndex(p => /^[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}$/i.test(p));
+    if (macIdx < 1) continue;
+    const vlan = parseInt(parts[macIdx - 1], 10);
+    if (isNaN(vlan)) continue;
+    const type = parts[macIdx + 1] ?? 'dynamic';
+    const port = parts[parts.length - 1];
+    // Sanity: port must look like an interface name, not another MAC or flag
+    if (!port || /^[0-9a-f]{4}\.[0-9a-f]{4}/.test(port) || /^[FT]$/.test(port)) continue;
+    entries.push({ vlan, mac: macMatch[1].toLowerCase(), type, port });
   }
   return entries;
 }
@@ -163,27 +177,48 @@ export interface EnvStatus {
   fans: { id: string; status: string }[];
 }
 
-/** Parse `show env all` / `show environment all` (2960/3x50 and 9k formats). */
+/** Parse `show env all` / `show environment all` (IOS/IOS-XE) or `show environment` (NX-OS). */
 export function parseEnvironment(output: string): EnvStatus {
   const env: EnvStatus = { temperatureC: null, psu: [], fans: [] };
 
-  const temp =
+  // IOS/IOS-XE temperature
+  const iosTemp =
     output.match(/Temperature Value:\s*([\d.]+)\s*Degree/i) ??
     output.match(/(?:Inlet|System) Temperature Value:\s*([\d.]+)/i);
-  if (temp) env.temperatureC = parseFloat(temp[1]);
+  if (iosTemp) env.temperatureC = parseFloat(iosTemp[1]);
 
-  // PSU: "POWER SUPPLY 1 is OK" | "SW PID Serial# Status ..." table | "PS1 is OK"
+  // NX-OS temperature: "1   Inlet   70   50   34 C   Ok"  (module sensor table)
+  if (!env.temperatureC) {
+    const nxTemp = output.match(/^\s*\d+\s+\S+\s+\d+\s+\d+\s+(\d+)\s+C\s/m);
+    if (nxTemp) env.temperatureC = parseFloat(nxTemp[1]);
+  }
+
+  // IOS PSU: "POWER SUPPLY 1 is OK" | "PS1 is OK"
   for (const m of output.matchAll(/(?:POWER SUPPLY|PS)\s*(\w+)\s+is\s+(\S+)/gi)) {
     env.psu.push({ id: m[1], status: m[2].replace(/[.,]$/, '') });
   }
+  // IOS 9k PSU table: "1A   PID   Serial   OK"
   for (const m of output.matchAll(/^(\d+[AB])\s+\S+\s+\S+\s+(OK|Not Present|No Input Power|Faulty)/gim)) {
     env.psu.push({ id: m[1], status: m[2] });
   }
+  // NX-OS PSU table: "  1   N5K-PAC-750W   750 W   203 W   Ok"
+  if (env.psu.length === 0) {
+    for (const m of output.matchAll(/^\s*(\d+)\s+\S+\s+\d+\s+W\s+\d+\s+W\s+(Ok|Fail\w*|Absent|Not Present)/gim)) {
+      env.psu.push({ id: m[1], status: m[2] });
+    }
+  }
 
-  // Fans: "FAN 1 is OK" | "FAN in PS-1 is OK" | "Switch 1 FAN 1 is OK"
+  // IOS fans: "FAN 1 is OK" | "FAN in PS-1 is OK"
   for (const m of output.matchAll(/FAN(?:\s+in)?\s+([\w-]+)\s+is\s+(\S+)/gi)) {
     env.fans.push({ id: m[1], status: m[2].replace(/[.,]$/, '') });
   }
+  // NX-OS fans: "Fan1(sys_fan1)   N5K-C5596UP-FAN   --   front-to-back   Ok"
+  if (env.fans.length === 0) {
+    for (const m of output.matchAll(/^(Fan\d+)[(\s][^\n]*(Ok|Fail\w*|Absent)/gim)) {
+      env.fans.push({ id: m[1], status: m[2] });
+    }
+  }
+
   return env;
 }
 

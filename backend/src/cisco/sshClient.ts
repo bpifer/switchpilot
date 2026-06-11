@@ -7,6 +7,8 @@ export interface SshTarget {
   enablePassword?: string;
   port?: number;
   timeoutMs?: number;
+  /** Skip the enable step — NX-OS SSH sessions land directly at privilege level 15. */
+  skipEnable?: boolean;
 }
 
 const PROMPT = /[\w\-./:()]+[#>]\s?$/m;
@@ -105,10 +107,11 @@ export class CiscoSshSession {
     return outputs.filter(Boolean).join('\n');
   }
 
-  async saveConfig(): Promise<string> {
+  async saveConfig(cmd = 'write memory'): Promise<string> {
     this.buffer = '';
-    this.stream.write('write memory\n');
-    const out = await this.waitFor(/\[OK\]|#\s?$/m, 60000);
+    this.stream.write(cmd + '\n');
+    // IOS returns "[OK]", NX-OS returns "Copy complete."
+    const out = await this.waitFor(/\[OK\]|Copy complete|#\s?$/m, 60000);
     return out;
   }
 
@@ -145,7 +148,7 @@ export async function runCommands(target: SshTarget, commands: string[]): Promis
   const results: Record<string, string> = {};
   await session.connect();
   try {
-    await session.enable();
+    if (!target.skipEnable) await session.enable();
     for (const cmd of commands) results[cmd] = await session.exec(cmd);
   } finally {
     session.close();

@@ -31,7 +31,8 @@ export async function sshTargetFor(device: DeviceRow): Promise<SshTarget> {
     host: device.mgmt_ip,
     username: c.ssh_username,
     password: decryptSecret(c.ssh_password_enc),
-    enablePassword: decryptSecret(c.enable_password_enc) || undefined
+    enablePassword: decryptSecret(c.enable_password_enc) || undefined,
+    skipEnable: (device.capabilities as any)?.os === 'nxos'
   };
 }
 
@@ -77,9 +78,13 @@ export async function devicePushConfig(
   const session = new CiscoSshSession(target);
   await session.connect();
   try {
-    await session.enable();
+    if (!target.skipEnable) await session.enable();
     const output = await session.configure(lines);
-    if (save) await session.saveConfig();
+    if (save) {
+      const saveCmd = (device.capabilities as any)?.os === 'nxos'
+        ? 'copy running-config startup-config' : 'write memory';
+      await session.saveConfig(saveCmd);
+    }
     return output;
   } finally {
     session.close();
@@ -94,7 +99,7 @@ export async function bouncePort(deviceId: string, portName: string): Promise<st
   const session = new CiscoSshSession(target);
   await session.connect();
   try {
-    await session.enable();
+    if (!target.skipEnable) await session.enable();
     await session.configure([`interface ${iface}`, 'shutdown']);
     await new Promise(r => setTimeout(r, 3000));
     return await session.configure([`interface ${iface}`, 'no shutdown']);
@@ -111,7 +116,7 @@ export async function cableTest(deviceId: string, portName: string): Promise<str
   const session = new CiscoSshSession(target);
   await session.connect();
   try {
-    await session.enable();
+    if (!target.skipEnable) await session.enable();
     await session.exec(`test cable-diagnostics tdr interface ${iface}`);
     await new Promise(r => setTimeout(r, 7000)); // TDR takes a few seconds
     return await session.exec(`show cable-diagnostics tdr interface ${iface}`);

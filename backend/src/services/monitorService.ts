@@ -56,7 +56,8 @@ export async function refreshDevice(deviceId: string): Promise<void> {
   const session = new CiscoSshSession(target);
   await session.connect();
   try {
-    await session.enable();
+    // NX-OS SSH sessions land directly at privilege 15; enable() would be a no-op or error
+    if ((device.capabilities as any)?.os !== 'nxos') await session.enable();
 
     // --- identity ---
     const ver = parseShowVersion(await session.exec('show version'));
