@@ -6,7 +6,7 @@ import { snmpProbe } from '../cisco/snmpClient.js';
 import {
   parseShowVersion, parseInterfacesStatus, parseMacTable, parseCdpNeighborsDetail,
   parseLldpNeighborsDetail, parseCpu, parseMemory, parseEnvironment, parsePowerInline,
-  parseShowSwitch, parseInterfaceErrors
+  parsePowerInlineTotals, parseShowSwitch, parseInterfaceErrors, parseVlanBrief
 } from '../cisco/parsers.js';
 import { resolveCapabilities } from '../cisco/capabilities.js';
 import { getDevice, sshTargetFor, snmpTargetFor, type DeviceRow } from './deviceComms.js';
@@ -86,23 +86,29 @@ export async function refreshDevice(deviceId: string): Promise<void> {
        JSON.stringify(caps), deviceId]);
 
     await query(
-      'INSERT INTO device_metrics (device_id, cpu_pct, mem_pct, temperature_c) VALUES ($1,$2,$3,$4)',
-      [deviceId, cpu.fiveMin, mem, env.temperatureC]);
+      `INSERT INTO device_metrics (device_id, cpu_pct, mem_pct, temperature_c, poe_watts_used, poe_watts_capacity)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [deviceId, cpu.fiveMin, mem, env.temperatureC,
+       poeTotals?.used ?? null, poeTotals?.capacity ?? null]);
 
     await evaluateHealthAlerts(deviceId, device.hostname, cpu.fiveMin, mem, env);
 
     // --- ports ---
     const ifaces = parseInterfacesStatus(await session.exec('show interfaces status'));
     const macs = parseMacTable(await session.exec('show mac address-table').catch(() => ''));
-    const poe = (caps as any).poe ? parsePowerInline(await session.exec('show power inline').catch(() => '')) : [];
-    const errors = parseInterfaceErrors(await session.exec('show interfaces | include (line protocol|input errors|output errors)').catch(() => ''));
+    const poeRaw = (caps as any).poe ? await session.exec('show power inline').catch(() => '') : '';
+    const poe = poeRaw ? parsePowerInline(poeRaw) : [];
+    const poeTotals = poeRaw ? parsePowerInlineTotals(poeRaw) : null;
+    const errors = parseInterfaceErrors(
+      await session.exec('show interfaces | include (line protocol|input errors|output errors|minute rate)').catch(() => '')
+    );
 
-    const macsByPort = new Map<string, string[]>();
+    const macsByPort = new Map<string, { macs: string[]; vlan: number }>();
     for (const m of macs) {
       if (m.type.toLowerCase() !== 'dynamic') continue;
-      if (!macsByPort.has(m.port)) macsByPort.set(m.port, []);
-      const list = macsByPort.get(m.port)!;
-      if (list.length < 50) list.push(m.mac);
+      if (!macsByPort.has(m.port)) macsByPort.set(m.port, { macs: [], vlan: m.vlan });
+      const entry = macsByPort.get(m.port)!;
+      if (entry.macs.length < 50) entry.macs.push(m.mac);
     }
     const poeByPort = new Map(poe.map(p => [p.port, p.watts]));
     const errByPort = new Map(errors.map(e => [shortName(e.name), e]));
@@ -114,6 +120,7 @@ export async function refreshDevice(deviceId: string): Promise<void> {
       const windowExpired = prev.rows[0]?.last_flap_at &&
         Date.now() - new Date(prev.rows[0].last_flap_at).getTime() > 3600_000;
       const flapCount = flapped ? (windowExpired ? 1 : (prev.rows[0]?.flap_count_1h ?? 0) + 1) : (windowExpired ? 0 : prev.rows[0]?.flap_count_1h ?? 0);
+      const portEntry = macsByPort.get(i.name);
 
       await query(
         `INSERT INTO ports (device_id, name, description, admin_up, oper_status, vlan, mode, speed, duplex,
@@ -127,8 +134,27 @@ export async function refreshDevice(deviceId: string): Promise<void> {
          i.vlan, i.vlan === 'trunk' ? 'trunk' : i.vlan === 'routed' ? 'routed' : 'access',
          i.speed, i.duplex, poeByPort.get(i.name) ?? null,
          err?.inputErrors ?? 0, err?.outputErrors ?? 0,
-         JSON.stringify(macsByPort.get(i.name) ?? []),
+         JSON.stringify(portEntry?.macs ?? []),
          flapped ? new Date() : prev.rows[0]?.last_flap_at ?? null, flapCount]);
+
+      // port bandwidth + error metrics
+      await query(
+        `INSERT INTO port_metrics (device_id, port_name, in_bps, out_bps, in_errors, out_errors, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [deviceId, i.name, err?.inBps ?? null, err?.outBps ?? null,
+         err?.inputErrors ?? 0, err?.outputErrors ?? 0, i.status]);
+
+      // client tracking: upsert each dynamic MAC seen on this port
+      if (portEntry) {
+        for (const mac of portEntry.macs) {
+          await query(
+            `INSERT INTO client_tracking (device_id, port_name, mac, vlan, first_seen, last_seen)
+             VALUES ($1,$2,$3,$4,now(),now())
+             ON CONFLICT (device_id, mac) DO UPDATE SET
+               port_name=$2, vlan=$4, last_seen=now()`,
+            [deviceId, i.name, mac, portEntry.vlan]);
+        }
+      }
 
       if (flapped && i.status === 'notconnect') {
         await runAutomationTrigger('port_down', { deviceId, port: i.name });
@@ -138,6 +164,16 @@ export async function refreshDevice(deviceId: string): Promise<void> {
           `${device.hostname} port ${i.name} has flapped ${flapCount} times in the last hour`);
         await runAutomationTrigger('port_flapping', { deviceId, port: i.name, count: flapCount });
       }
+    }
+
+    // --- VLAN names ---
+    const vlans = parseVlanBrief(await session.exec('show vlan brief').catch(() => ''));
+    for (const v of vlans) {
+      await query(
+        `INSERT INTO device_vlans (device_id, vlan_id, name, ports, updated_at)
+         VALUES ($1,$2,$3,$4,now())
+         ON CONFLICT (device_id, vlan_id) DO UPDATE SET name=$3, ports=$4, updated_at=now()`,
+        [deviceId, v.id, v.name, JSON.stringify(v.ports)]);
     }
 
     // --- topology neighbors ---

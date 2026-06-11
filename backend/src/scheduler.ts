@@ -60,9 +60,15 @@ export function startScheduler(): void {
     }, 'compliance check').catch(err => console.error('compliance sweep failed:', err));
   });
 
-  // prune metric history (>30 days) and resolved alerts (>90 days) daily
+  // prune history daily at 03:30
   cron.schedule('30 3 * * *', async () => {
-    await query(`DELETE FROM device_metrics WHERE ts < now() - interval '30 days'`);
+    // device_metrics: keep 400 days (supports 1-year chart + buffer)
+    await query(`DELETE FROM device_metrics WHERE ts < now() - interval '400 days'`);
+    // port_metrics: keep 90 days
+    await query(`DELETE FROM port_metrics WHERE recorded_at < now() - interval '90 days'`);
+    // client_tracking: keep clients seen in last year
+    await query(`DELETE FROM client_tracking WHERE last_seen < now() - interval '1 year'`);
+    // resolved alerts: keep 90 days
     await query(`DELETE FROM alerts WHERE resolved_at IS NOT NULL AND resolved_at < now() - interval '90 days'`);
   });
 

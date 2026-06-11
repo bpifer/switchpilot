@@ -195,9 +195,15 @@ export function parseShowSwitch(output: string): StackMember[] {
   return members;
 }
 
-export interface InterfaceCounters { name: string; inputErrors: number; outputErrors: number; }
+export interface InterfaceCounters {
+  name: string;
+  inputErrors: number;
+  outputErrors: number;
+  inBps: number | null;
+  outBps: number | null;
+}
 
-/** Parse `show interfaces` for error counters (lightweight pass). */
+/** Parse `show interfaces` for error counters and 5-minute rate samples. */
 export function parseInterfaceErrors(output: string): InterfaceCounters[] {
   const results: InterfaceCounters[] = [];
   let current: InterfaceCounters | null = null;
@@ -205,7 +211,7 @@ export function parseInterfaceErrors(output: string): InterfaceCounters[] {
     const head = line.match(/^(\S+) is (?:up|down|administratively down)/);
     if (head) {
       if (current) results.push(current);
-      current = { name: head[1], inputErrors: 0, outputErrors: 0 };
+      current = { name: head[1], inputErrors: 0, outputErrors: 0, inBps: null, outBps: null };
       continue;
     }
     if (!current) continue;
@@ -213,9 +219,26 @@ export function parseInterfaceErrors(output: string): InterfaceCounters[] {
     if (inErr) current.inputErrors = parseInt(inErr[1], 10);
     const outErr = line.match(/(\d+) output errors/);
     if (outErr) current.outputErrors = parseInt(outErr[1], 10);
+    const inRate = line.match(/5 minute input rate\s+(\d+)\s+bits\/sec/);
+    if (inRate) current.inBps = parseInt(inRate[1], 10);
+    const outRate = line.match(/5 minute output rate\s+(\d+)\s+bits\/sec/);
+    if (outRate) current.outBps = parseInt(outRate[1], 10);
   }
   if (current) results.push(current);
   return results;
+}
+
+export interface PoeTotals { used: number; capacity: number; }
+
+/** Parse the totals summary line(s) from `show power inline`. */
+export function parsePowerInlineTotals(output: string): PoeTotals | null {
+  // IOS classic: "Available:600.0(w)  Used:123.4(w)"
+  let m = output.match(/Available:\s*([\d.]+)\s*\(w\).*?Used:\s*([\d.]+)/i);
+  if (m) return { capacity: parseFloat(m[1]), used: parseFloat(m[2]) };
+  // IOS-XE table: module row "  1    600.0 W    123.4 W   476.6 W"
+  m = output.match(/^\s*\d+\s+([\d.]+)\s+W\s+([\d.]+)\s+W/m);
+  if (m) return { capacity: parseFloat(m[1]), used: parseFloat(m[2]) };
+  return null;
 }
 
 /** Parse `show vlan brief` → [{id, name}]. */

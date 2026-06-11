@@ -20,6 +20,8 @@ import jobRoutes from './routes/jobs.js';
 import alertRoutes from './routes/alerts.js';
 import topologyRoutes from './routes/topology.js';
 import firmwareRoutes from './routes/firmware.js';
+import analyticsRoutes from './routes/analytics.js';
+import clientRoutes from './routes/clients.js';
 
 async function main() {
   const app = Fastify({ logger: true, bodyLimit: 10 * 1024 * 1024 });
@@ -75,6 +77,8 @@ async function main() {
   await app.register(alertRoutes);
   await app.register(topologyRoutes);
   await app.register(firmwareRoutes);
+  await app.register(analyticsRoutes);
+  await app.register(clientRoutes);
 
   await migrate();
   await seedAdmin();

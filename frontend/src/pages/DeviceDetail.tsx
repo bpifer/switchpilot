@@ -10,7 +10,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
   const [device, setDevice] = useState<any>(null);
   const [ports, setPorts] = useState<Port[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [tab, setTab] = useState<'ports' | 'config' | 'backups' | 'neighbors'>('ports');
+  const [tab, setTab] = useState<'ports' | 'config' | 'backups' | 'neighbors' | 'vlans'>('ports');
   const [busy, setBusy] = useState(false);
   const canOperate = me.role !== 'readonly';
   const canConfig = me.role === 'superadmin' || me.role === 'netadmin';
@@ -54,7 +54,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
 
       <div className="px-6 pt-4">
         <div className="flex gap-1 border-b">
-          {(['ports', 'config', 'backups', 'neighbors'] as const).map(t => (
+          {(['ports', 'config', 'backups', 'vlans', 'neighbors'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
                     className={`px-4 py-2 text-sm capitalize ${tab === t ? 'border-b-2 border-brand-600 font-medium text-brand-700' : 'text-gray-500'}`}>
               {t}
@@ -77,6 +77,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
         )}
         {tab === 'config' && <ConfigTab deviceId={id!} canConfig={canConfig} />}
         {tab === 'backups' && <BackupsTab deviceId={id!} canOperate={canOperate} canConfig={canConfig} />}
+        {tab === 'vlans' && <VlansTab deviceId={id!} />}
         {tab === 'neighbors' && <NeighborsTab deviceId={id!} />}
       </div>
     </div>
@@ -298,5 +299,98 @@ function NeighborsTab({ deviceId }: { deviceId: string }) {
         </tbody>
       </table>
     </Card>
+  );
+}
+
+const VLAN_PALETTE = [
+  '#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6',
+  '#06b6d4','#f97316','#84cc16','#ec4899','#6366f1',
+  '#14b8a6','#a855f7','#eab308','#f43f5e','#0ea5e9',
+];
+
+function VlansTab({ deviceId }: { deviceId: string }) {
+  const [data, setData] = useState<{ vlans: any[]; trunkPorts: string[] } | null>(null);
+
+  useEffect(() => {
+    api(`/api/analytics/device/${deviceId}/vlans`).then(setData).catch(() => {});
+  }, [deviceId]);
+
+  if (!data) return <div className="py-8 text-center text-sm text-slate-400">Loading VLAN data…</div>;
+
+  const { vlans, trunkPorts } = data;
+
+  if (vlans.length === 0 && trunkPorts.length === 0) {
+    return (
+      <div className="py-10 text-center text-sm text-slate-400">
+        No VLAN data yet — collected on the next device refresh.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {trunkPorts.length > 0 && (
+        <Card title="Trunk ports">
+          <div className="flex flex-wrap gap-2">
+            {trunkPorts.map(p => (
+              <span key={p}
+                className="rounded-md bg-slate-100 px-2.5 py-1 font-mono text-xs font-medium text-slate-700 ring-1 ring-slate-200">
+                {p}
+              </span>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-slate-400">
+            Trunk ports carry all allowed VLANs — see your running config for allowed VLAN list.
+          </p>
+        </Card>
+      )}
+
+      <Card title="VLAN membership">
+        <div className="space-y-3">
+          {vlans.map((v, idx) => {
+            const color = VLAN_PALETTE[idx % VLAN_PALETTE.length];
+            const ports: string[] = v.ports ?? [];
+            return (
+              <div key={v.id} className="flex items-start gap-3 rounded-lg border border-slate-100 p-3">
+                <div
+                  className="mt-0.5 h-5 w-1.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: color }}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-800">VLAN {v.id}</span>
+                    {v.name && v.name !== `VLAN${v.id}` && (
+                      <span className="text-sm text-slate-500">{v.name}</span>
+                    )}
+                    <span className="ml-auto text-xs text-slate-400">
+                      {ports.length} port{ports.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  {ports.length > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {ports.map(p => (
+                        <span key={p}
+                          className="rounded px-1.5 py-0.5 font-mono text-xs ring-1"
+                          style={{
+                            backgroundColor: color + '18',
+                            color,
+                            ringColor: color + '40',
+                            borderColor: color + '40',
+                            border: `1px solid ${color}40`,
+                          }}>
+                          {p}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-slate-400">No access ports</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+    </div>
   );
 }
