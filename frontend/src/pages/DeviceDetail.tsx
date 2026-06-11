@@ -374,8 +374,6 @@ function VlansTab({ deviceId }: { deviceId: string }) {
                           style={{
                             backgroundColor: color + '18',
                             color,
-                            ringColor: color + '40',
-                            borderColor: color + '40',
                             border: `1px solid ${color}40`,
                           }}>
                           {p}

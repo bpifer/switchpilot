@@ -91,6 +91,16 @@ export default function Analytics() {
 
   function chartFmt(ts: string) { return fmtBucket(ts, range); }
 
+  const cpuMemMerged = (() => {
+    const map = new Map<string, any>();
+    for (const d of cpuData) map.set(d.bucket, { bucket: d.bucket, cpu: d.value });
+    for (const d of memData) {
+      const e = map.get(d.bucket) ?? { bucket: d.bucket };
+      map.set(d.bucket, { ...e, mem: d.value });
+    }
+    return Array.from(map.values()).sort((a, b) => a.bucket.localeCompare(b.bucket));
+  })();
+
   return (
     <div>
       <PageHeader title="Analytics" />
@@ -129,18 +139,16 @@ export default function Analytics() {
       <div className="space-y-5 px-6 pb-6">
         {/* CPU & Memory */}
         <Card title="CPU & Memory (%)">
-          <EmptyOrChart data={[...cpuData, ...memData]} message="No CPU/memory data yet — data accumulates after first device refresh.">
+          <EmptyOrChart data={cpuMemMerged} message="No CPU/memory data yet — data accumulates after first device refresh.">
             <ResponsiveContainer width="100%" height={220}>
-              <LineChart margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
+              <LineChart data={cpuMemMerged} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="bucket" tickFormatter={chartFmt} data={cpuData}
-                       tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                <XAxis dataKey="bucket" tickFormatter={chartFmt} tick={{ fontSize: 11, fill: '#94a3b8' }} />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#94a3b8' }} unit="%" />
-                <Tooltip labelFormatter={chartFmt}
-                         formatter={(v: number) => [`${v}%`]} />
+                <Tooltip labelFormatter={chartFmt} formatter={(v: number) => [`${v}%`]} />
                 <Legend />
-                <Line data={cpuData}  type="monotone" dataKey="value" name="CPU"    stroke={CHART_COLORS.cpu}    dot={false} strokeWidth={2} />
-                <Line data={memData}  type="monotone" dataKey="value" name="Memory" stroke={CHART_COLORS.memory} dot={false} strokeWidth={2} />
+                <Line type="monotone" dataKey="cpu" name="CPU"    stroke={CHART_COLORS.cpu}    dot={false} strokeWidth={2} />
+                <Line type="monotone" dataKey="mem" name="Memory" stroke={CHART_COLORS.memory} dot={false} strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </EmptyOrChart>
