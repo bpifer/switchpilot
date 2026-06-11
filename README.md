@@ -16,7 +16,7 @@ Communicates directly over **SSH and SNMP** — no Cisco DNA Center, no Meraki l
 
 ### Configuration
 - **Backup & restore** — scheduled automatic backups, on-demand, restore any snapshot
-- **Git versioning** — every backup commits to a local git repo (`/data/config-history`); browse commit history and view config at any point in time via `GET /api/devices/:id/config/git-log`
+- **Git versioning** — every backup commits to a local git repo (`/data/config-history`), laid out as `configs/<site>/<hostname>.cfg`; the commit **author** is the user who triggered it and **Reason** / **Ticket** are recorded as commit trailers for audit. Browse the per-device history timeline, view config at any commit, and diff any two versions in the UI (or via `GET /api/devices/:id/config/git-log`, `…/git-show/:sha`, `…/git-diff`). The repo is auto-`gc`'d nightly.
 - **Diff** — compare any two backups or a backup against live running config
 - **Push & templates** — send arbitrary config lines or render reusable templates (VLANs, interfaces, port security, QoS, ACLs, trunks, STP, SNMP, NTP, AAA)
 - **Drift detection** — compare running config to a pinned baseline; optional auto-remediation
@@ -51,9 +51,10 @@ Communicates directly over **SSH and SNMP** — no Cisco DNA Center, no Meraki l
 - Fleet-level totals across all PoE-capable switches
 
 ### Switch Lifecycle Tracking
-- Built-in End-of-Sale and End-of-Life dates for 50+ Cisco Catalyst and Nexus model families
+- End-of-Sale and End-of-Life dates for 50+ Cisco Catalyst and Nexus model families, stored in an editable **`lifecycle_catalog`** table (longest-prefix match)
 - Populated automatically at each device refresh
 - Dashboard shows switches nearing or past EOL; recommended IOS/NX-OS release per platform
+- Super Admins can add/edit/delete catalog entries in the UI — correct dates or add new models without a code release (ready for a future Cisco EoX feed import)
 
 ### Firmware Management
 - **Image upload** — server-side MD5 verification; images served for `copy http:` transfers
@@ -62,6 +63,7 @@ Communicates directly over **SSH and SNMP** — no Cisco DNA Center, no Meraki l
 
 ### Automation
 - **Scheduled jobs** — one-shot or recurring (cron expressions); config push, backup, compliance check, firmware upgrade, port bounce, custom commands
+- **Cluster-safe job engine** — jobs are claimed atomically with Postgres `FOR UPDATE SKIP LOCKED`, so any number of API/worker replicas can run side-by-side with no double execution. Running jobs heartbeat; a reaper requeues work orphaned by a crashed worker. Failed jobs retry with exponential backoff (`maxAttempts`), and the Jobs page streams **live per-device progress** over WebSocket with a one-click **retry failed**.
 - **Event triggers** — device_offline, cpu_high, temp_high, psu_fail, fan_fail, port_down, port_flapping, config_drift → notify / restore baseline / run template / disable port
 
 ### Security & Access Control
@@ -117,7 +119,8 @@ cisco-switch-manager/
 │   │   ├── 001_init.sql
 │   │   ├── 002_analytics.sql
 │   │   ├── 003_maintenance_cron_arp.sql
-│   │   └── 004_lifecycle_rings_inventory.sql
+│   │   ├── 004_lifecycle_rings_inventory.sql
+│   │   └── 005_job_reliability_lifecycle_catalog.sql
 │   └── src/
 │       ├── cisco/           # SSH client, SNMP, parsers, capability DB, OUI, lifecycle
 │       ├── routes/          # Fastify route handlers

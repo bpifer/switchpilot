@@ -193,7 +193,7 @@ export default function App() {
           <Route path="/clients" element={<Clients />} />
           <Route path="/locate" element={<Locate />} />
           <Route path="/poe" element={<PoE />} />
-          <Route path="/lifecycle" element={<Lifecycle />} />
+          <Route path="/lifecycle" element={<Lifecycle me={me} />} />
           <Route path="/campaigns" element={<Campaigns />} />
           <Route path="/maintenance" element={<Maintenance />} />
           <Route path="/discovery" element={<Discovery />} />

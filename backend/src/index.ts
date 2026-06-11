@@ -27,6 +27,7 @@ import discoveryRoutes from './routes/discovery.js';
 import locateRoutes from './routes/locate.js';
 import poeRoutes from './routes/poe.js';
 import campaignRoutes from './routes/campaigns.js';
+import lifecycleRoutes from './routes/lifecycle.js';
 import wsRoutes from './routes/ws.js';
 import { startSyslogListener } from './services/syslogService.js';
 
@@ -91,6 +92,7 @@ async function main() {
   await app.register(locateRoutes);
   await app.register(poeRoutes);
   await app.register(campaignRoutes);
+  await app.register(lifecycleRoutes);
   await app.register(wsRoutes);
 
   await migrate();

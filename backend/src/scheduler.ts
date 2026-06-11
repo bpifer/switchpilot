@@ -6,7 +6,8 @@ import { config } from './config.js';
 import { pollStatus, refreshDevice } from './services/monitorService.js';
 import { checkDrift, backupDevice } from './services/configService.js';
 import { raiseAlert, resolveAlert } from './services/alertService.js';
-import { runDueJobs, runCronJobs } from './services/jobService.js';
+import { drainJobQueue, reapStaleJobs } from './services/jobService.js';
+import { gitGc } from './services/configVersioning.js';
 import type { DeviceRow } from './services/deviceComms.js';
 
 const CONCURRENCY = 8;
@@ -41,11 +42,16 @@ export function startScheduler(): void {
     }, 'metrics refresh').catch(err => console.error('metrics sweep failed:', err));
   }, config.poll.metricsIntervalSec * 1000);
 
-  // due one-shot scheduled jobs + recurring cron jobs — every 30s
+  // drain the job queue — claims runnable jobs (one-shot, scheduled, cron) with
+  // SKIP LOCKED so this is safe to run on every replica simultaneously.
   setInterval(() => {
-    runDueJobs().catch(err => console.error('due-job runner failed:', err));
-    runCronJobs().catch(err => console.error('cron-job runner failed:', err));
-  }, 30_000);
+    drainJobQueue().catch(err => console.error('job queue drain failed:', err));
+  }, 10_000);
+
+  // requeue jobs whose worker died mid-run — every minute
+  setInterval(() => {
+    reapStaleJobs().catch(err => console.error('stale-job reaper failed:', err));
+  }, 60_000);
 
   // nightly config backups — alert if config changed since last backup
   cron.schedule(config.poll.backupCron, () => {
@@ -76,6 +82,8 @@ export function startScheduler(): void {
     await query(`DELETE FROM alerts WHERE resolved_at IS NOT NULL AND resolved_at < now() - interval '90 days'`);
     // clean up expired maintenance windows older than 30 days
     await query(`DELETE FROM maintenance_windows WHERE ends_at < now() - interval '30 days'`);
+    // keep the config-history git repo compact (runs --auto, so it's cheap on most days)
+    await gitGc().catch(err => console.warn('git gc failed:', err.message));
   });
 
   console.log(

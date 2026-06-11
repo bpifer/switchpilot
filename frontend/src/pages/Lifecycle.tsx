@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import { PageHeader, Card } from '../components/ui';
+import type { Me } from '../App';
+import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
 
 interface LifecycleDevice {
   id: string;
@@ -44,10 +45,12 @@ function LifecycleBadge({ date, label }: { date: string | null; label: string })
 
 type Filter = 'all' | 'eol_passed' | 'eol_soon' | 'eos_passed';
 
-export default function Lifecycle() {
+export default function Lifecycle({ me }: { me: Me }) {
   const [devices, setDevices] = useState<LifecycleDevice[]>([]);
   const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
+  const [showCatalog, setShowCatalog] = useState(false);
+  const canEdit = me.role === 'superadmin';
 
   useEffect(() => {
     api<LifecycleDevice[]>('/api/devices/lifecycle')
@@ -71,7 +74,9 @@ export default function Lifecycle() {
 
   return (
     <div>
-      <PageHeader title="Switch Lifecycle" />
+      <PageHeader title="Switch Lifecycle">
+        {canEdit && <Button variant="secondary" onClick={() => setShowCatalog(true)}>Edit catalog</Button>}
+      </PageHeader>
 
       <div className="px-6 py-4 space-y-4">
         {/* Summary chips */}
@@ -146,6 +151,131 @@ export default function Lifecycle() {
           )}
         </Card>
       </div>
+
+      {showCatalog && <CatalogEditor onClose={() => setShowCatalog(false)} />}
     </div>
+  );
+}
+
+interface CatalogEntry {
+  model_prefix: string;
+  eos_date: string | null;
+  eol_date: string | null;
+  recommended_release: string;
+  notes: string;
+  updated_by: string;
+  updated_at: string;
+}
+
+function CatalogEditor({ onClose }: { onClose: () => void }) {
+  const [rows, setRows] = useState<CatalogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<Partial<CatalogEntry> | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = () => api<CatalogEntry[]>('/api/lifecycle-catalog')
+    .then(setRows).catch(() => setRows([])).finally(() => setLoading(false));
+  useEffect(() => { load(); }, []);
+
+  const fmtDate = (d: string | null) => d ? String(d).slice(0, 10) : '';
+
+  async function save() {
+    if (!editing?.model_prefix?.trim()) return;
+    setBusy(true);
+    try {
+      await api(`/api/lifecycle-catalog/${encodeURIComponent(editing.model_prefix.trim())}`, {
+        method: 'PUT',
+        body: {
+          eosDate: editing.eos_date || null,
+          eolDate: editing.eol_date || null,
+          recommendedRelease: editing.recommended_release ?? '',
+          notes: editing.notes ?? ''
+        }
+      });
+      setEditing(null); load();
+    } catch (err: any) { alert(err.message); }
+    finally { setBusy(false); }
+  }
+
+  async function remove(prefix: string) {
+    if (!confirm(`Delete lifecycle entry for "${prefix}"?`)) return;
+    try { await api(`/api/lifecycle-catalog/${encodeURIComponent(prefix)}`, { method: 'DELETE' }); load(); }
+    catch (err: any) { alert(err.message); }
+  }
+
+  return (
+    <Modal title="Lifecycle catalog" onClose={onClose}>
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-sm text-slate-500">
+          Model-prefix → EOS/EOL dates. Longest prefix wins at match time. Changes apply on the next device refresh.
+        </p>
+        <Button onClick={() => setEditing({ model_prefix: '', eos_date: '', eol_date: '', recommended_release: '', notes: '' })}>
+          Add entry
+        </Button>
+      </div>
+
+      {loading ? (
+        <p className="py-6 text-center text-sm text-slate-400">Loading catalog…</p>
+      ) : (
+        <div className="max-h-[55vh] overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-white">
+              <tr className="border-b text-left text-xs uppercase text-slate-500">
+                <th className="py-1.5 pr-3">Prefix</th><th className="pr-3">EOS</th><th className="pr-3">EOL</th>
+                <th className="pr-3">Recommended</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.model_prefix} className="border-b last:border-0">
+                  <td className="py-1.5 pr-3 font-mono text-xs text-slate-700">{r.model_prefix}</td>
+                  <td className="pr-3 text-xs text-slate-600">{fmtDate(r.eos_date) || '—'}</td>
+                  <td className="pr-3 text-xs text-slate-600">{fmtDate(r.eol_date) || '—'}</td>
+                  <td className="pr-3 font-mono text-xs text-slate-600">{r.recommended_release || '—'}</td>
+                  <td className="space-x-2 text-right">
+                    <button className="text-xs text-brand-600 hover:underline"
+                            onClick={() => setEditing({ ...r, eos_date: fmtDate(r.eos_date), eol_date: fmtDate(r.eol_date) })}>edit</button>
+                    <button className="text-xs text-red-600 hover:underline" onClick={() => remove(r.model_prefix)}>delete</button>
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && <tr><td colSpan={5} className="py-4 text-center text-slate-400">Catalog is empty</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {editing && (
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <h3 className="mb-3 text-sm font-semibold text-slate-700">
+            {rows.some(r => r.model_prefix === editing.model_prefix) ? 'Edit entry' : 'New entry'}
+          </h3>
+          <Field label="Model prefix">
+            <input className={inputCls} value={editing.model_prefix ?? ''}
+                   onChange={e => setEditing(p => ({ ...p, model_prefix: e.target.value }))}
+                   placeholder="e.g. C9300-" />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="End of Sale (YYYY-MM-DD)">
+              <input className={inputCls} value={editing.eos_date ?? ''} type="date"
+                     onChange={e => setEditing(p => ({ ...p, eos_date: e.target.value }))} />
+            </Field>
+            <Field label="End of Life (YYYY-MM-DD)">
+              <input className={inputCls} value={editing.eol_date ?? ''} type="date"
+                     onChange={e => setEditing(p => ({ ...p, eol_date: e.target.value }))} />
+            </Field>
+          </div>
+          <Field label="Recommended release">
+            <input className={inputCls} value={editing.recommended_release ?? ''}
+                   onChange={e => setEditing(p => ({ ...p, recommended_release: e.target.value }))}
+                   placeholder="e.g. 17.12.3" />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button onClick={save} disabled={busy || !editing.model_prefix?.trim()}>{busy ? 'Saving…' : 'Save'}</Button>
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }

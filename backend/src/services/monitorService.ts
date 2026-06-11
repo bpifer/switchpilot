@@ -84,7 +84,7 @@ export async function refreshDevice(deviceId: string): Promise<void> {
     }
 
     const resolvedModel = ver.model || device.model;
-    const lifecycle = lookupLifecycle(resolvedModel);
+    const lifecycle = await lookupLifecycle(resolvedModel);
 
     await query(
       `UPDATE devices SET hostname=$1, model=$2, serial_number=$3, ios_version=$4,

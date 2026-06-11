@@ -6,7 +6,16 @@ import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
 import { deviceExec, devicePushConfig } from '../services/deviceComms.js';
 import { backupDevice } from '../services/configService.js';
-import { gitLog, gitShow } from '../services/configVersioning.js';
+import { gitLog, gitShow, gitDiff } from '../services/configVersioning.js';
+
+/** Fetch hostname + site name for a device, for git path resolution. */
+async function deviceGitContext(id: string): Promise<{ hostname: string; site: string | null } | null> {
+  const { rows } = await query(
+    `SELECT d.hostname, s.name AS site_name
+       FROM devices d LEFT JOIN sites s ON s.id = d.site_id WHERE d.id=$1`, [id]);
+  if (!rows[0]) return null;
+  return { hostname: rows[0].hostname, site: rows[0].site_name ?? null };
+}
 
 export default async function configRoutes(app: FastifyInstance) {
   // Live running/startup config
@@ -30,7 +39,7 @@ export default async function configRoutes(app: FastifyInstance) {
   app.get('/api/devices/:id/backups', { preHandler: requireRole('readonly'), schema: { tags: ['configs'] } },
     async (req) => {
       const { rows } = await query(
-        `SELECT id, kind, sha256, taken_by, created_at, length(content) AS size
+        `SELECT id, kind, sha256, taken_by, reason, ticket, git_sha, created_at, length(content) AS size
          FROM config_backups WHERE device_id=$1 ORDER BY created_at DESC LIMIT 100`,
         [(req.params as any).id]);
       return rows;
@@ -43,13 +52,25 @@ export default async function configRoutes(app: FastifyInstance) {
       return rows[0];
     });
 
-  app.post('/api/devices/:id/backups', { preHandler: requireRole('helpdesk'), schema: { tags: ['configs'] } },
-    async (req, reply) => {
-      const me = req.user as any;
-      const backup = await backupDevice((req.params as any).id, me.username);
-      await audit(me.username, 'config.backup', (req.params as any).id, {}, req.ip);
-      return reply.code(201).send(backup);
-    });
+  app.post('/api/devices/:id/backups', {
+    preHandler: requireRole('helpdesk'),
+    schema: {
+      tags: ['configs'],
+      body: {
+        type: 'object',
+        properties: {
+          reason: { type: 'string', description: 'Why this backup is being taken' },
+          ticket: { type: 'string', description: 'Change ticket reference' }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    const me = req.user as any;
+    const { reason, ticket } = (req.body as any) ?? {};
+    const backup = await backupDevice((req.params as any).id, me.username, { reason, ticket });
+    await audit(me.username, 'config.backup', (req.params as any).id, { reason, ticket }, req.ip);
+    return reply.code(201).send(backup);
+  });
 
   // Diff two backups (or a backup against live running config)
   app.get('/api/devices/:id/diff', {
@@ -89,22 +110,44 @@ export default async function configRoutes(app: FastifyInstance) {
   // Git commit history for a device's config file
   app.get('/api/devices/:id/config/git-log', { preHandler: requireRole('readonly'), schema: { tags: ['configs'] } },
     async (req) => {
-      const { id } = req.params as any;
-      const { rows } = await query('SELECT hostname FROM devices WHERE id=$1', [id]);
-      if (!rows[0]) return [];
-      return gitLog(rows[0].hostname);
+      const ctx = await deviceGitContext((req.params as any).id);
+      if (!ctx) return [];
+      return gitLog(ctx.hostname, ctx.site);
     });
 
   // Show config content at a specific git SHA
   app.get('/api/devices/:id/config/git-show/:sha', { preHandler: requireRole('readonly'), schema: { tags: ['configs'] } },
     async (req, reply) => {
       const { id, sha } = req.params as any;
-      const { rows } = await query('SELECT hostname FROM devices WHERE id=$1', [id]);
-      if (!rows[0]) return reply.code(404).send({ error: 'Device not found' });
-      const content = await gitShow(sha, rows[0].hostname);
+      const ctx = await deviceGitContext(id);
+      if (!ctx) return reply.code(404).send({ error: 'Device not found' });
+      const content = await gitShow(sha, ctx.hostname, ctx.site);
       if (!content) return reply.code(404).send({ error: 'Commit not found' });
       return { sha, content };
     });
+
+  // Diff a device's config between two commits (git history)
+  app.get('/api/devices/:id/config/git-diff', {
+    preHandler: requireRole('readonly'),
+    schema: {
+      tags: ['configs'],
+      querystring: {
+        type: 'object', required: ['from'],
+        properties: {
+          from: { type: 'string', description: 'commit SHA' },
+          to: { type: 'string', description: 'commit SHA (default HEAD)' }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    const { id } = req.params as any;
+    const { from, to } = req.query as any;
+    const ctx = await deviceGitContext(id);
+    if (!ctx) return reply.code(404).send({ error: 'Device not found' });
+    const diff = await gitDiff(ctx.hostname, ctx.site, from, to || 'HEAD');
+    if (diff === null) return reply.code(404).send({ error: 'Commit not found' });
+    return { diff, identical: !diff.trim() };
+  });
 
   // Push arbitrary config lines (netadmin only)
   app.post('/api/devices/:id/config/push', {

@@ -15,8 +15,17 @@ function normalizeConfig(content: string): string {
     .trim();
 }
 
+export interface BackupOptions {
+  reason?: string;   // why this backup was taken (free text)
+  ticket?: string;   // change ticket reference
+}
+
 /** Take a running-config backup; skips insert if identical to the latest backup. */
-export async function backupDevice(deviceId: string, takenBy = 'scheduler'): Promise<{ id: string; changed: boolean }> {
+export async function backupDevice(
+  deviceId: string,
+  takenBy = 'scheduler',
+  opts: BackupOptions = {}
+): Promise<{ id: string; changed: boolean }> {
   const out = await deviceExec(deviceId, ['show running-config']);
   const content = Object.values(out)[0] ?? '';
   if (!content || content.length < 50) throw new Error('Backup returned empty configuration — aborting');
@@ -26,19 +35,24 @@ export async function backupDevice(deviceId: string, takenBy = 'scheduler'): Pro
     'SELECT id, sha256 FROM config_backups WHERE device_id=$1 ORDER BY created_at DESC LIMIT 1', [deviceId]);
   if (latest.rows[0]?.sha256 === hash) return { id: latest.rows[0].id, changed: false };
 
-  // Fetch hostname for git commit message
-  const dev = await query('SELECT hostname FROM devices WHERE id=$1', [deviceId]);
+  // Fetch hostname + site for the git commit (author, message, folder layout)
+  const dev = await query(
+    `SELECT d.hostname, s.name AS site_name
+       FROM devices d LEFT JOIN sites s ON s.id = d.site_id
+      WHERE d.id=$1`, [deviceId]);
   const hostname = dev.rows[0]?.hostname ?? deviceId;
+  const site = dev.rows[0]?.site_name ?? null;
 
   const gitSha = await commitConfig(
     hostname, content,
-    `${hostname}: backup by ${takenBy} at ${new Date().toISOString()}`
+    `${hostname}: config change captured`,
+    { takenBy, reason: opts.reason, ticket: opts.ticket, site }
   );
 
   const { rows } = await query(
-    `INSERT INTO config_backups (device_id, kind, content, sha256, taken_by, git_sha)
-     VALUES ($1,'running',$2,$3,$4,$5) RETURNING id`,
-    [deviceId, content, hash, takenBy, gitSha ?? null]);
+    `INSERT INTO config_backups (device_id, kind, content, sha256, taken_by, git_sha, reason, ticket)
+     VALUES ($1,'running',$2,$3,$4,$5,$6,$7) RETURNING id`,
+    [deviceId, content, hash, takenBy, gitSha ?? null, opts.reason ?? '', opts.ticket ?? '']);
   return { id: rows[0].id, changed: true };
 }
 

@@ -1,7 +1,19 @@
 import { useEffect, useRef } from 'react';
 import { getToken } from '../api';
 
-export type WsEvent = { type: 'alert'; data: { deviceId: string; kind: string; severity: string; message: string; ts: string } };
+export type WsEvent =
+  | { type: 'alert'; data: { deviceId: string; kind: string; severity: string; message: string; ts: string } }
+  | { type: 'job_progress'; data: {
+      jobId: string;
+      deviceId?: string;
+      status: 'running' | 'done' | 'failed' | 'pending';
+      attempt?: number;
+      error?: string;
+      retryAt?: string;
+      recurring?: boolean;
+      reaped?: boolean;
+      manualRetry?: boolean;
+    } };
 
 /**
  * Opens a WebSocket connection to /ws and calls onEvent for each message.

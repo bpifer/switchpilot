@@ -10,7 +10,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
   const [device, setDevice] = useState<any>(null);
   const [ports, setPorts] = useState<Port[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [tab, setTab] = useState<'ports' | 'config' | 'backups' | 'neighbors' | 'vlans'>('ports');
+  const [tab, setTab] = useState<'ports' | 'config' | 'backups' | 'history' | 'neighbors' | 'vlans'>('ports');
   const [busy, setBusy] = useState(false);
   const canOperate = me.role !== 'readonly';
   const canConfig = me.role === 'superadmin' || me.role === 'netadmin';
@@ -54,7 +54,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
 
       <div className="px-6 pt-4">
         <div className="flex gap-1 border-b">
-          {(['ports', 'config', 'backups', 'vlans', 'neighbors'] as const).map(t => (
+          {(['ports', 'config', 'backups', 'history', 'vlans', 'neighbors'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
                     className={`px-4 py-2 text-sm capitalize ${tab === t ? 'border-b-2 border-brand-600 font-medium text-brand-700' : 'text-gray-500'}`}>
               {t}
@@ -77,6 +77,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
         )}
         {tab === 'config' && <ConfigTab deviceId={id!} canConfig={canConfig} />}
         {tab === 'backups' && <BackupsTab deviceId={id!} canOperate={canOperate} canConfig={canConfig} />}
+        {tab === 'history' && <HistoryTab deviceId={id!} />}
         {tab === 'vlans' && <VlansTab deviceId={id!} />}
         {tab === 'neighbors' && <NeighborsTab deviceId={id!} />}
       </div>
@@ -229,21 +230,36 @@ function ConfigTab({ deviceId, canConfig }: { deviceId: string; canConfig: boole
 function BackupsTab({ deviceId, canOperate, canConfig }: { deviceId: string; canOperate: boolean; canConfig: boolean }) {
   const [backups, setBackups] = useState<any[]>([]);
   const [diff, setDiff] = useState('');
+  const [showBackup, setShowBackup] = useState(false);
+  const [reason, setReason] = useState('');
+  const [ticket, setTicket] = useState('');
+  const [busy, setBusy] = useState(false);
   const load = () => api(`/api/devices/${deviceId}/backups`).then(setBackups).catch(() => {});
   useEffect(() => { load(); }, []);
+
+  async function takeBackup() {
+    setBusy(true);
+    try {
+      await api(`/api/devices/${deviceId}/backups`, { method: 'POST', body: { reason, ticket } });
+      setShowBackup(false); setReason(''); setTicket(''); load();
+    } catch (err: any) { alert(err.message); }
+    finally { setBusy(false); }
+  }
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card title="Configuration backups">
-        {canOperate && <Button onClick={async () => { await api(`/api/devices/${deviceId}/backups`, { method: 'POST' }); load(); }}>Backup now</Button>}
+        {canOperate && <Button onClick={() => setShowBackup(true)}>Backup now</Button>}
         <table className="mt-3 w-full text-sm">
           <thead><tr className="border-b text-left text-xs uppercase text-gray-500">
-            <th className="py-1">Taken</th><th>By</th><th>Size</th><th></th></tr></thead>
+            <th className="py-1">Taken</th><th>By</th><th>Reason</th><th>Ticket</th><th>Size</th><th></th></tr></thead>
           <tbody>
             {backups.map(b => (
               <tr key={b.id} className="border-b last:border-0">
                 <td className="py-1.5">{new Date(b.created_at).toLocaleString()}</td>
                 <td>{b.taken_by}</td>
+                <td className="max-w-32 truncate text-slate-600" title={b.reason || undefined}>{b.reason || '—'}</td>
+                <td className="font-mono text-xs text-slate-600">{b.ticket || '—'}</td>
                 <td>{(b.size / 1024).toFixed(1)} KB</td>
                 <td className="space-x-2 text-right">
                   <button className="text-xs text-brand-600 hover:underline"
@@ -261,7 +277,7 @@ function BackupsTab({ deviceId, canOperate, canConfig }: { deviceId: string; can
                 </td>
               </tr>
             ))}
-            {backups.length === 0 && <tr><td colSpan={4} className="py-4 text-center text-gray-400">No backups yet</td></tr>}
+            {backups.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-gray-400">No backups yet</td></tr>}
           </tbody>
         </table>
       </Card>
@@ -272,6 +288,115 @@ function BackupsTab({ deviceId, canOperate, canConfig }: { deviceId: string; can
           )) : <span className="text-gray-400">Select “diff vs live” on a backup.</span>}
         </pre>
       </Card>
+
+      {showBackup && (
+        <Modal title="Take configuration backup" onClose={() => setShowBackup(false)}>
+          <p className="mb-3 text-sm text-slate-500">
+            Recording a reason and change ticket makes the git history auditable. Both are optional.
+          </p>
+          <Field label="Reason">
+            <input className={inputCls} value={reason} onChange={e => setReason(e.target.value)}
+                   placeholder="e.g. Pre-change snapshot before VLAN 30 rollout" autoFocus />
+          </Field>
+          <Field label="Change ticket">
+            <input className={inputCls} value={ticket} onChange={e => setTicket(e.target.value)} placeholder="e.g. CHG0012345" />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setShowBackup(false)}>Cancel</Button>
+            <Button onClick={takeBackup} disabled={busy}>{busy ? 'Backing up…' : 'Backup now'}</Button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function HistoryTab({ deviceId }: { deviceId: string }) {
+  const [log, setLog] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sel, setSel] = useState<string[]>([]);   // up to 2 selected SHAs for diff
+  const [diff, setDiff] = useState('');
+  const [viewing, setViewing] = useState<{ sha: string; content: string } | null>(null);
+
+  useEffect(() => {
+    api(`/api/devices/${deviceId}/config/git-log`)
+      .then(setLog).catch(() => setLog([])).finally(() => setLoading(false));
+  }, [deviceId]);
+
+  const toggle = (sha: string) => setSel(prev =>
+    prev.includes(sha) ? prev.filter(s => s !== sha) : [...prev, sha].slice(-2));
+
+  async function runDiff() {
+    if (sel.length !== 2) return;
+    // git-log is newest-first; diff older→newer for readable +/-
+    const [a, b] = sel;
+    const ai = log.findIndex(e => e.sha === a), bi = log.findIndex(e => e.sha === b);
+    const [from, to] = ai > bi ? [a, b] : [b, a];
+    try { setDiff((await api(`/api/devices/${deviceId}/config/git-diff?from=${from}&to=${to}`)).diff); }
+    catch (err: any) { setDiff(`Error: ${err.message}`); }
+  }
+
+  async function view(sha: string) {
+    try { setViewing({ sha, content: (await api(`/api/devices/${deviceId}/config/git-show/${sha}`)).content }); }
+    catch (err: any) { setViewing({ sha, content: `Error: ${err.message}` }); }
+  }
+
+  if (loading) return <div className="py-8 text-center text-sm text-slate-400">Loading config history…</div>;
+  if (log.length === 0) return (
+    <div className="py-10 text-center text-sm text-slate-400">
+      No config history yet — commits appear after the first backup that records a change.
+    </div>
+  );
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card title="Config history">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-xs text-slate-400">Select two commits to compare.</span>
+          <Button variant="secondary" onClick={runDiff} disabled={sel.length !== 2}>Compare ({sel.length}/2)</Button>
+        </div>
+        <ol className="relative space-y-3 border-l border-slate-200 pl-4">
+          {log.map(e => (
+            <li key={e.sha} className="relative">
+              <span className="absolute -left-[1.3rem] top-1.5 h-2.5 w-2.5 rounded-full bg-brand-400 ring-2 ring-white" />
+              <div className={`rounded-lg border p-2.5 transition ${sel.includes(e.sha) ? 'border-brand-400 bg-brand-50/50' : 'border-slate-200'}`}>
+                <div className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-1 rounded border-slate-300"
+                         checked={sel.includes(e.sha)} onChange={() => toggle(e.sha)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-slate-400">{e.sha.slice(0, 8)}</span>
+                      <span className="text-xs text-slate-500">{new Date(e.date).toLocaleString()}</span>
+                    </div>
+                    <div className="mt-0.5 text-sm text-slate-700">{e.subject}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-600">{e.author}</span>
+                      {e.reason && <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">{e.reason}</span>}
+                      {e.ticket && <span className="rounded bg-violet-50 px-1.5 py-0.5 font-mono text-violet-700">{e.ticket}</span>}
+                      <button className="ml-auto text-brand-600 hover:underline" onClick={() => view(e.sha)}>view</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </Card>
+      <Card title="Diff">
+        <pre className="max-h-[32rem] overflow-auto rounded bg-gray-900 p-3 text-xs leading-relaxed">
+          {diff ? diff.split('\n').map((l, i) => (
+            <div key={i} className={l.startsWith('+') && !l.startsWith('+++') ? 'text-green-400'
+              : l.startsWith('-') && !l.startsWith('---') ? 'text-red-400'
+              : l.startsWith('@@') ? 'text-cyan-400' : 'text-gray-300'}>{l}</div>
+          )) : <span className="text-gray-400">Select two commits and press Compare.</span>}
+        </pre>
+      </Card>
+
+      {viewing && (
+        <Modal title={`Config at ${viewing.sha.slice(0, 8)}`} onClose={() => setViewing(null)}>
+          <pre className="max-h-[60vh] overflow-auto rounded bg-gray-900 p-3 text-xs text-gray-100">{viewing.content}</pre>
+        </Modal>
+      )}
     </div>
   );
 }

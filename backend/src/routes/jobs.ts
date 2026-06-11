@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
-import { createJob } from '../services/jobService.js';
+import { createJob, retryJob } from '../services/jobService.js';
 
 export default async function jobRoutes(app: FastifyInstance) {
   app.get('/api/jobs', {
@@ -41,7 +41,8 @@ export default async function jobRoutes(app: FastifyInstance) {
           payload: { type: 'object' },
           deviceIds: { type: 'array', items: { type: 'string' }, minItems: 1 },
           scheduleAt: { type: 'string', format: 'date-time' },
-          cron: { type: 'string', description: 'Cron expression for recurring jobs (e.g. "0 2 * * *")' }
+          cron: { type: 'string', description: 'Cron expression for recurring jobs (e.g. "0 2 * * *")' },
+          maxAttempts: { type: 'integer', minimum: 1, maximum: 10, default: 1, description: 'Retry attempts before the job is marked failed' }
         }
       }
     }
@@ -55,7 +56,8 @@ export default async function jobRoutes(app: FastifyInstance) {
       deviceIds: b.deviceIds,
       scheduleAt: b.scheduleAt ? new Date(b.scheduleAt) : null,
       cron: b.cron ?? null,
-      createdBy: me.username
+      createdBy: me.username,
+      maxAttempts: b.maxAttempts ?? 1
     });
     await audit(me.username, 'job.create', b.type, { deviceIds: b.deviceIds }, req.ip);
     return reply.code(202).send(job);
@@ -66,6 +68,17 @@ export default async function jobRoutes(app: FastifyInstance) {
       const me = req.user as any;
       await query(`UPDATE jobs SET status='cancelled' WHERE id=$1 AND status='pending'`, [(req.params as any).id]);
       await audit(me.username, 'job.cancel', (req.params as any).id, {}, req.ip);
+      return { ok: true };
+    });
+
+  // Re-run a failed job (bumps max_attempts so the queue picks it up again).
+  app.post('/api/jobs/:id/retry', { preHandler: requireRole('netadmin'), schema: { tags: ['jobs'] } },
+    async (req, reply) => {
+      const me = req.user as any;
+      const { id } = req.params as any;
+      const ok = await retryJob(id);
+      if (!ok) return reply.code(409).send({ error: 'Job is not in a failed state' });
+      await audit(me.username, 'job.retry', id, {}, req.ip);
       return { ok: true };
     });
 }
