@@ -137,7 +137,7 @@ export default function Maintenance() {
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
               <Button onClick={save} disabled={saving || !form.name || !form.startsAt || !form.endsAt}>
                 {saving ? 'Saving…' : 'Schedule'}
               </Button>

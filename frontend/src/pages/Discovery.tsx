@@ -60,7 +60,7 @@ export default function Discovery() {
               <p className="text-sm text-slate-600">
                 Devices discovered via CDP/LLDP from your managed switches that aren't yet in SwitchPilot.
               </p>
-              <Button variant="ghost" onClick={loadSuggestions} disabled={loadingSugg}>
+              <Button variant="secondary" onClick={loadSuggestions} disabled={loadingSugg}>
                 {loadingSugg ? 'Loading…' : 'Refresh'}
               </Button>
             </div>
