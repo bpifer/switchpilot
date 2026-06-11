@@ -77,7 +77,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
         )}
         {tab === 'config' && <ConfigTab deviceId={id!} canConfig={canConfig} />}
         {tab === 'backups' && <BackupsTab deviceId={id!} canOperate={canOperate} canConfig={canConfig} />}
-        {tab === 'history' && <HistoryTab deviceId={id!} />}
+        {tab === 'history' && <HistoryTab deviceId={id!} canConfig={canConfig} />}
         {tab === 'vlans' && <VlansTab deviceId={id!} />}
         {tab === 'neighbors' && <NeighborsTab deviceId={id!} />}
       </div>
@@ -311,12 +311,23 @@ function BackupsTab({ deviceId, canOperate, canConfig }: { deviceId: string; can
   );
 }
 
-function HistoryTab({ deviceId }: { deviceId: string }) {
+function HistoryTab({ deviceId, canConfig }: { deviceId: string; canConfig: boolean }) {
   const [log, setLog] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sel, setSel] = useState<string[]>([]);   // up to 2 selected SHAs for diff
   const [diff, setDiff] = useState('');
   const [viewing, setViewing] = useState<{ sha: string; content: string } | null>(null);
+  const [rollingBack, setRollingBack] = useState('');
+
+  async function rollback(sha: string) {
+    if (!confirm(`Roll the device back to ${sha.slice(0, 8)}? The current config is snapshotted first, so this is reversible.`)) return;
+    setRollingBack(sha);
+    try {
+      await api(`/api/devices/${deviceId}/config/rollback/${sha}`, { method: 'POST' });
+      alert('Rollback pushed to device.');
+    } catch (err: any) { alert(err.message); }
+    finally { setRollingBack(''); }
+  }
 
   useEffect(() => {
     api(`/api/devices/${deviceId}/config/git-log`)
@@ -374,6 +385,12 @@ function HistoryTab({ deviceId }: { deviceId: string }) {
                       {e.reason && <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">{e.reason}</span>}
                       {e.ticket && <span className="rounded bg-violet-50 px-1.5 py-0.5 font-mono text-violet-700">{e.ticket}</span>}
                       <button className="ml-auto text-brand-600 hover:underline" onClick={() => view(e.sha)}>view</button>
+                      {canConfig && (
+                        <button className="text-red-600 hover:underline disabled:opacity-50"
+                                disabled={rollingBack === e.sha} onClick={() => rollback(e.sha)}>
+                          {rollingBack === e.sha ? 'rolling back…' : 'rollback'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

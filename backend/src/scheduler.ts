@@ -8,6 +8,7 @@ import { checkDrift, backupDevice } from './services/configService.js';
 import { raiseAlert, resolveAlert } from './services/alertService.js';
 import { drainJobQueue, reapStaleJobs } from './services/jobService.js';
 import { gitGc } from './services/configVersioning.js';
+import { evaluateAllCompliance } from './services/complianceService.js';
 import type { DeviceRow } from './services/deviceComms.js';
 
 const CONCURRENCY = 8;
@@ -67,11 +68,12 @@ export function startScheduler(): void {
     }, 'nightly backup').catch(err => console.error('backup sweep failed:', err));
   });
 
-  // compliance / drift checks
+  // drift checks (running config vs pinned baseline) + rule-based compliance scoring
   cron.schedule(config.poll.complianceCron, () => {
     eachDevice(async d => {
       if (d.status !== 'offline') await checkDrift(d.id);
-    }, 'compliance check').catch(err => console.error('compliance sweep failed:', err));
+    }, 'drift check').catch(err => console.error('drift sweep failed:', err));
+    evaluateAllCompliance().catch(err => console.error('compliance evaluation failed:', err));
   });
 
   // prune history daily at 03:30

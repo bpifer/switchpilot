@@ -19,7 +19,9 @@ Communicates directly over **SSH and SNMP** — no Cisco DNA Center, no Meraki l
 - **Git versioning** — every backup commits to a local git repo (`/data/config-history`), laid out as `configs/<site>/<hostname>.cfg`; the commit **author** is the user who triggered it and **Reason** / **Ticket** are recorded as commit trailers for audit. Browse the per-device history timeline, view config at any commit, and diff any two versions in the UI (or via `GET /api/devices/:id/config/git-log`, `…/git-show/:sha`, `…/git-diff`). The repo is auto-`gc`'d nightly.
 - **Diff** — compare any two backups or a backup against live running config
 - **Push & templates** — send arbitrary config lines or render reusable templates (VLANs, interfaces, port security, QoS, ACLs, trunks, STP, SNMP, NTP, AAA)
+- **Rollback** — one-click restore of any historical git commit onto the device (current config snapshotted first, so rollbacks are themselves reversible) — Git for switches
 - **Drift detection** — compare running config to a pinned baseline; optional auto-remediation
+- **Compliance engine** — define rules (line/regex present/absent) scoped to all devices or a site; every device's latest config is scored against them. Fleet + per-device compliance %, per-rule pass/fail rollup, severity-weighted critical-failure flags, and one-click **remediation** that pushes a rule's fix lines. Seeded with a best-practice ruleset (NTP, AAA, TACACS+, syslog, SNMPv3-only, no-telnet, enable secret). Evaluated on the compliance cron and on demand.
 
 ### Port Management
 - **Graphical front-panel** — port status, VLAN, speed, PoE watts
@@ -120,7 +122,8 @@ cisco-switch-manager/
 │   │   ├── 002_analytics.sql
 │   │   ├── 003_maintenance_cron_arp.sql
 │   │   ├── 004_lifecycle_rings_inventory.sql
-│   │   └── 005_job_reliability_lifecycle_catalog.sql
+│   │   ├── 005_job_reliability_lifecycle_catalog.sql
+│   │   └── 006_compliance_engine.sql
 │   └── src/
 │       ├── cisco/           # SSH client, SNMP, parsers, capability DB, OUI, lifecycle
 │       ├── routes/          # Fastify route handlers

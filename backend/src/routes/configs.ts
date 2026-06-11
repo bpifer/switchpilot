@@ -149,6 +149,24 @@ export default async function configRoutes(app: FastifyInstance) {
     return { diff, identical: !diff.trim() };
   });
 
+  // Roll back to a specific git commit: replay that historical config onto the device.
+  app.post('/api/devices/:id/config/rollback/:sha', { preHandler: requireRole('netadmin'), schema: { tags: ['configs'] } },
+    async (req, reply) => {
+      const { id, sha } = req.params as any;
+      const me = req.user as any;
+      const ctx = await deviceGitContext(id);
+      if (!ctx) return reply.code(404).send({ error: 'Device not found' });
+      const content = await gitShow(sha, ctx.hostname, ctx.site);
+      if (!content) return reply.code(404).send({ error: 'Commit not found' });
+      // snapshot current state first so the rollback is itself reversible
+      await backupDevice(id, me.username, { reason: `pre-rollback to ${sha.slice(0, 8)}` });
+      const lines = content.split('\n')
+        .filter((l: string) => l.trim() && !l.startsWith('!') && !/^(version|Building configuration|Current configuration)/.test(l));
+      const output = await devicePushConfig(id, lines, true);
+      await audit(me.username, 'config.rollback', id, { sha }, req.ip);
+      return { ok: true, output };
+    });
+
   // Push arbitrary config lines (netadmin only)
   app.post('/api/devices/:id/config/push', {
     preHandler: requireRole('netadmin'),

@@ -1,0 +1,357 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { api } from '../api';
+import type { Me } from '../App';
+import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
+
+interface RuleRollup {
+  id: string;
+  name: string;
+  severity: 'info' | 'warning' | 'critical';
+  match_type: string;
+  pattern: string;
+  passed: number;
+  total: number;
+}
+interface DeviceRollup {
+  id: string;
+  hostname: string;
+  mgmt_ip: string;
+  site_name: string | null;
+  passed: number;
+  total: number;
+  critical_fails: number;
+}
+interface Summary {
+  score: number | null;
+  passed: number;
+  total: number;
+  rules: RuleRollup[];
+  devices: DeviceRollup[];
+}
+
+const SEV_COLOR: Record<string, string> = {
+  info:     'bg-blue-100 text-blue-700',
+  warning:  'bg-amber-100 text-amber-700',
+  critical: 'bg-red-100 text-red-700',
+};
+
+function scoreColor(pct: number): string {
+  if (pct >= 95) return 'text-green-600';
+  if (pct >= 80) return 'text-amber-600';
+  return 'text-red-600';
+}
+
+export default function Compliance({ me }: { me: Me }) {
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [evaluating, setEvaluating] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  const canEdit = me.role === 'superadmin' || me.role === 'netadmin';
+
+  const load = () => api<Summary>('/api/compliance/summary')
+    .then(setSummary).catch(() => setSummary(null)).finally(() => setLoading(false));
+  useEffect(() => { load(); }, []);
+
+  async function evaluate() {
+    setEvaluating(true);
+    try { await api('/api/compliance/evaluate', { method: 'POST' }); load(); }
+    catch (err: any) { alert(err.message); }
+    finally { setEvaluating(false); }
+  }
+
+  const pct = (p: number, t: number) => t ? Math.round(p / t * 100) : 0;
+
+  return (
+    <div>
+      <PageHeader title="Configuration Compliance">
+        {canEdit && <Button variant="secondary" onClick={() => setShowRules(true)}>Manage rules</Button>}
+        <Button onClick={evaluate} disabled={evaluating}>{evaluating ? 'Evaluating…' : 'Run evaluation'}</Button>
+      </PageHeader>
+
+      <div className="px-6 py-4 space-y-4">
+        {loading ? (
+          <p className="py-8 text-center text-sm text-slate-400">Loading compliance data…</p>
+        ) : !summary || summary.total === 0 ? (
+          <Card>
+            <p className="py-8 text-center text-sm text-slate-400">
+              No compliance results yet. Make sure devices have at least one config backup, then press
+              <strong> Run evaluation</strong>.
+            </p>
+          </Card>
+        ) : (
+          <>
+            {/* Fleet score */}
+            <div className="grid gap-4 md:grid-cols-[16rem_1fr]">
+              <Card>
+                <div className="flex flex-col items-center py-3">
+                  <div className={`text-5xl font-bold ${scoreColor(summary.score ?? 0)}`}>{summary.score}%</div>
+                  <div className="mt-1 text-xs uppercase tracking-wide text-slate-400">Fleet compliance</div>
+                  <div className="mt-2 text-sm text-slate-500">{summary.passed} / {summary.total} checks passing</div>
+                </div>
+              </Card>
+              <Card title="Rules">
+                <div className="space-y-2">
+                  {summary.rules.map(r => {
+                    const p = pct(r.passed, r.total);
+                    return (
+                      <div key={r.id} className="flex items-center gap-3">
+                        <span className={`w-20 shrink-0 rounded-full px-2 py-0.5 text-center text-[11px] font-semibold ${SEV_COLOR[r.severity]}`}>
+                          {r.severity}
+                        </span>
+                        <span className="w-56 shrink-0 truncate text-sm text-slate-700" title={r.pattern}>{r.name}</span>
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                          <div className={`h-full ${p >= 95 ? 'bg-green-500' : p >= 80 ? 'bg-amber-500' : 'bg-red-500'}`}
+                               style={{ width: `${p}%` }} />
+                        </div>
+                        <span className="w-16 shrink-0 text-right text-xs text-slate-500">{r.passed}/{r.total}</span>
+                      </div>
+                    );
+                  })}
+                  {summary.rules.length === 0 && <p className="text-sm text-slate-400">No enabled rules.</p>}
+                </div>
+              </Card>
+            </div>
+
+            {/* Per-device */}
+            <Card title="Devices">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-xs uppercase text-slate-500">
+                      <th className="py-2 pr-4">Device</th><th className="pr-4">Site</th>
+                      <th className="pr-4">Score</th><th className="pr-4">Critical fails</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {summary.devices.map(d => {
+                      const p = pct(d.passed, d.total);
+                      return (
+                        <tr key={d.id} className="hover:bg-slate-50/80">
+                          <td className="py-2.5 pr-4">
+                            <Link to={`/devices/${d.id}`} className="font-medium text-brand-600 hover:underline">
+                              {d.hostname || d.mgmt_ip}
+                            </Link>
+                          </td>
+                          <td className="pr-4 text-xs text-slate-500">{d.site_name ?? '—'}</td>
+                          <td className="pr-4">
+                            <span className={`font-semibold ${scoreColor(p)}`}>{p}%</span>
+                            <span className="ml-1 text-xs text-slate-400">({d.passed}/{d.total})</span>
+                          </td>
+                          <td className="pr-4">
+                            {d.critical_fails > 0
+                              ? <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">{d.critical_fails}</span>
+                              : <span className="text-xs text-slate-400">0</span>}
+                          </td>
+                          <td className="text-right">
+                            <DeviceDetailLink deviceId={d.id} canEdit={canEdit} onChanged={load} />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </>
+        )}
+      </div>
+
+      {showRules && <RulesManager onClose={() => { setShowRules(false); load(); }} />}
+    </div>
+  );
+}
+
+function DeviceDetailLink({ deviceId, canEdit, onChanged }: { deviceId: string; canEdit: boolean; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button className="text-xs text-brand-600 hover:underline" onClick={() => setOpen(true)}>view checks</button>
+      {open && <DeviceChecks deviceId={deviceId} canEdit={canEdit} onClose={() => setOpen(false)} onChanged={onChanged} />}
+    </>
+  );
+}
+
+interface DeviceCheck {
+  rule_id: string;
+  name: string;
+  description: string;
+  severity: 'info' | 'warning' | 'critical';
+  remediation: string;
+  passed: boolean | null;
+  detail: string | null;
+  checked_at: string | null;
+}
+
+function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
+  deviceId: string; canEdit: boolean; onClose: () => void; onChanged: () => void;
+}) {
+  const [checks, setChecks] = useState<DeviceCheck[]>([]);
+  const [busy, setBusy] = useState('');
+
+  const load = () => api<DeviceCheck[]>(`/api/compliance/device/${deviceId}`).then(setChecks).catch(() => setChecks([]));
+  useEffect(() => { load(); }, []);
+
+  async function remediate(ruleId: string) {
+    setBusy(ruleId);
+    try { await api('/api/compliance/remediate', { method: 'POST', body: { deviceId, ruleId } }); await load(); onChanged(); }
+    catch (err: any) { alert(err.message); }
+    finally { setBusy(''); }
+  }
+
+  return (
+    <Modal title="Compliance checks" onClose={onClose}>
+      <div className="space-y-2">
+        {checks.map(c => (
+          <div key={c.rule_id} className={`rounded-lg border p-2.5 ${
+            c.passed === false ? 'border-red-200 bg-red-50/50' : c.passed ? 'border-green-200 bg-green-50/30' : 'border-slate-200'}`}>
+            <div className="flex items-center gap-2">
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${SEV_COLOR[c.severity]}`}>{c.severity}</span>
+              <span className="text-sm font-medium text-slate-800">{c.name}</span>
+              <span className="ml-auto text-xs font-semibold">
+                {c.passed === null ? <span className="text-slate-400">not checked</span>
+                  : c.passed ? <span className="text-green-600">PASS</span> : <span className="text-red-600">FAIL</span>}
+              </span>
+            </div>
+            {c.description && <p className="mt-1 text-xs text-slate-500">{c.description}</p>}
+            {c.detail && c.passed === false && <p className="mt-1 font-mono text-xs text-red-600">{c.detail}</p>}
+            {canEdit && c.passed === false && c.remediation && (
+              <div className="mt-2 text-right">
+                <Button variant="secondary" onClick={() => remediate(c.rule_id)} disabled={busy === c.rule_id}>
+                  {busy === c.rule_id ? 'Remediating…' : 'Remediate'}
+                </Button>
+              </div>
+            )}
+          </div>
+        ))}
+        {checks.length === 0 && <p className="py-4 text-center text-sm text-slate-400">No checks for this device.</p>}
+      </div>
+    </Modal>
+  );
+}
+
+interface Rule {
+  id: string;
+  name: string;
+  description: string;
+  severity: 'info' | 'warning' | 'critical';
+  match_type: string;
+  pattern: string;
+  remediation: string;
+  site_id: string | null;
+  site_name: string | null;
+  enabled: boolean;
+}
+
+const MATCH_LABELS: Record<string, string> = {
+  line_present:  'Line present',
+  line_absent:   'Line absent',
+  regex_present: 'Regex matches',
+  regex_absent:  'Regex absent',
+};
+
+function RulesManager({ onClose }: { onClose: () => void }) {
+  const [rules, setRules] = useState<Rule[]>([]);
+  const [sites, setSites] = useState<{ id: string; name: string }[]>([]);
+  const [editing, setEditing] = useState<Partial<Rule> | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = () => api<Rule[]>('/api/compliance/rules').then(setRules).catch(() => setRules([]));
+  useEffect(() => {
+    load();
+    api<{ id: string; name: string }[]>('/api/sites').then(setSites).catch(() => setSites([]));
+  }, []);
+
+  async function save() {
+    if (!editing?.name?.trim() || !editing?.pattern?.trim()) return;
+    setBusy(true);
+    const body = {
+      name: editing.name, description: editing.description ?? '',
+      severity: editing.severity ?? 'warning', match_type: editing.match_type ?? 'line_present',
+      pattern: editing.pattern, remediation: editing.remediation ?? '',
+      siteId: editing.site_id || null, enabled: editing.enabled ?? true
+    };
+    try {
+      if (editing.id) await api(`/api/compliance/rules/${editing.id}`, { method: 'PUT', body });
+      else await api('/api/compliance/rules', { method: 'POST', body });
+      setEditing(null); load();
+    } catch (err: any) { alert(err.message); }
+    finally { setBusy(false); }
+  }
+
+  async function remove(id: string) {
+    if (!confirm('Delete this rule and its results?')) return;
+    try { await api(`/api/compliance/rules/${id}`, { method: 'DELETE' }); load(); }
+    catch (err: any) { alert(err.message); }
+  }
+
+  return (
+    <Modal title="Compliance rules" onClose={onClose}>
+      <div className="mb-3 flex justify-end">
+        <Button onClick={() => setEditing({ severity: 'warning', match_type: 'line_present', enabled: true })}>Add rule</Button>
+      </div>
+
+      <div className="max-h-[45vh] space-y-2 overflow-auto">
+        {rules.map(r => (
+          <div key={r.id} className="flex items-center gap-2 rounded-lg border border-slate-200 p-2 text-sm">
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${SEV_COLOR[r.severity]}`}>{r.severity}</span>
+            <div className="min-w-0 flex-1">
+              <div className="font-medium text-slate-800">{r.name} {!r.enabled && <span className="text-xs text-slate-400">(disabled)</span>}</div>
+              <div className="truncate font-mono text-xs text-slate-500">{MATCH_LABELS[r.match_type]}: {r.pattern}</div>
+            </div>
+            <button className="text-xs text-brand-600 hover:underline" onClick={() => setEditing(r)}>edit</button>
+            <button className="text-xs text-red-600 hover:underline" onClick={() => remove(r.id)}>delete</button>
+          </div>
+        ))}
+        {rules.length === 0 && <p className="py-4 text-center text-sm text-slate-400">No rules yet.</p>}
+      </div>
+
+      {editing && (
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <h3 className="mb-3 text-sm font-semibold text-slate-700">{editing.id ? 'Edit rule' : 'New rule'}</h3>
+          <Field label="Name">
+            <input className={inputCls} value={editing.name ?? ''} onChange={e => setEditing(p => ({ ...p, name: e.target.value }))} placeholder="e.g. NTP configured" />
+          </Field>
+          <Field label="Description">
+            <input className={inputCls} value={editing.description ?? ''} onChange={e => setEditing(p => ({ ...p, description: e.target.value }))} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Severity">
+              <select className={inputCls} value={editing.severity} onChange={e => setEditing(p => ({ ...p, severity: e.target.value as any }))}>
+                <option value="info">info</option><option value="warning">warning</option><option value="critical">critical</option>
+              </select>
+            </Field>
+            <Field label="Match type">
+              <select className={inputCls} value={editing.match_type} onChange={e => setEditing(p => ({ ...p, match_type: e.target.value }))}>
+                {Object.entries(MATCH_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </Field>
+          </div>
+          <Field label="Pattern (substring for line_*, regex for regex_*)">
+            <input className={`${inputCls} font-mono`} value={editing.pattern ?? ''} onChange={e => setEditing(p => ({ ...p, pattern: e.target.value }))} placeholder="e.g. ^ntp server " />
+          </Field>
+          <Field label="Remediation config lines (optional, one per line)">
+            <textarea className={`${inputCls} font-mono h-20`} value={editing.remediation ?? ''} onChange={e => setEditing(p => ({ ...p, remediation: e.target.value }))} placeholder={'ntp server 10.0.0.1'} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Scope">
+              <select className={inputCls} value={editing.site_id ?? ''} onChange={e => setEditing(p => ({ ...p, site_id: e.target.value || null }))}>
+                <option value="">All sites</option>
+                {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Enabled">
+              <select className={inputCls} value={editing.enabled ? '1' : '0'} onChange={e => setEditing(p => ({ ...p, enabled: e.target.value === '1' }))}>
+                <option value="1">Enabled</option><option value="0">Disabled</option>
+              </select>
+            </Field>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button onClick={save} disabled={busy || !editing.name?.trim() || !editing.pattern?.trim()}>{busy ? 'Saving…' : 'Save'}</Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
