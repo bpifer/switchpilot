@@ -16,6 +16,28 @@ export default async function portRoutes(app: FastifyInstance) {
       return rows;
     });
 
+  // Historical samples for one port (collected on each metrics sweep)
+  app.get('/api/devices/:id/ports/:port/metrics', {
+    preHandler: requireRole('readonly'),
+    schema: {
+      tags: ['ports'],
+      querystring: {
+        type: 'object',
+        properties: { hours: { type: 'integer', minimum: 1, maximum: 168, default: 24 } }
+      }
+    }
+  }, async (req) => {
+    const { id, port } = req.params as any;
+    const hours = (req.query as any).hours ?? 24;
+    const { rows } = await query(
+      `SELECT recorded_at, in_bps, out_bps, in_errors, out_errors, status
+       FROM port_metrics
+       WHERE device_id=$1 AND port_name=$2 AND recorded_at > now() - ($3 * interval '1 hour')
+       ORDER BY recorded_at`,
+      [id, port, hours]);
+    return rows;
+  });
+
   // Live MAC table for one port
   app.get('/api/devices/:id/ports/:port/macs', { preHandler: requireRole('readonly'), schema: { tags: ['ports'] } },
     async (req) => {

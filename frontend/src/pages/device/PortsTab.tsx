@@ -1,7 +1,24 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
+import { useApiQuery } from '../../hooks/useApiQuery';
 import { Card, Button, StatusBadge, Modal, Field, inputCls } from '../../components/ui';
 import PortGrid, { type Port } from '../../components/PortGrid';
+
+interface PortSample {
+  recorded_at: string;
+  in_bps: number | null;
+  out_bps: number | null;
+  in_errors: number;
+  out_errors: number;
+  status: string;
+}
+
+function fmtBps(bps: number): string {
+  if (bps >= 1e9) return `${(bps / 1e9).toFixed(1)} Gbps`;
+  if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)} Mbps`;
+  if (bps >= 1e3) return `${(bps / 1e3).toFixed(0)} Kbps`;
+  return `${bps} bps`;
+}
 
 export default function PortsTab({ deviceId, ports, canOperate, onChanged }: {
   deviceId: string; ports: Port[]; canOperate: boolean; onChanged: () => void;
@@ -108,6 +125,9 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
         )}
       </div>
 
+      {/* History */}
+      <PortHistory deviceId={deviceId} portPath={portPath} />
+
       {result && (
         <pre className="mt-4 max-h-56 overflow-auto rounded-lg bg-gray-900 p-3 text-xs leading-relaxed text-green-300">{result}</pre>
       )}
@@ -124,6 +144,70 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
         />
       )}
     </Card>
+  );
+}
+
+function PortHistory({ deviceId, portPath }: { deviceId: string; portPath: string }) {
+  const [hours, setHours] = useState(24);
+  const { data: samples = [] } = useApiQuery<PortSample[]>(
+    `/api/devices/${deviceId}/ports/${portPath}/metrics?hours=${hours}`,
+    { refetchInterval: 60000 });
+
+  const W = 600, H = 80;
+  const inVals = samples.map(s => s.in_bps ?? 0);
+  const outVals = samples.map(s => s.out_bps ?? 0);
+  const max = Math.max(...inVals, ...outVals, 1);
+  const x = (i: number) => samples.length > 1 ? (i / (samples.length - 1)) * W : 0;
+  const y = (v: number) => H - (v / max) * (H - 6) - 3;
+  const line = (vals: number[]) => vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+
+  return (
+    <div className="mt-4">
+      <div className="mb-2 flex items-center gap-3">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">History</span>
+        <div className="flex gap-1">
+          {[24, 72, 168].map(h => (
+            <button key={h}
+              className={`rounded px-2 py-0.5 text-[11px] ${hours === h ? 'bg-brand-50 font-medium text-brand-700 ring-1 ring-brand-200' : 'text-slate-400 hover:text-slate-600'}`}
+              onClick={() => setHours(h)}>
+              {h === 24 ? '24h' : h === 72 ? '3d' : '7d'}
+            </button>
+          ))}
+        </div>
+        {samples.length > 0 && (
+          <span className="ml-auto flex items-center gap-3 text-[11px] text-slate-400">
+            <span className="flex items-center gap-1"><span className="inline-block h-0.5 w-3 bg-sky-500" />in</span>
+            <span className="flex items-center gap-1"><span className="inline-block h-0.5 w-3 bg-emerald-500" />out</span>
+            <span>peak {fmtBps(max)}</span>
+          </span>
+        )}
+      </div>
+
+      {samples.length < 2 ? (
+        <div className="rounded-lg border border-slate-100 bg-slate-50/60 py-6 text-center text-xs text-slate-400">
+          Not enough samples yet - one is recorded on each metrics sweep (every 5 minutes).
+        </div>
+      ) : (
+        <div className="rounded-lg border border-slate-100 p-3">
+          {/* Traffic */}
+          <svg viewBox={`0 0 ${W} ${H}`} className="h-20 w-full" preserveAspectRatio="none">
+            <line x1="0" y1={H - 3} x2={W} y2={H - 3} stroke="#e2e8f0" strokeWidth="1" />
+            <polyline points={line(inVals)} fill="none" stroke="#0ea5e9" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+            <polyline points={line(outVals)} fill="none" stroke="#10b981" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+          </svg>
+          {/* Link status timeline */}
+          <div className="mt-2 flex h-2 w-full overflow-hidden rounded-sm" title="Link status over the period">
+            {samples.map((s, i) => (
+              <span key={i} className={`h-full flex-1 ${s.status === 'connected' ? 'bg-green-400' : s.status === 'err-disabled' ? 'bg-red-400' : 'bg-slate-200'}`} />
+            ))}
+          </div>
+          <div className="mt-1 flex justify-between text-[10px] text-slate-400">
+            <span>{new Date(samples[0].recorded_at).toLocaleString()}</span>
+            <span>{new Date(samples[samples.length - 1].recorded_at).toLocaleString()}</span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
