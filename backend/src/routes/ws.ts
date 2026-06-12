@@ -5,13 +5,16 @@ import { onEvent } from '../redis.js';
 export default async function wsRoutes(app: FastifyInstance) {
   await app.register(websocketPlugin);
 
-  // Browsers can't set an Authorization header on a WebSocket, so the JWT is
-  // passed as a ?token= query param and verified before the upgrade completes.
+  // Browsers can't set an Authorization header on a WebSocket, so the client
+  // passes a token as ?token=. Only the 30-second single-purpose nonce from
+  // POST /api/auth/ws-token is accepted (ws claim required) - the session JWT
+  // itself never appears in a URL or in proxy access logs.
   const authenticate = async (req: FastifyRequest, reply: any) => {
     const token = (req.query as any)?.token;
     try {
       if (!token) throw new Error('missing token');
-      app.jwt.verify(token);
+      const claims = app.jwt.verify<{ ws?: boolean }>(token);
+      if (!claims.ws) throw new Error('not a ws token');
     } catch {
       return reply.code(401).send({ error: 'Authentication required' });
     }

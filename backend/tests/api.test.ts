@@ -20,6 +20,9 @@ const login = (username: string, password: string, ip: string) =>
 
 beforeAll(async () => {
   if (!RUN) return;
+  const { migrate, seedAdmin } = await import('../src/db.js');
+  await migrate();
+  await seedAdmin();
   const { buildApp } = await import('../src/app.js');
   app = await buildApp();
   const res = await login('admin', 'ChangeMe123!', '10.0.0.1');
@@ -121,6 +124,20 @@ describe('token refresh', () => {
 
   itDb('refresh without a token is 401', async () => {
     expect((await app.inject({ method: 'POST', url: '/api/auth/refresh' })).statusCode).toBe(401);
+  });
+
+  itDb('issues a short-lived ws nonce distinct from the session token', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/auth/ws-token', headers: { authorization: `Bearer ${adminToken}` }
+    });
+    expect(res.statusCode).toBe(200);
+    const nonce = res.json().token;
+    expect(nonce).toBeTruthy();
+    expect(nonce).not.toBe(adminToken);
+    // the nonce carries the ws claim and a short expiry
+    const payload = JSON.parse(Buffer.from(nonce.split('.')[1], 'base64url').toString());
+    expect(payload.ws).toBe(true);
+    expect(payload.exp - payload.iat).toBeLessThanOrEqual(30);
   });
 });
 

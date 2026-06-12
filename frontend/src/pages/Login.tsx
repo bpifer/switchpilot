@@ -60,8 +60,9 @@ export default function Login({ onLogin }: { onLogin: (me: Me) => void }) {
           )}
 
           <div className="mb-4">
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Username</label>
+            <label htmlFor="login-username" className="mb-1.5 block text-sm font-medium text-slate-700">Username</label>
             <input
+              id="login-username"
               className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
               value={username}
               onChange={e => setUsername(e.target.value)}
@@ -71,8 +72,9 @@ export default function Login({ onLogin }: { onLogin: (me: Me) => void }) {
           </div>
 
           <div className="mb-5">
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Password</label>
+            <label htmlFor="login-password" className="mb-1.5 block text-sm font-medium text-slate-700">Password</label>
             <input
+              id="login-password"
               type="password"
               className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
               value={password}
@@ -83,8 +85,9 @@ export default function Login({ onLogin }: { onLogin: (me: Me) => void }) {
 
           {mfaRequired && (
             <div className="mb-5">
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">MFA code</label>
+              <label htmlFor="login-totp" className="mb-1.5 block text-sm font-medium text-slate-700">MFA code</label>
               <input
+                id="login-totp"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                 value={totp}
                 onChange={e => setTotp(e.target.value)}

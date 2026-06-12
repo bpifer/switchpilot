@@ -1,6 +1,6 @@
-// Builds the Fastify application (plugins, routes, schema migration) WITHOUT
-// starting background services or listening — so tests can drive it via
-// `app.inject(...)`. index.ts wraps this with redis/scheduler/leader + listen.
+// Builds the Fastify application (plugins + routes) WITHOUT running migrations,
+// starting background services, or listening - so tests can drive it via
+// `app.inject(...)`. index.ts wraps this with migrate/seed/redis/leader/listen.
 import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
@@ -11,7 +11,7 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 
 import { config } from './config.js';
-import { migrate, seedAdmin, query } from './db.js';
+import { query } from './db.js';
 import { redis } from './redis.js';
 import { registry, refreshGauges, httpDuration } from './metrics.js';
 
@@ -135,9 +135,6 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(complianceRoutes);
   await app.register(securityRoutes);
   await app.register(wsRoutes);
-
-  await migrate();
-  await seedAdmin();
 
   return app;
 }

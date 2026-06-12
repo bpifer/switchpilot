@@ -144,8 +144,8 @@ function EnrollMfa({ username, onDone }: { username: string; onDone: () => void 
         <summary className="cursor-pointer">Show otpauth:// URL</summary>
         <div className="mt-1 break-all rounded bg-slate-50 p-2 font-mono">{otpauth}</div>
       </details>
-      <label className="mb-1.5 block text-sm font-medium text-slate-700">Enter the 6-digit code</label>
-      <input className={`${inputCls} mb-5`} value={totp} inputMode="numeric" onChange={e => setTotp(e.target.value)} autoFocus />
+      <label htmlFor="mfa-totp" className="mb-1.5 block text-sm font-medium text-slate-700">Enter the 6-digit code</label>
+      <input id="mfa-totp" className={`${inputCls} mb-5`} value={totp} inputMode="numeric" onChange={e => setTotp(e.target.value)} autoFocus />
       <button disabled={busy || totp.length < 6} className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60">
         {busy ? 'Verifying…' : 'Enable MFA'}
       </button>

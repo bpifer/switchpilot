@@ -19,6 +19,9 @@
     "@fastify/swagger": "^8.15.0",
     "@fastify/swagger-ui": "^4.1.0",
     "@fastify/websocket": "^8.3.1",
+    "@opentelemetry/auto-instrumentations-node": "^0.77.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.219.0",
+    "@opentelemetry/sdk-node": "^0.219.0",
     "bcryptjs": "^2.4.3",
     "cron-parser": "^4.9.0",
     "diff": "^5.2.0",
@@ -40,6 +43,7 @@
     "@types/nodemailer": "^6.4.15",
     "@types/pg": "^8.11.6",
     "@types/ssh2": "^1.15.0",
+    "@vitest/coverage-v8": "^2.1.9",
     "tsx": "^4.16.0",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"

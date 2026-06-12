@@ -209,6 +209,15 @@ export default async function authRoutes(app: FastifyInstance) {
       return { token: app.jwt.sign({ sub: user.id, username: user.username, role: user.role }) };
     });
 
+  // Short-lived nonce for the WebSocket upgrade. The session JWT never appears
+  // in a URL (and therefore never lands in proxy/access logs); the client
+  // exchanges it here for a 30-second single-purpose token instead.
+  app.post('/api/auth/ws-token', { preHandler: requireRole('readonly'), schema: { tags: ['auth'] } },
+    async (req) => {
+      const me = req.user as any;
+      return { token: app.jwt.sign({ sub: me.sub, username: me.username, ws: true }, { expiresIn: '30s' }) };
+    });
+
   app.get('/api/auth/me', { preHandler: requireRole('readonly'), schema: { tags: ['auth'] } },
     async (req) => {
       const me = req.user as any;

@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../api';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card, StatusBadge, Icon } from '../components/ui';
 
 const STAT_ICONS = {
@@ -11,18 +10,8 @@ const STAT_ICONS = {
 };
 
 export default function Dashboard() {
-  const [summary, setSummary] = useState<any>(null);
-  const [alerts, setAlerts] = useState<any[]>([]);
-
-  useEffect(() => {
-    const load = () => {
-      api('/api/summary').then(setSummary).catch(() => {});
-      api('/api/alerts?limit=10').then(setAlerts).catch(() => {});
-    };
-    load();
-    const t = setInterval(load, 30000);
-    return () => clearInterval(t);
-  }, []);
+  const { data: summary } = useApiQuery<any>('/api/summary', { refetchInterval: 30000 });
+  const { data: alerts = [] } = useApiQuery<any[]>('/api/alerts?limit=10', { refetchInterval: 30000 });
 
   const dev = summary?.devices ?? {};
   const al  = summary?.openAlerts ?? {};

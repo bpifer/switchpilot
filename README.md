@@ -34,8 +34,9 @@ Communicates directly over **SSH and SNMP** - no Cisco DNA Center, no Meraki lic
 - **Config-change alerting** - scheduler detects changed backups and raises a `config_changed` alert
 - **Notifications** - Email (SMTP), Microsoft Teams webhook, Slack webhook
 - **Maintenance windows** - suppress alerts for planned outages; scoped to all devices or a specific list
-- **Real-time push** - authenticated WebSocket endpoint (`/ws`, JWT required) streams alerts to the dashboard instantly via Redis pub/sub (scales across multiple API replicas)
+- **Real-time push** - authenticated WebSocket endpoint streams alerts to the dashboard instantly via Redis pub/sub (scales across multiple API replicas). The upgrade is authorized by a 30-second single-purpose nonce from `POST /api/auth/ws-token`, so the session JWT never appears in a URL or proxy log
 - **Prometheus metrics** - `GET /metrics` exposes process defaults plus SwitchPilot gauges (devices by status, open alerts by severity, job queue depth) and an HTTP latency histogram, ready to scrape into Grafana/Datadog
+- **Distributed tracing (opt-in)** - set `OTEL_EXPORTER_OTLP_ENDPOINT` and the API auto-instruments HTTP, Postgres, Redis, and DNS spans via OpenTelemetry (OTLP/HTTP export to Jaeger, Tempo, etc.)
 
 ### Endpoint Tracking
 - **Endpoint Inventory** - MAC table + ARP correlation gives you every endpoint: IP, MAC, vendor (150+ OUI prefixes), reverse-DNS hostname, port, switch, VLAN; export to CSV
@@ -112,6 +113,7 @@ API docs: **http://localhost:3000/docs**
 | `CREDENTIAL_KEY` | `00…00` (32 bytes hex) | AES-256-GCM key for credential encryption. Same hard-fail in production if left at the default. |
 | `REDIS_URL` | `redis://redis:6379` | Redis connection string |
 | `DB_POOL_MAX` | `10` | Max Postgres connections per API instance |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | - | Set to enable OpenTelemetry tracing (e.g. `http://jaeger:4318`) |
 | `ALLOWED_ORIGINS` | - | Comma-separated CORS allow-list (e.g. `https://switchpilot.corp`). Unset reflects any origin (dev only). |
 | `ENABLE_API_DOCS` | `true` | Serve Swagger UI at `/docs`. Set `false` to hide the API schema in production. |
 | `FIRMWARE_DIR` | `/data/firmware` | Where IOS image files are stored |
@@ -178,7 +180,14 @@ The backend suite (Vitest) runs without any hardware or database:
 - **Mock Cisco SSH device** (`tests/helpers/mockCiscoDevice.ts`) - a fake IOS device (shell channel, enable mode, config mode, canned `show` output) that the **real** `CiscoSshSession` connects to over loopback, exercising the prompt/read loop, exec extraction and config-error handling end-to-end
 - **Compliance evaluator, security policy, RBAC, capability DB, OUI/lifecycle** - pure-function coverage
 
-CI (`.github/workflows/ci.yml`) typechecks both backend (`tsc --noEmit`) and frontend (`tsc -b && vite build`), runs the tests, and builds both Docker images on every push.
+With a Postgres available (`RUN_DB_TESTS=1`, as in CI), the suite also runs:
+
+- **HTTP route tests** via Fastify `inject` - auth (lockout, throttling, password policy), the full MFA cycle including recovery codes, token refresh, ws-token nonces, and RBAC enforcement
+- **Audit chain tamper tests** - modifying or deleting a committed audit row must fail verification at exactly that entry
+
+The frontend has its own Vitest + React Testing Library suite (`npm test` in `frontend/`) covering the login and MFA-enrollment flows.
+
+CI (`.github/workflows/ci.yml`) typechecks both halves, runs backend tests with coverage against a Postgres service, runs the frontend component tests, and builds both Docker images on every push.
 
 ---
 

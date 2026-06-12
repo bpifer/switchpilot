@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, StatusBadge, Modal, Field, inputCls, fmtUptime } from '../components/ui';
 
@@ -52,21 +53,13 @@ const CISCO_MODELS = [
 ];
 
 export default function Devices({ me }: { me: Me }) {
-  const [devices, setDevices] = useState<any[]>([]);
-  const [credentials, setCredentials] = useState<any[]>([]);
-  const [sites, setSites] = useState<any[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [showCred, setShowCred] = useState(false);
   const canEdit = me.role === 'superadmin' || me.role === 'netadmin';
 
-  const load = () => api('/api/devices').then(setDevices).catch(() => {});
-  useEffect(() => {
-    load();
-    api('/api/sites').then(setSites).catch(() => {});
-    if (canEdit) api('/api/credentials').then(setCredentials).catch(() => {});
-    const t = setInterval(load, 30000);
-    return () => clearInterval(t);
-  }, []);
+  const { data: devices = [], refetch: load } = useApiQuery<any[]>('/api/devices', { refetchInterval: 30000 });
+  const { data: sites = [] } = useApiQuery<any[]>('/api/sites');
+  const { data: credentials = [], refetch: reloadCreds } = useApiQuery<any[]>('/api/credentials', { enabled: canEdit });
 
   return (
     <div>
@@ -167,10 +160,7 @@ export default function Devices({ me }: { me: Me }) {
       {showCred && (
         <CredentialManager
           credentials={credentials}
-          onClose={() => {
-            setShowCred(false);
-            api('/api/credentials').then(setCredentials).catch(() => {});
-          }}
+          onClose={() => { setShowCred(false); reloadCreds(); }}
         />
       )}
     </div>

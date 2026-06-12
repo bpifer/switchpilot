@@ -1,21 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../api';
+import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, StatusBadge, Modal, Field, inputCls } from '../components/ui';
 
 export default function Alerts({ me }: { me: Me }) {
-  const [alerts, setAlerts] = useState<any[]>([]);
-  const [rules, setRules] = useState<any[]>([]);
   const [showAll, setShowAll] = useState(false);
   const [newRule, setNewRule] = useState(false);
   const canAck = me.role !== 'readonly';
   const canRules = me.role === 'superadmin' || me.role === 'netadmin';
 
-  const load = () => {
-    api(`/api/alerts?open=${!showAll}`).then(setAlerts).catch(() => {});
-    api('/api/automation/rules').then(setRules).catch(() => {});
-  };
-  useEffect(() => { load(); const t = setInterval(load, 20000); return () => clearInterval(t); }, [showAll]);
+  const { data: alerts = [], refetch: refetchAlerts } = useApiQuery<any[]>(`/api/alerts?open=${!showAll}`, { refetchInterval: 20000 });
+  const { data: rules = [], refetch: refetchRules } = useApiQuery<any[]>('/api/automation/rules');
+  const load = () => { refetchAlerts(); refetchRules(); };
 
   return (
     <div>

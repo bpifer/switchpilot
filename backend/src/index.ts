@@ -1,11 +1,17 @@
+import { startTracing } from './tracing.js';
+await startTracing();   // must run before other imports are exercised
+
 import { config } from './config.js';
 import { buildApp } from './app.js';
+import { migrate, seedAdmin } from './db.js';
 import { redis, initPubSub } from './redis.js';
 import { startScheduler } from './scheduler.js';
 import { startLeaderElection } from './leader.js';
 import { startSyslogListener } from './services/syslogService.js';
 
 async function main() {
+  await migrate();
+  await seedAdmin();
   const app = await buildApp();
 
   await redis.connect().catch(err => app.log.warn(`redis unavailable: ${err.message}`));

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { getToken } from '../api';
+import { api, getToken } from '../api';
 
 export type WsEvent =
   | { type: 'alert'; data: { deviceId: string; kind: string; severity: string; message: string; ts: string } }
@@ -29,12 +29,20 @@ export function useWebSocket(onEvent: (e: WsEvent) => void): void {
     let stopped = false;
     let retryMs = 2000;
 
-    function connect() {
-      const token = getToken();
-      if (!token || stopped) return;
+    async function connect() {
+      if (!getToken() || stopped) return;
+      // Exchange the session JWT for a 30-second single-purpose nonce so the
+      // real token never appears in the URL (or proxy access logs).
+      let nonce: string;
+      try {
+        ({ token: nonce } = await api<{ token: string }>('/api/auth/ws-token', { method: 'POST' }));
+      } catch {
+        if (!stopped) retryTimer = setTimeout(connect, retryMs);
+        return;
+      }
+      if (stopped) return;
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      // The /ws endpoint authenticates this token before accepting the upgrade.
-      ws = new WebSocket(`${proto}//${location.host}/ws?token=${encodeURIComponent(token)}`);
+      ws = new WebSocket(`${proto}//${location.host}/ws?token=${encodeURIComponent(nonce)}`);
 
       ws.onopen = () => { retryMs = 2000; };
       ws.onmessage = e => {
