@@ -69,6 +69,14 @@ export default async function firmwareRoutes(app: FastifyInstance) {
     const { imageId } = req.params as any;
     const { deviceIds, scheduleAt } = req.body as any;
     const me = req.user as any;
+    // Fail fast with a clear message instead of letting every device error in the job
+    if (!process.env.PLATFORM_URL) {
+      return reply.code(400).send({
+        error: 'PLATFORM_URL is not set in the API environment. Switches download images from ' +
+               'PLATFORM_URL/api/firmware/files/<name>, so set it to a URL reachable from the ' +
+               'switch management network (e.g. http://192.168.10.226:8080) and restart the API.'
+      });
+    }
     const job = await createJob({
       type: 'firmware_upgrade',
       name: `Firmware upgrade (${deviceIds.length} device${deviceIds.length > 1 ? 's' : ''})`,

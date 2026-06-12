@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, apiUpload } from '../api';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
@@ -224,6 +224,7 @@ function UpgradeModal({ image, onClose, onDone }: {
   const [scheduleAt, setScheduleAt] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   const toggle = (id: string) =>
     setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -240,6 +241,8 @@ function UpgradeModal({ image, onClose, onDone }: {
         }
       });
       onDone();
+      // The upgrade runs as a job - take the user to where they can watch it
+      navigate('/jobs');
     } catch (err: any) { setError(err.message); }
     finally { setBusy(false); }
   }
