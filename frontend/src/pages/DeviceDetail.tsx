@@ -32,32 +32,49 @@ export default function DeviceDetail({ me }: { me: Me }) {
 
   if (!device) return <div className="p-6 text-gray-400">Loading…</div>;
 
+  const psu = (device.psu_status ?? []) as { id: string; status: string }[];
+  const fans = (device.fan_status ?? []) as { id: string; status: string }[];
+  const connectedPorts = ports.filter(p => p.oper_status === 'connected').length;
+
   return (
     <div>
       <PageHeader title={device.hostname || device.mgmt_ip}>
         {canOperate && <Button variant="secondary" onClick={refresh} disabled={busy}>{busy ? 'Refreshing…' : '↻ Refresh now'}</Button>}
       </PageHeader>
 
-      <div className="grid grid-cols-2 gap-4 p-6 pb-0 md:grid-cols-4 lg:grid-cols-6">
-        <Info label="Status"><StatusBadge status={device.status} /></Info>
-        <Info label="Model">{device.model || '-'}</Info>
-        <Info label="Serial">{device.serial_number || '-'}</Info>
-        <Info label="IOS">{device.ios_version || '-'}</Info>
-        <Info label="Uptime">{fmtUptime(device.uptime_seconds)}</Info>
-        <Info label="Last seen">{device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : '-'}</Info>
-        <Info label="CPU">{device.cpu_pct != null ? `${device.cpu_pct}%` : '-'}</Info>
-        <Info label="Memory">{device.mem_pct != null ? `${device.mem_pct}%` : '-'}</Info>
-        <Info label="Temp">{device.temperature_c != null ? `${device.temperature_c}°C` : '-'}</Info>
-        <Info label="PSU">{(device.psu_status ?? []).map((p: any) => `${p.id}:${p.status}`).join(' ') || '-'}</Info>
-        <Info label="Fans">{(device.fan_status ?? []).map((f: any) => `${f.id}:${f.status}`).join(' ') || '-'}</Info>
-        <Info label="Location">{device.location || '-'}</Info>
+      {/* Identity + health summary band */}
+      <div className="px-6 pt-5">
+        <div className="rounded-xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200/60">
+          <div className="flex flex-wrap items-center gap-x-7 gap-y-2.5">
+            <StatusBadge status={device.status} />
+            <Meta label="Model" value={device.model} mono />
+            <Meta label="Serial" value={device.serial_number} mono />
+            <Meta label="IOS" value={device.ios_version} mono />
+            <Meta label="Uptime" value={fmtUptime(device.uptime_seconds)} />
+            <Meta label="Ports" value={ports.length ? `${connectedPorts}/${ports.length} up` : null} />
+            <Meta label="Location" value={device.location} />
+            <Meta label="Last seen" value={device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : null} />
+          </div>
+
+          <div className="mt-3.5 flex flex-wrap items-center gap-x-7 gap-y-3 border-t border-slate-100 pt-3.5">
+            <Gauge label="CPU" pct={device.cpu_pct} />
+            <Gauge label="Memory" pct={device.mem_pct} />
+            <Meta label="Temp" value={device.temperature_c != null ? `${device.temperature_c}°C` : null}
+                  tone={device.temperature_c >= 55 ? 'warn' : undefined} />
+            <HardwareHealth label="PSU" items={psu} />
+            <HardwareHealth label="Fans" items={fans} />
+          </div>
+        </div>
       </div>
 
+      {/* Tabs */}
       <div className="px-6 pt-4">
-        <div className="flex gap-1 border-b">
+        <div className="flex gap-1 border-b border-slate-200">
           {(['ports', 'config', 'backups', 'history', 'vlans', 'neighbors'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
-                    className={`px-4 py-2 text-sm capitalize ${tab === t ? 'border-b-2 border-brand-600 font-medium text-brand-700' : 'text-gray-500'}`}>
+                    className={`px-4 py-2 text-sm capitalize transition-colors ${tab === t
+                      ? 'border-b-2 border-brand-600 font-medium text-brand-700'
+                      : 'text-gray-500 hover:text-gray-700'}`}>
               {t}
             </button>
           ))}
@@ -76,11 +93,50 @@ export default function DeviceDetail({ me }: { me: Me }) {
   );
 }
 
-function Info({ label, children }: { label: string; children: React.ReactNode }) {
+function Meta({ label, value, mono = false, tone }: {
+  label: string; value: string | null | undefined; mono?: boolean; tone?: 'warn';
+}) {
+  if (!value) return null;
   return (
-    <div className="rounded border bg-white px-3 py-2 text-sm shadow-sm">
-      <div className="text-xs uppercase text-gray-400">{label}</div>
-      <div className="mt-0.5 truncate">{children}</div>
+    <div className="flex items-baseline gap-1.5">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</span>
+      <span className={`text-sm ${mono ? 'font-mono text-xs' : ''} ${tone === 'warn' ? 'font-medium text-amber-600' : 'text-slate-700'}`}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function Gauge({ label, pct }: { label: string; pct: number | null }) {
+  if (pct == null) return null;
+  const color = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-400' : 'bg-green-500';
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</span>
+      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+      </div>
+      <span className="text-sm tabular-nums text-slate-700">{pct}%</span>
+    </div>
+  );
+}
+
+function HardwareHealth({ label, items }: { label: string; items: { id: string; status: string }[] }) {
+  if (!items.length) return null;
+  const ok = (s: string) => /^(ok|good|normal)$/i.test(s) || /not present/i.test(s);
+  const bad = items.filter(i => !ok(i.status));
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</span>
+      {bad.length === 0 ? (
+        <span className="inline-flex items-center gap-1 text-sm text-green-600">
+          <span className="h-1.5 w-1.5 rounded-full bg-green-500" /> OK
+        </span>
+      ) : (
+        <span className="text-sm font-medium text-red-600">
+          {bad.map(b => `${b.id}: ${b.status}`).join(', ')}
+        </span>
+      )}
     </div>
   );
 }
