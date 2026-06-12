@@ -1,5 +1,4 @@
-// Meraki-style graphical switch front panel.
-// Ports render as a two-row grid (odd top, even bottom) per module, colored by state.
+// Cisco switch front panel — copper ports in staggered 2-row layout, uplinks in a separate row.
 export interface Port {
   name: string;
   description: string;
@@ -20,10 +19,20 @@ function portColor(p: Port): string {
   if (!p.admin_up || p.oper_status === 'disabled') return 'bg-gray-300 border-gray-400';
   if (p.oper_status === 'err-disabled') return 'bg-red-500 border-red-700';
   if (p.oper_status === 'connected') {
-    if (p.input_errors > 0 || p.output_errors > 0) return 'bg-yellow-400 border-yellow-600';
+    if ((p.input_errors ?? 0) > 0 || (p.output_errors ?? 0) > 0) return 'bg-yellow-400 border-yellow-600';
     return 'bg-green-500 border-green-700';
   }
   return 'bg-white border-gray-300';
+}
+
+function portNum(name: string): number {
+  const slash = name.lastIndexOf('/');
+  const seg = slash >= 0 ? name.slice(slash + 1) : name.replace(/^\D+/, '');
+  return parseInt(seg, 10) || 0;
+}
+
+function isUplink(name: string): boolean {
+  return /^(Te|Tw|Fo|Hu)/i.test(name);
 }
 
 export default function PortGrid({ ports, selected, onSelect }: {
@@ -31,39 +40,51 @@ export default function PortGrid({ ports, selected, onSelect }: {
   selected: string | null;
   onSelect: (name: string) => void;
 }) {
-  // group by module prefix, e.g. "Gi1/0" for Gi1/0/24 — keeps stack members separate
+  // Skip port-channels, AP manager, and management ports without a slash (e.g. Fa0, Mgmt0)
+  const physical = ports.filter(p =>
+    !p.name.startsWith('Po') &&
+    !p.name.startsWith('Ap') &&
+    !p.name.startsWith('Mg') &&
+    p.name.includes('/')
+  );
+
+  // Separate uplinks (Te/Fo/Hu) from copper/SFP access ports (Gi/Fa)
+  const copper = physical.filter(p => !isUplink(p.name));
+  const uplinks = physical.filter(p => isUplink(p.name));
+
+  // Group copper by module (everything before last slash): Gi0, Fa0, Gi1/0, etc.
   const groups = new Map<string, Port[]>();
-  for (const p of ports) {
-    if (p.name.startsWith('Po') || p.name.startsWith('Ap')) continue; // skip port-channels/AP mgr
-    const idx = p.name.lastIndexOf('/');
-    const key = idx > 0 ? p.name.slice(0, idx) : p.name.replace(/\d+$/, '');
+  for (const p of copper) {
+    const key = p.name.slice(0, p.name.lastIndexOf('/'));
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(p);
   }
 
+  if (physical.length === 0) {
+    return (
+      <div className="py-8 text-center text-sm text-gray-400">
+        No port data yet - hit "Refresh now" to poll the switch.
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {[...groups.entries()].map(([module, list]) => {
         const sorted = [...list].sort((a, b) => portNum(a.name) - portNum(b.name));
-        const odd = sorted.filter(p => portNum(p.name) % 2 === 1);
+        const odd  = sorted.filter(p => portNum(p.name) % 2 === 1);
         const even = sorted.filter(p => portNum(p.name) % 2 === 0);
         return (
           <div key={module}>
-            <div className="mb-1 text-xs font-medium text-gray-500">{module}/x</div>
-            <div className="inline-block rounded-lg border-2 border-gray-700 bg-gray-800 p-3">
+            <div className="mb-1 flex items-center gap-2">
+              <span className="text-xs font-medium text-gray-500">{module}/1–{sorted.length}</span>
+              <span className="text-xs text-gray-400">({sorted.filter(p => p.oper_status === 'connected').length} connected)</span>
+            </div>
+            <div className="inline-block rounded-lg border-2 border-gray-700 bg-gray-800 p-2.5">
               {[odd, even].map((row, i) => (
-                <div key={i} className="flex gap-1.5 first:mb-1.5">
+                <div key={i} className="flex gap-1 first:mb-1">
                   {row.map(p => (
-                    <button
-                      key={p.name}
-                      title={`${p.name} — ${p.oper_status}${p.description ? ` — ${p.description}` : ''}${p.poe_watts ? ` — ${p.poe_watts}W PoE` : ''}`}
-                      onClick={() => onSelect(p.name)}
-                      className={`h-6 w-7 rounded-sm border-2 text-[8px] leading-none text-gray-800
-                        ${portColor(p)} ${selected === p.name ? 'ring-2 ring-sky-400' : ''}
-                        ${p.poe_watts ? 'shadow-[inset_0_-3px_0_rgba(37,99,235,0.9)]' : ''}`}
-                    >
-                      {portNum(p.name)}
-                    </button>
+                    <PortButton key={p.name} p={p} selected={selected} onSelect={onSelect} label={String(portNum(p.name))} />
                   ))}
                 </div>
               ))}
@@ -71,6 +92,24 @@ export default function PortGrid({ ports, selected, onSelect }: {
           </div>
         );
       })}
+
+      {uplinks.length > 0 && (
+        <div>
+          <div className="mb-1 flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-500">Uplinks</span>
+            <span className="text-xs text-gray-400">({uplinks.filter(p => p.oper_status === 'connected').length}/{uplinks.length} connected)</span>
+          </div>
+          <div className="inline-block rounded-lg border-2 border-gray-700 bg-gray-800 p-2.5">
+            <div className="flex gap-1.5">
+              {uplinks.sort((a, b) => portNum(a.name) - portNum(b.name)).map(p => (
+                <PortButton key={p.name} p={p} selected={selected} onSelect={onSelect}
+                  label={p.name.replace(/^.*\//, '')} wide />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-4 text-xs text-gray-500">
         <Legend cls="bg-green-500" label="Connected" />
         <Legend cls="bg-white border border-gray-300" label="Not connected" />
@@ -83,10 +122,41 @@ export default function PortGrid({ ports, selected, onSelect }: {
   );
 }
 
-function Legend({ cls, label }: { cls: string; label: string }) {
-  return <span className="flex items-center gap-1.5"><span className={`inline-block h-3 w-4 rounded-sm ${cls}`} />{label}</span>;
+function PortButton({ p, selected, onSelect, label, wide = false }: {
+  p: Port; selected: string | null; onSelect: (n: string) => void; label: string; wide?: boolean;
+}) {
+  const tooltip = [
+    p.name,
+    p.description || null,
+    p.oper_status,
+    p.vlan !== '1' ? `VLAN ${p.vlan}` : null,
+    p.speed && p.speed !== 'auto' ? p.speed : null,
+    p.poe_watts ? `${p.poe_watts}W PoE` : null,
+    (p.macs ?? []).length > 0 ? `${p.macs.length} MAC${p.macs.length !== 1 ? 's' : ''}` : null,
+  ].filter(Boolean).join(' — ');
+
+  return (
+    <button
+      title={tooltip}
+      onClick={() => onSelect(p.name)}
+      className={`
+        ${wide ? 'h-8 w-10' : 'h-6 w-7'} rounded-sm border-2 text-[8px] leading-none font-medium
+        ${portColor(p)}
+        ${selected === p.name ? 'ring-2 ring-sky-400 ring-offset-1 ring-offset-gray-800' : ''}
+        ${p.poe_watts ? 'shadow-[inset_0_-3px_0_rgba(37,99,235,0.9)]' : ''}
+        transition-opacity hover:opacity-80
+      `}
+    >
+      {label}
+    </button>
+  );
 }
 
-function portNum(name: string): number {
-  return parseInt(name.match(/(\d+)$/)?.[1] ?? '0', 10);
+function Legend({ cls, label }: { cls: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className={`inline-block h-3 w-4 rounded-sm border border-gray-400 ${cls}`} />
+      {label}
+    </span>
+  );
 }
