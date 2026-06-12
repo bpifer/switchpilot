@@ -43,7 +43,7 @@ export function invalidateLifecycleCache(): void {
 function toIsoDate(val: string | null): string | null {
   if (!val) return null;
   // pg may return DATE as a JS Date object or as "YYYY-MM-DD" string depending on driver version
-  if (val instanceof Date) return (val as unknown as Date).toISOString().slice(0, 10);
+  if ((val as unknown) instanceof Date) return (val as unknown as Date).toISOString().slice(0, 10);
   return String(val).slice(0, 10);
 }
 
