@@ -28,6 +28,23 @@ export class ApiError extends Error {
   }
 }
 
+/** Multipart upload (firmware images etc). Browser sets the content-type + boundary. */
+export async function apiUpload<T = any>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+    body: form
+  });
+  if (res.status === 401) {
+    setToken(null);
+    window.location.href = '/login';
+    throw new ApiError(401, 'Session expired');
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(res.status, data.error ?? res.statusText, data.detail);
+  return data as T;
+}
+
 export async function api<T = any>(
   path: string,
   options: { method?: string; body?: unknown } = {}
