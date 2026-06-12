@@ -27,7 +27,7 @@ let cacheAt = 0;
 async function loadCatalog(): Promise<CatalogRow[]> {
   if (cache && Date.now() - cacheAt < CACHE_TTL_MS) return cache;
   const { rows } = await query<CatalogRow>(
-    `SELECT model_prefix, eos_date, eol_date, recommended_release FROM lifecycle_catalog`);
+    `SELECT model_prefix, eos_date::text, eol_date::text, recommended_release FROM lifecycle_catalog`);
   // longest prefix first so e.g. 'WS-C3560CX-' beats 'WS-C3560-'
   rows.sort((a, b) => b.model_prefix.length - a.model_prefix.length);
   cache = rows;
@@ -40,11 +40,17 @@ export function invalidateLifecycleCache(): void {
   cache = null;
 }
 
+function toIsoDate(val: string | null): string | null {
+  if (!val) return null;
+  // pg may return DATE as a JS Date object or as "YYYY-MM-DD" string depending on driver version
+  if (val instanceof Date) return (val as unknown as Date).toISOString().slice(0, 10);
+  return String(val).slice(0, 10);
+}
+
 function toEntry(row: CatalogRow): LifecycleEntry {
   return {
-    // pg returns DATE as a JS Date or ISO string depending on driver settings; normalise to YYYY-MM-DD
-    eos: row.eos_date ? String(row.eos_date).slice(0, 10) : null,
-    eol: row.eol_date ? String(row.eol_date).slice(0, 10) : null,
+    eos: toIsoDate(row.eos_date),
+    eol: toIsoDate(row.eol_date),
     recommendedRelease: row.recommended_release || undefined
   };
 }
