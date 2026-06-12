@@ -16,6 +16,7 @@ interface Job {
   max_attempts: number;
   last_error: string;
   run_after: string | null;
+  stage?: string;
 }
 
 interface JobResult {
@@ -98,7 +99,12 @@ export default function Jobs() {
                         )}
                       </span>
                     </td>
-                    <td className="pr-4 font-medium text-slate-800">{j.name}</td>
+                    <td className="pr-4">
+                      <div className="font-medium text-slate-800">{j.name}</div>
+                      {j.status === 'running' && j.stage && (
+                        <div className="mt-0.5 text-xs text-blue-600">{j.stage}</div>
+                      )}
+                    </td>
                     <td className="pr-4 text-slate-600">{j.type}</td>
                     <td className="pr-4 text-slate-600">{(j.device_ids ?? []).length}</td>
                     <td className="pr-4 text-slate-600">
@@ -146,6 +152,15 @@ export default function Jobs() {
             )}
           </div>
 
+          {detail.status === 'running' && detail.stage && (
+            <div className="mb-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+              <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              {detail.stage}
+            </div>
+          )}
           {detail.last_error && detail.status === 'failed' && (
             <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
               {detail.last_error}

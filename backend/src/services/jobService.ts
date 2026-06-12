@@ -112,8 +112,13 @@ async function runClaimedJob(job: any): Promise<void> {
   try {
     for (const deviceId of job.device_ids as string[]) {
       await publishEvent({ type: 'job_progress', data: { jobId, deviceId, status: 'running', attempt } });
+      // Long-running jobs report a human-readable stage, persisted + pushed live
+      const onStage = async (stage: string) => {
+        await query('UPDATE jobs SET stage=$1 WHERE id=$2', [stage, jobId]).catch(() => {});
+        await publishEvent({ type: 'job_progress', data: { jobId, deviceId, status: 'running', stage, attempt } });
+      };
       try {
-        const output = await runJobOnDevice(job, deviceId);
+        const output = await runJobOnDevice(job, deviceId, onStage);
         await query(
           'INSERT INTO job_results (job_id, device_id, success, output, attempt) VALUES ($1,$2,TRUE,$3,$4)',
           [jobId, deviceId, output.slice(0, 20000), attempt]);
@@ -144,7 +149,7 @@ async function finishJob(job: any, allOk: boolean, lastError: string): Promise<v
     await query(
       `UPDATE jobs SET status='pending', started_at=NULL, finished_at=NULL,
          locked_by=NULL, heartbeat_at=NULL, next_run_at=$2, run_after=$2,
-         last_error=$3 WHERE id=$1`,
+         last_error=$3, stage='' WHERE id=$1`,
       [jobId, next, allOk ? '' : lastError]);
     await publishEvent({ type: 'job_progress', data: { jobId, status: 'pending', recurring: true } });
     return;
@@ -152,7 +157,7 @@ async function finishJob(job: any, allOk: boolean, lastError: string): Promise<v
 
   if (allOk) {
     await query(
-      `UPDATE jobs SET status='done', finished_at=now(), locked_by=NULL, heartbeat_at=NULL, last_error='' WHERE id=$1`,
+      `UPDATE jobs SET status='done', finished_at=now(), locked_by=NULL, heartbeat_at=NULL, last_error='', stage='' WHERE id=$1`,
       [jobId]);
     await publishEvent({ type: 'job_progress', data: { jobId, status: 'done' } });
     return;
@@ -165,12 +170,12 @@ async function finishJob(job: any, allOk: boolean, lastError: string): Promise<v
     const runAfter = new Date(Date.now() + backoffMs(attempts));
     await query(
       `UPDATE jobs SET status='pending', started_at=NULL, finished_at=NULL,
-         locked_by=NULL, heartbeat_at=NULL, run_after=$2, last_error=$3 WHERE id=$1`,
+         locked_by=NULL, heartbeat_at=NULL, run_after=$2, last_error=$3, stage='' WHERE id=$1`,
       [jobId, runAfter, lastError]);
     await publishEvent({ type: 'job_progress', data: { jobId, status: 'pending', retryAt: runAfter.toISOString(), attempt: attempts } });
   } else {
     await query(
-      `UPDATE jobs SET status='failed', finished_at=now(), locked_by=NULL, heartbeat_at=NULL, last_error=$2 WHERE id=$1`,
+      `UPDATE jobs SET status='failed', finished_at=now(), locked_by=NULL, heartbeat_at=NULL, last_error=$2, stage='' WHERE id=$1`,
       [jobId, lastError]);
     await publishEvent({ type: 'job_progress', data: { jobId, status: 'failed', error: lastError } });
   }
@@ -215,7 +220,11 @@ export async function retryJob(jobId: string): Promise<boolean> {
   return true;
 }
 
-async function runJobOnDevice(job: any, deviceId: string): Promise<string> {
+async function runJobOnDevice(
+  job: any,
+  deviceId: string,
+  onStage: (stage: string) => Promise<void> = async () => {}
+): Promise<string> {
   const payload = job.payload ?? {};
   switch (job.type) {
     case 'config_push': {
@@ -239,7 +248,7 @@ async function runJobOnDevice(job: any, deviceId: string): Promise<string> {
       return drifted ? 'DRIFT DETECTED' : 'compliant';
     }
     case 'firmware_upgrade':
-      return upgradeFirmware(deviceId, payload.imageId as string);
+      return upgradeFirmware(deviceId, payload.imageId as string, onStage);
     case 'bounce_port': {
       const port = payload.port as string;
       if (!port) throw new Error('bounce_port job requires payload.port');

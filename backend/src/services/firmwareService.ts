@@ -13,7 +13,11 @@ import { raiseAlert } from './alertService.js';
  *   1. copy image to flash, 2. verify MD5, 3. set boot (or install add on IOS-XE),
  *   4. reload. Rollback = boot statement still lists the previous image.
  */
-export async function upgradeFirmware(deviceId: string, imageId: string): Promise<string> {
+export async function upgradeFirmware(
+  deviceId: string,
+  imageId: string,
+  onStage: (stage: string) => Promise<void> = async () => {}
+): Promise<string> {
   const device = await getDevice(deviceId);
   const { rows } = await query('SELECT * FROM firmware_images WHERE id=$1', [imageId]);
   const image = rows[0];
@@ -25,6 +29,7 @@ export async function upgradeFirmware(deviceId: string, imageId: string): Promis
   const platformUrl = process.env.PLATFORM_URL ?? '';
   if (!platformUrl) throw new Error('PLATFORM_URL must be set so switches can download images');
   const url = `${platformUrl}/api/firmware/files/${image.filename}`;
+  const sizeMb = (image.size_bytes / 1024 / 1024).toFixed(1);
 
   const session = new CiscoSshSession({ ...(await sshTargetFor(device)), timeoutMs: 30000 });
   await session.connect();
@@ -36,22 +41,54 @@ export async function upgradeFirmware(deviceId: string, imageId: string): Promis
     // confirmations) - without this the copy deadlocks waiting for Enter.
     await session.configure(['file prompt quiet']);
 
-    const copyOut = await session.exec(`copy ${url} flash:${image.filename}`, 1800_000);
-    log.push(copyOut);
-    if (/%Error|%Warning|failed/i.test(copyOut) && !/bytes copied|\[OK/i.test(copyOut)) {
-      throw new Error(`Image copy failed:\n${copyOut}`);
+    // --- preflight: is the image already there? is there room for it? ---
+    await onStage('checking flash');
+    let dirOut = await session.exec('dir flash:');
+    const fileRe = new RegExp(`\\s${image.filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'm');
+    let needCopy = true;
+
+    if (fileRe.test(dirOut)) {
+      await onStage('image already on flash - verifying MD5');
+      const v = await session.exec(`verify /md5 flash:${image.filename} ${image.md5}`, 600_000);
+      if (/Verified/i.test(v)) {
+        log.push(`${image.filename} already on flash with matching MD5 - copy skipped`);
+        needCopy = false;
+      } else {
+        log.push('existing file failed MD5 - deleting and re-copying');
+        await session.exec(`delete /force flash:${image.filename}`);
+        dirOut = await session.exec('dir flash:');
+      }
     }
 
-    const verify = await session.exec(`verify /md5 flash:${image.filename} ${image.md5}`, 600_000);
-    log.push(verify);
-    if (!/Verified/i.test(verify)) throw new Error(`MD5 verification failed:\n${verify}`);
+    if (needCopy) {
+      const free = parseInt(dirOut.match(/\((\d+) bytes free\)/)?.[1] ?? '0', 10);
+      if (free < image.size_bytes) {
+        throw new Error(
+          `Not enough flash space: image needs ${sizeMb} MB, only ${(free / 1024 / 1024).toFixed(1)} MB free. ` +
+          `Delete unused images from flash: (dir flash: / delete flash:<file>) and retry.`);
+      }
+
+      await onStage(`copying image (${sizeMb} MB over HTTP - several minutes)`);
+      const copyOut = await session.exec(`copy ${url} flash:${image.filename}`, 1800_000);
+      log.push(copyOut);
+      if (/%Error|%Warning|failed/i.test(copyOut) && !/bytes copied|\[OK/i.test(copyOut)) {
+        throw new Error(`Image copy failed:\n${copyOut}`);
+      }
+
+      await onStage('verifying MD5 (a few minutes on older switches)');
+      const verify = await session.exec(`verify /md5 flash:${image.filename} ${image.md5}`, 600_000);
+      log.push(verify);
+      if (!/Verified/i.test(verify)) throw new Error(`MD5 verification failed:\n${verify}`);
+    }
 
     const caps = device.capabilities as any;
     if (caps?.installMode) {
+      await onStage('install add/activate/commit (device reloads during this step)');
       const cmd = (commandsForFamily(device.family).installAdd ?? 'install add file flash:{file} activate commit')
         .replace('{file}', image.filename);
       log.push(await session.exec(cmd, 2400_000)); // install mode reloads as part of activate
     } else {
+      await onStage('setting boot statement and saving config');
       // Replace any existing boot statements so the switch can't boot the old image
       await session.configure(['no boot system', `boot system flash:${image.filename}`, 'no file prompt quiet']);
       await session.saveConfig();
@@ -60,6 +97,7 @@ export async function upgradeFirmware(deviceId: string, imageId: string): Promis
       await raiseAlert(deviceId, 'firmware_reload', 'warning',
         `${device.hostname} is reloading NOW to apply ${image.version} - expect 5-10 minutes of downtime`)
         .catch(() => { /* alert is best-effort */ });
+      await onStage('reloading device (5-10 min downtime)');
       log.push(await session.reload());
     }
     return log.join('\n---\n');
