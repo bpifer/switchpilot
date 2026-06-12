@@ -115,6 +115,36 @@ export class CiscoSshSession {
     return out;
   }
 
+  /**
+   * Issue `reload` and answer its interactive prompts:
+   *   "System configuration has been modified. Save? [yes/no]:" -> no (caller saved already)
+   *   "Proceed with reload? [confirm]" -> newline
+   * Resolves when the connection drops (the reload taking effect) or after timeout.
+   */
+  reload(timeoutMs = 30000): Promise<string> {
+    this.buffer = '';
+    this.stream.write('reload\n');
+    return new Promise(resolve => {
+      const started = Date.now();
+      const tick = setInterval(() => {
+        if (/\[yes\/no\]:?\s*$/i.test(this.buffer)) {
+          this.buffer = '';
+          this.stream.write('no\n');
+        } else if (/\[confirm\]\s*$/i.test(this.buffer)) {
+          this.buffer = '';
+          this.stream.write('\n');
+        } else if (Date.now() - started > timeoutMs) {
+          clearInterval(tick);
+          resolve('reload issued (no disconnect observed within timeout)');
+        }
+      }, 100);
+      const done = (why: string) => { clearInterval(tick); resolve(`reload issued; ${why}`); };
+      this.stream.once('close', () => done('device dropped the session (rebooting)'));
+      this.conn.once('close', () => done('connection closed (rebooting)'));
+      this.conn.once('error', () => done('connection reset (rebooting)'));
+    });
+  }
+
   close(): void {
     try { this.stream?.end('exit\n'); } catch { /* already closed */ }
     this.conn.end();

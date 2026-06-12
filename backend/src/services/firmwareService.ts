@@ -31,7 +31,15 @@ export async function upgradeFirmware(deviceId: string, imageId: string): Promis
   try {
     await session.enable();
 
-    log.push(await session.exec(`copy ${url} flash:${image.filename}`, 1800_000));
+    // Suppress interactive file prompts ("Destination filename?", overwrite
+    // confirmations) - without this the copy deadlocks waiting for Enter.
+    await session.configure(['file prompt quiet']);
+
+    const copyOut = await session.exec(`copy ${url} flash:${image.filename}`, 1800_000);
+    log.push(copyOut);
+    if (/%Error|%Warning|failed/i.test(copyOut) && !/bytes copied|\[OK/i.test(copyOut)) {
+      throw new Error(`Image copy failed:\n${copyOut}`);
+    }
 
     const verify = await session.exec(`verify /md5 flash:${image.filename} ${image.md5}`, 600_000);
     log.push(verify);
@@ -43,12 +51,11 @@ export async function upgradeFirmware(deviceId: string, imageId: string): Promis
         .replace('{file}', image.filename);
       log.push(await session.exec(cmd, 2400_000)); // install mode reloads as part of activate
     } else {
-      await session.configure([`boot system flash:${image.filename}`]);
+      // Replace any existing boot statements so the switch can't boot the old image
+      await session.configure(['no boot system', `boot system flash:${image.filename}`, 'no file prompt quiet']);
       await session.saveConfig();
-      log.push('boot statement updated; issuing reload');
-      // reload prompts for confirmation
-      log.push(await session.exec('reload', 10_000).catch(() => ''));
-      log.push(await session.exec('', 5_000).catch(() => '')); // confirm prompt
+      log.push('boot statement updated and config saved; issuing reload');
+      log.push(await session.reload());
     }
     return log.join('\n---\n');
   } finally {
