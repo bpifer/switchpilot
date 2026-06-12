@@ -8,25 +8,25 @@ Communicates directly over **SSH and SNMP** - no Cisco DNA Center, no Meraki lic
 ## Features
 
 ### Device Management
-- **Inventory** — hostname, model, serial, IOS/NX-OS version, uptime, CPU/memory/temperature, PSU & fan status, stack members
-- **Auto-detection** — SSH/SNMP probing resolves capabilities from a built-in model database (gates commands per model + OS version)
-- **NX-OS support** — Nexus 3K/5K/7K/9K: skips enable mode, uses `copy running-config startup-config`, NX-OS-aware parsers for `show version`, `show environment`, `show system resources`, MAC table `*`-prefix rows
-- **Sites** — group devices by physical location for rollup reporting
-- **Bulk CSV import** — onboard many switches at once from a spreadsheet
+- **Inventory** - hostname, model, serial, IOS/NX-OS version, uptime, CPU/memory/temperature, PSU & fan status, stack members
+- **Auto-detection** - SSH/SNMP probing resolves capabilities from a built-in model database (gates commands per model + OS version)
+- **NX-OS support** - Nexus 3K/5K/7K/9K: skips enable mode, uses `copy running-config startup-config`, NX-OS-aware parsers for `show version`, `show environment`, `show system resources`, MAC table `*`-prefix rows
+- **Sites** - group devices by physical location for rollup reporting
+- **Bulk CSV import** - onboard many switches at once from a spreadsheet
 
 ### Configuration
-- **Backup & restore** — scheduled automatic backups, on-demand, restore any snapshot
+- **Backup & restore** - scheduled automatic backups, on-demand, restore any snapshot
 - **Git versioning** - every backup commits to a local git repo (`/data/config-history`), laid out as `configs/<site>/<hostname>.cfg`; the commit **author** is the user who triggered it and **Reason** / **Ticket** are recorded as commit trailers for audit. Browse the per-device history timeline, view config at any commit, and diff any two versions in the UI (or via `GET /api/devices/:id/config/git-log`, `…/git-show/:sha`, `…/git-diff`). The repo is auto-`gc`'d nightly.
-- **Diff** — compare any two backups or a backup against live running config
-- **Push & templates** — send arbitrary config lines or render reusable templates (VLANs, interfaces, port security, QoS, ACLs, trunks, STP, SNMP, NTP, AAA)
+- **Diff** - compare any two backups or a backup against live running config
+- **Push & templates** - send arbitrary config lines or render reusable templates (VLANs, interfaces, port security, QoS, ACLs, trunks, STP, SNMP, NTP, AAA)
 - **Rollback** - one-click restore of any historical git commit onto the device (current config snapshotted first, so rollbacks are themselves reversible) - Git for switches
-- **Drift detection** — compare running config to a pinned baseline; optional auto-remediation
+- **Drift detection** - compare running config to a pinned baseline; optional auto-remediation
 - **Compliance engine** - define rules (line/regex present/absent) scoped to all devices or a site; every device's latest config is scored against them. Fleet + per-device compliance %, per-rule pass/fail rollup, severity-weighted critical-failure flags, and one-click **remediation** that pushes a rule's fix lines. Seeded with a best-practice ruleset (NTP, AAA, TACACS+, syslog, SNMPv3-only, no-telnet, enable secret). Evaluated on the compliance cron and on demand.
 
 ### Port Management
-- **Graphical front-panel** — port status, VLAN, speed, PoE watts
-- **Actions** — enable/disable, bounce (shutdown/no shutdown), cable test (TDR)
-- **Historical metrics** — per-port bandwidth and error counters over time
+- **Graphical front-panel** - port status, VLAN, speed, PoE watts
+- **Actions** - enable/disable, bounce (shutdown/no shutdown), cable test (TDR)
+- **Historical metrics** - per-port bandwidth and error counters over time
 
 ### Monitoring & Alerting
 - **Continuous polling** - online/offline, CPU, memory, temperature, PSU/fan, port flapping, interface errors
@@ -57,7 +57,7 @@ Communicates directly over **SSH and SNMP** - no Cisco DNA Center, no Meraki lic
 - End-of-Sale and End-of-Life dates for 50+ Cisco Catalyst and Nexus model families, stored in an editable **`lifecycle_catalog`** table (longest-prefix match)
 - Populated automatically at each device refresh
 - Dashboard shows switches nearing or past EOL; recommended IOS/NX-OS release per platform
-- Super Admins can add/edit/delete catalog entries in the UI — correct dates or add new models without a code release (ready for a future Cisco EoX feed import)
+- Super Admins can add/edit/delete catalog entries in the UI - correct dates or add new models without a code release (ready for a future Cisco EoX feed import)
 
 ### Firmware Management
 - **Image upload** - server-side MD5 verification; images served for `copy http:` transfers
@@ -96,7 +96,7 @@ docker compose up -d --build
 
 Open **http://localhost:8080**
 
-Default credentials: `admin` / `ChangeMe123!` — you are prompted to change the password on first login.
+Default credentials: `admin` / `ChangeMe123!` - you are prompted to change the password on first login.
 
 API docs: **http://localhost:3000/docs**
 
@@ -107,18 +107,18 @@ API docs: **http://localhost:3000/docs**
 | Variable | Default | Description |
 |---|---|---|
 | `POSTGRES_PASSWORD` | `switchpilot` | **Required in production** |
-| `JWT_SECRET` | `dev-only-secret` | **Required in production** — 32+ random chars. With `NODE_ENV=production` the API **refuses to start** if left at the default. |
+| `JWT_SECRET` | `dev-only-secret` | **Required in production** - 32+ random chars. With `NODE_ENV=production` the API **refuses to start** if left at the default. |
 | `CREDENTIAL_KEY` | `00…00` (32 bytes hex) | AES-256-GCM key for credential encryption. Same hard-fail in production if left at the default. |
 | `REDIS_URL` | `redis://redis:6379` | Redis connection string |
-| `ALLOWED_ORIGINS` | — | Comma-separated CORS allow-list (e.g. `https://switchpilot.corp`). Unset reflects any origin (dev only). |
+| `ALLOWED_ORIGINS` | - | Comma-separated CORS allow-list (e.g. `https://switchpilot.corp`). Unset reflects any origin (dev only). |
 | `ENABLE_API_DOCS` | `true` | Serve Swagger UI at `/docs`. Set `false` to hide the API schema in production. |
 | `FIRMWARE_DIR` | `/data/firmware` | Where IOS image files are stored |
 | `CONFIG_HISTORY_DIR` | `/data/config-history` | Git repo for config version history |
 | `SYSLOG_PORT` | `514` | UDP syslog receive port |
-| `SMTP_HOST` | — | SMTP server for email alerts |
-| `TEAMS_WEBHOOK_URL` | — | Microsoft Teams incoming webhook |
-| `SLACK_WEBHOOK_URL` | — | Slack incoming webhook |
-| `LDAP_URL` | — | LDAP/AD server (e.g. `ldap://dc.corp.local`) |
+| `SMTP_HOST` | - | SMTP server for email alerts |
+| `TEAMS_WEBHOOK_URL` | - | Microsoft Teams incoming webhook |
+| `SLACK_WEBHOOK_URL` | - | Slack incoming webhook |
+| `LDAP_URL` | - | LDAP/AD server (e.g. `ldap://dc.corp.local`) |
 
 ---
 
@@ -171,9 +171,9 @@ cd backend && npm test
 
 The backend suite (Vitest) runs without any hardware or database:
 
-- **Pure parsers** — `show version/interfaces/mac/cdp/vlan/arp/power/env` across IOS, IOS-XE and NX-OS samples
-- **Mock Cisco SSH device** (`tests/helpers/mockCiscoDevice.ts`) — a fake IOS device (shell channel, enable mode, config mode, canned `show` output) that the **real** `CiscoSshSession` connects to over loopback, exercising the prompt/read loop, exec extraction and config-error handling end-to-end
-- **Compliance evaluator, security policy, RBAC, capability DB, OUI/lifecycle** — pure-function coverage
+- **Pure parsers** - `show version/interfaces/mac/cdp/vlan/arp/power/env` across IOS, IOS-XE and NX-OS samples
+- **Mock Cisco SSH device** (`tests/helpers/mockCiscoDevice.ts`) - a fake IOS device (shell channel, enable mode, config mode, canned `show` output) that the **real** `CiscoSshSession` connects to over loopback, exercising the prompt/read loop, exec extraction and config-error handling end-to-end
+- **Compliance evaluator, security policy, RBAC, capability DB, OUI/lifecycle** - pure-function coverage
 
 CI (`.github/workflows/ci.yml`) typechecks both backend (`tsc --noEmit`) and frontend (`tsc -b && vite build`), runs the tests, and builds both Docker images on every push.
 
