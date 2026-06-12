@@ -54,24 +54,37 @@ const ICONS: Record<string, string> = {
   firmware:    'M21.75 17.25v-.228a4.5 4.5 0 00-.12-1.03l-2.268-9.64a3.375 3.375 0 00-3.285-2.602H7.923a3.375 3.375 0 00-3.285 2.602l-2.268 9.64a4.5 4.5 0 00-.12 1.03v.228m19.5 0a3 3 0 01-3 3H5.25a3 3 0 01-3-3m19.5 0a3 3 0 00-3-3H5.25a3 3 0 00-3 3m16.5 0h.008v.008h-.008v-.008zm-3 0h.008v.008h-.008v-.008z',
 };
 
-const NAV = [
-  { to: '/',          label: 'Dashboard', icon: ICONS.dashboard },
-  { to: '/devices',   label: 'Devices',   icon: ICONS.devices },
-  { to: '/topology',  label: 'Topology',  icon: ICONS.topology },
-  { to: '/templates', label: 'Templates', icon: ICONS.templates },
-  { to: '/jobs',      label: 'Jobs',      icon: ICONS.jobs },
-  { to: '/alerts',    label: 'Alerts',    icon: ICONS.alerts },
-  { to: '/analytics',   label: 'Analytics',   icon: ICONS.analytics },
-  { to: '/clients',     label: 'Clients',     icon: ICONS.clients },
-  { to: '/locate',      label: 'Locate',      icon: ICONS.locate },
-  { to: '/poe',         label: 'PoE',         icon: ICONS.poe },
-  { to: '/lifecycle',   label: 'Lifecycle',   icon: ICONS.lifecycle },
-  { to: '/firmware',    label: 'Firmware',    icon: ICONS.firmware },
-  { to: '/campaigns',   label: 'Campaigns',   icon: ICONS.campaigns },
-  { to: '/compliance',  label: 'Compliance',  icon: ICONS.compliance },
-  { to: '/maintenance', label: 'Maintenance', icon: ICONS.maintenance },
-  { to: '/discovery',   label: 'Discovery',   icon: ICONS.discovery },
-  { to: '/users',       label: 'Users',       icon: ICONS.users, role: 'superadmin' },
+interface NavItem { to: string; label: string; icon: string; role?: string }
+interface NavSection { title?: string; items: NavItem[] }
+
+const NAV: NavSection[] = [
+  { items: [
+    { to: '/',        label: 'Dashboard', icon: ICONS.dashboard },
+    { to: '/alerts',  label: 'Alerts',    icon: ICONS.alerts },
+  ]},
+  { title: 'Network', items: [
+    { to: '/devices',   label: 'Devices',   icon: ICONS.devices },
+    { to: '/topology',  label: 'Topology',  icon: ICONS.topology },
+    { to: '/clients',   label: 'Clients',   icon: ICONS.clients },
+    { to: '/locate',    label: 'Locate',    icon: ICONS.locate },
+    { to: '/discovery', label: 'Discovery', icon: ICONS.discovery },
+  ]},
+  { title: 'Operations', items: [
+    { to: '/jobs',        label: 'Jobs',        icon: ICONS.jobs },
+    { to: '/templates',   label: 'Templates',   icon: ICONS.templates },
+    { to: '/campaigns',   label: 'Campaigns',   icon: ICONS.campaigns },
+    { to: '/compliance',  label: 'Compliance',  icon: ICONS.compliance },
+    { to: '/maintenance', label: 'Maintenance', icon: ICONS.maintenance },
+  ]},
+  { title: 'Insights', items: [
+    { to: '/analytics', label: 'Analytics', icon: ICONS.analytics },
+    { to: '/poe',       label: 'PoE',       icon: ICONS.poe },
+    { to: '/lifecycle', label: 'Lifecycle', icon: ICONS.lifecycle },
+    { to: '/firmware',  label: 'Firmware',  icon: ICONS.firmware },
+  ]},
+  { title: 'Admin', items: [
+    { to: '/users', label: 'Users', icon: ICONS.users, role: 'superadmin' },
+  ]},
 ];
 
 function Initials({ name }: { name: string }) {
@@ -154,32 +167,45 @@ export default function App() {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-2">
-          {NAV.filter(n => !n.role || n.role === me.role).map(n => (
-            <NavLink
-              key={n.to}
-              to={n.to}
-              end={n.to === '/'}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors mb-0.5 ${
-                  isActive
-                    ? 'bg-white/10 text-white font-medium'
-                    : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon d={n.icon} className={`h-4 w-4 shrink-0 ${isActive ? 'text-brand-400' : ''}`} />
-                  <span className="flex-1">{n.label}</span>
-                  {n.to === '/alerts' && liveAlertCount > 0 && (
-                    <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                      {liveAlertCount > 99 ? '99+' : liveAlertCount}
-                    </span>
-                  )}
-                </>
-              )}
-            </NavLink>
-          ))}
+          {NAV.map((section, si) => {
+            const items = section.items.filter(n => !n.role || n.role === me.role);
+            if (items.length === 0) return null;
+            return (
+              <div key={section.title ?? si} className={si > 0 ? 'mt-4' : ''}>
+                {section.title && (
+                  <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    {section.title}
+                  </div>
+                )}
+                {items.map(n => (
+                  <NavLink
+                    key={n.to}
+                    to={n.to}
+                    end={n.to === '/'}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors mb-0.5 ${
+                        isActive
+                          ? 'bg-white/10 text-white font-medium'
+                          : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <Icon d={n.icon} className={`h-4 w-4 shrink-0 ${isActive ? 'text-brand-400' : ''}`} />
+                        <span className="flex-1">{n.label}</span>
+                        {n.to === '/alerts' && liveAlertCount > 0 && (
+                          <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                            {liveAlertCount > 99 ? '99+' : liveAlertCount}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
+            );
+          })}
         </nav>
 
         {/* User */}

@@ -34,6 +34,7 @@ services:
       - "3000:3000"
     volumes:
       - firmware:/data/firmware
+      - confighistory:/data/config-history
     depends_on:
       db:
         condition: service_healthy
@@ -51,3 +52,4 @@ services:
 volumes:
   pgdata:
   firmware:
+  confighistory:

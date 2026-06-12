@@ -101,8 +101,16 @@ function stripMac(mac: string): string {
   return mac.replace(/[.:\-]/g, '').toUpperCase();
 }
 
+// Full IEEE registry loaded from the oui_vendors table at startup (~35k entries).
+// The hardcoded table above stays as a fallback for air-gapped installs.
+let dynamicOui: Map<string, string> | null = null;
+
+export function setOuiCache(cache: Map<string, string>): void {
+  dynamicOui = cache.size > 0 ? cache : null;
+}
+
 /** Look up the vendor for a MAC address (any common format). Returns null if unknown. */
 export function lookupVendor(mac: string): string | null {
   const hex = stripMac(mac).slice(0, 6);
-  return OUI[hex] ?? null;
+  return dynamicOui?.get(hex) ?? OUI[hex] ?? null;
 }

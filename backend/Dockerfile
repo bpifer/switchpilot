@@ -13,6 +13,8 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY migrations ./migrations
 COPY src/cisco/capabilities.json ./dist/cisco/capabilities.json
+# Data dirs must be owned by the runtime user; named volumes inherit image ownership on first create
+RUN mkdir -p /data/firmware /data/config-history && chown -R node:node /data
 EXPOSE 3000
 USER node
 CMD ["node", "dist/index.js"]

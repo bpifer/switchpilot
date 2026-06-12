@@ -195,13 +195,13 @@ export default async function campaignRoutes(app: FastifyInstance) {
   // Lifecycle summary for all devices
   app.get('/api/devices/lifecycle', { preHandler: requireRole('readonly') }, async () => {
     const { rows } = await query(`
-      SELECT id, hostname, mgmt_ip::text AS mgmt_ip, model, ios_version,
-             eos_date::text, eol_date::text, recommended_release, status,
+      SELECT d.id, d.hostname, d.mgmt_ip::text AS mgmt_ip, d.model, d.ios_version,
+             d.eos_date::text, d.eol_date::text, d.recommended_release, d.status,
              COALESCE(s.name, 'Unassigned') AS site_name
       FROM devices d
       LEFT JOIN sites s ON s.id = d.site_id
-      WHERE eos_date IS NOT NULL OR eol_date IS NOT NULL OR recommended_release != ''
-      ORDER BY eol_date ASC NULLS LAST, eos_date ASC NULLS LAST, hostname
+      WHERE d.eos_date IS NOT NULL OR d.eol_date IS NOT NULL OR d.recommended_release != ''
+      ORDER BY d.eol_date ASC NULLS LAST, d.eos_date ASC NULLS LAST, d.hostname
     `);
     return rows;
   });

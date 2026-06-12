@@ -76,6 +76,18 @@ export default async function portRoutes(app: FastifyInstance) {
       lines.push(`switchport access vlan ${b.vlan}`);
     }
     const output = await devicePushConfig(id, lines);
+    // Mirror the change into the ports table so the UI is correct immediately
+    // (the next full refresh re-syncs from the device anyway)
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    if (b.description !== undefined) { params.push(b.description); sets.push(`description=$${params.length}`); }
+    if (b.mode === 'trunk') { params.push('trunk'); sets.push(`vlan=$${params.length}`, `mode='trunk'`); }
+    else if (b.vlan) { params.push(String(b.vlan)); sets.push(`vlan=$${params.length}`, `mode='access'`); }
+    if (sets.length) {
+      params.push(id, port);
+      await query(`UPDATE ports SET ${sets.join(', ')}, updated_at=now()
+                   WHERE device_id=$${params.length - 1} AND name=$${params.length}`, params);
+    }
     await audit(me.username, 'port.config', `${id}/${port}`, b, req.ip);
     return { ok: true, output };
   });

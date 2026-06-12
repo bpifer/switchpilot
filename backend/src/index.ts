@@ -8,6 +8,7 @@ import { redis, initPubSub } from './redis.js';
 import { startScheduler } from './scheduler.js';
 import { startLeaderElection } from './leader.js';
 import { startSyslogListener } from './services/syslogService.js';
+import { loadOuiCache, syncOuiDatabase } from './services/ouiService.js';
 
 async function main() {
   await migrate();
@@ -16,6 +17,13 @@ async function main() {
 
   await redis.connect().catch(err => app.log.warn(`redis unavailable: ${err.message}`));
   await initPubSub().catch(err => app.log.warn(`redis pub/sub unavailable: ${err.message}`));
+
+  // MAC vendor lookups: load what we have now, sync the IEEE registry in the
+  // background (first boot or staler than 30 days), then reload the cache.
+  await loadOuiCache().catch(err => app.log.warn(`OUI cache load failed: ${err.message}`));
+  syncOuiDatabase(msg => app.log.info(msg))
+    .then(() => loadOuiCache())
+    .catch(err => app.log.warn(`OUI sync skipped: ${err.message}`));
 
   // Contend for scheduler leadership, then start the sweeps (leader-gated inside).
   await startLeaderElection();
