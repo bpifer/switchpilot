@@ -104,6 +104,39 @@ API docs: **http://localhost:3000/docs**
 
 ---
 
+## Switch Prerequisites
+
+SwitchPilot needs SSH access to manage a switch. Everything else can be configured
+by SwitchPilot itself.
+
+Required on the switch before onboarding:
+
+```
+hostname SW-EXAMPLE
+ip domain-name example.local
+crypto key generate rsa modulus 2048
+ip ssh version 2
+username <user> privilege 15 secret <password>
+line vty 0 15
+ login local
+ transport input ssh
+```
+
+Recommended (SwitchPilot can push these for you - tick "Apply baseline config" when
+adding the device, or use the "Baseline config" button on the device page):
+
+| Config | Enables |
+|---|---|
+| `lldp run` | Discovery of non-Cisco neighbors (UniFi, servers, APs) in Topology and Discovery. CDP is on by default but only sees Cisco gear. |
+| `logging host <switchpilot-ip>` + `logging trap informational` | Real-time alerts from syslog: link flaps, config changes, errdisable, PSU events. |
+| `snmp-server community <ro-community> RO` | Fast status polling over SNMP instead of opening an SSH session each sweep. Uses the community from the device's credential profile. |
+
+For firmware upgrades, set `PLATFORM_URL` in `.env` to a URL reachable from the
+switch management network - switches download images from
+`PLATFORM_URL/api/firmware/files/<name>` during upgrade jobs.
+
+---
+
 ## Environment Variables
 
 | Variable | Default | Description |

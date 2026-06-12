@@ -171,13 +171,14 @@ function AddDevice({ credentials, sites, onClose }: { credentials: any[]; sites:
   const [form, setForm] = useState<any>({
     mgmtIp: '', credentialId: credentials[0]?.id ?? '', model: '', location: '', siteId: '',
   });
+  const [provision, setProvision] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   async function submit() {
     setBusy(true); setError('');
     try {
-      const body: any = { mgmtIp: form.mgmtIp, credentialId: form.credentialId };
+      const body: any = { mgmtIp: form.mgmtIp, credentialId: form.credentialId, provision };
       if (form.model)    body.model    = form.model;
       if (form.location) body.location = form.location;
       if (form.siteId)   body.siteId   = form.siteId;
@@ -258,6 +259,19 @@ function AddDevice({ credentials, sites, onClose }: { credentials: any[]; sites:
           placeholder="IDF-2, rack 4"
         />
       </Field>
+
+      <label className="mb-1 flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+        <input type="checkbox" className="mt-0.5 rounded border-slate-300"
+               checked={provision} onChange={e => setProvision(e.target.checked)} />
+        <span className="text-sm">
+          <span className="font-medium text-slate-700">Apply baseline config after onboarding</span>
+          <span className="mt-0.5 block text-xs text-slate-500">
+            Pushes <span className="font-mono">lldp run</span> (non-Cisco neighbor discovery), syslog
+            forwarding to SwitchPilot (real-time alerts), and the SNMP read community from the
+            credential profile (fast status polls). Runs as a job you can review.
+          </span>
+        </span>
+      </label>
 
       <div className="mt-5 flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose}>Cancel</Button>

@@ -7,6 +7,7 @@ import { detectDevice } from '../cisco/detector.js';
 import { listFamilies, resolveCapabilities, familyForModel } from '../cisco/capabilities.js';
 import { getDevice, sshTargetFor, snmpTargetFor } from '../services/deviceComms.js';
 import { refreshDevice } from '../services/monitorService.js';
+import { provisionDevice, buildProvisionPlan } from '../services/provisionService.js';
 
 export default async function deviceRoutes(app: FastifyInstance) {
   // ----- Capability database -----
@@ -121,7 +122,8 @@ export default async function deviceRoutes(app: FastifyInstance) {
           siteId: { type: 'string' },
           location: { type: 'string' },
           model: { type: 'string', description: 'Set to onboard with a manual model; omit for auto-detection' },
-          hostname: { type: 'string' }
+          hostname: { type: 'string' },
+          provision: { type: 'boolean', description: 'Queue a baseline config push (lldp run, syslog, SNMP) after onboarding' }
         }
       }
     }
@@ -154,8 +156,27 @@ export default async function deviceRoutes(app: FastifyInstance) {
 
     // kick off a full refresh in the background (ports, env, stack, neighbors)
     refreshDevice(rows[0].id).catch(err => app.log.warn(`initial refresh failed: ${err.message}`));
+
+    // optional baseline config push, queued as a visible job
+    if (b.provision) {
+      await provisionDevice(rows[0].id, me.username)
+        .catch(err => app.log.warn(`provisioning job failed to queue: ${err.message}`));
+    }
     return reply.code(201).send(rows[0]);
   });
+
+  // Preview the baseline plan for a device (lines + explanations)
+  app.get('/api/devices/:id/provision', { preHandler: requireRole('netadmin'), schema: { tags: ['devices'] } },
+    async (req) => buildProvisionPlan((req.params as any).id));
+
+  // Queue the baseline config push for an existing device
+  app.post('/api/devices/:id/provision', { preHandler: requireRole('netadmin'), schema: { tags: ['devices'] } },
+    async (req, reply) => {
+      const me = req.user as any;
+      const result = await provisionDevice((req.params as any).id, me.username);
+      await audit(me.username, 'device.provision', (req.params as any).id, { lines: result.lines }, req.ip);
+      return reply.code(202).send(result);
+    });
 
   app.patch('/api/devices/:id', {
     preHandler: requireRole('netadmin'),

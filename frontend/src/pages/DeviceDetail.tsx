@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
-import { PageHeader, Button, StatusBadge, fmtUptime } from '../components/ui';
+import { PageHeader, Button, StatusBadge, fmtUptime, Modal } from '../components/ui';
 import type { Port } from '../components/PortGrid';
 import PortsTab from './device/PortsTab';
 import ConfigTab from './device/ConfigTab';
@@ -16,6 +16,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
   const { id } = useParams<{ id: string }>();
   const [tab, setTab] = useState<'ports' | 'config' | 'backups' | 'history' | 'neighbors' | 'vlans'>('ports');
   const [busy, setBusy] = useState(false);
+  const [showProvision, setShowProvision] = useState(false);
   const canOperate = me.role !== 'readonly';
   const canConfig = me.role === 'superadmin' || me.role === 'netadmin';
 
@@ -39,8 +40,11 @@ export default function DeviceDetail({ me }: { me: Me }) {
   return (
     <div>
       <PageHeader title={device.hostname || device.mgmt_ip}>
+        {canConfig && <Button variant="secondary" onClick={() => setShowProvision(true)}>Baseline config</Button>}
         {canOperate && <Button variant="secondary" onClick={refresh} disabled={busy}>{busy ? 'Refreshing…' : '↻ Refresh now'}</Button>}
       </PageHeader>
+
+      {showProvision && <ProvisionModal deviceId={id!} onClose={() => setShowProvision(false)} />}
 
       {/* Identity + health summary band */}
       <div className="px-6 pt-5">
@@ -90,6 +94,55 @@ export default function DeviceDetail({ me }: { me: Me }) {
         {tab === 'neighbors' && <NeighborsTab deviceId={id!} />}
       </div>
     </div>
+  );
+}
+
+function ProvisionModal({ deviceId, onClose }: { deviceId: string; onClose: () => void }) {
+  const { data: plan } = useApiQuery<{ lines: string[]; notes: string[] }>(`/api/devices/${deviceId}/provision`);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState('');
+
+  async function apply() {
+    setBusy(true); setError('');
+    try {
+      await api(`/api/devices/${deviceId}/provision`, { method: 'POST' });
+      setDone(true);
+    } catch (err: any) { setError(err.message); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <Modal title="Baseline configuration" onClose={onClose}>
+      <p className="mb-3 text-sm text-slate-500">
+        These settings let SwitchPilot use all its features against this switch. A pre-change
+        backup is taken automatically, and the push runs as a job you can watch and retry.
+      </p>
+      {!plan ? (
+        <p className="py-4 text-center text-sm text-slate-400">Building plan…</p>
+      ) : (
+        <>
+          <pre className="mb-3 rounded-lg bg-gray-900 p-3 text-xs leading-relaxed text-green-300">
+            {plan.lines.join('\n')}
+          </pre>
+          <ul className="mb-4 space-y-1 text-xs text-slate-500">
+            {plan.notes.map((n, i) => <li key={i}>• {n}</li>)}
+          </ul>
+        </>
+      )}
+      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      {done ? (
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-green-700">Job queued - see the Jobs page for progress.</span>
+          <Button onClick={onClose}>Close</Button>
+        </div>
+      ) : (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={apply} disabled={busy || !plan}>{busy ? 'Queueing…' : 'Apply baseline'}</Button>
+        </div>
+      )}
+    </Modal>
   );
 }
 

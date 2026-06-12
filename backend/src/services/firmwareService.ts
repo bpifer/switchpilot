@@ -2,6 +2,7 @@ import { query } from '../db.js';
 import { CiscoSshSession } from '../cisco/sshClient.js';
 import { getDevice, sshTargetFor } from './deviceComms.js';
 import { commandsForFamily } from '../cisco/capabilities.js';
+import { raiseAlert } from './alertService.js';
 
 /**
  * Upgrade a device to a registered firmware image.
@@ -55,6 +56,10 @@ export async function upgradeFirmware(deviceId: string, imageId: string): Promis
       await session.configure(['no boot system', `boot system flash:${image.filename}`, 'no file prompt quiet']);
       await session.saveConfig();
       log.push('boot statement updated and config saved; issuing reload');
+      // Warn operators before the device drops (live via WS alert feed)
+      await raiseAlert(deviceId, 'firmware_reload', 'warning',
+        `${device.hostname} is reloading NOW to apply ${image.version} - expect 5-10 minutes of downtime`)
+        .catch(() => { /* alert is best-effort */ });
       log.push(await session.reload());
     }
     return log.join('\n---\n');

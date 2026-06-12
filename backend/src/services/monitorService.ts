@@ -111,6 +111,8 @@ export async function refreshDevice(deviceId: string): Promise<void> {
        poeTotals?.used ?? null, poeTotals?.capacity ?? null]);
 
     await evaluateHealthAlerts(deviceId, device.hostname, cpu.fiveMin, mem, env);
+    // device is reachable and answering - clear any pre-reload warning
+    await resolveAlert(deviceId, 'firmware_reload');
 
     // --- ports ---
     const ifaces = parseInterfacesStatus(await session.exec('show interfaces status'));
