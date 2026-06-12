@@ -16,7 +16,7 @@ interface Entry {
 
 const pool = new Map<string, Entry>();
 
-const keyFor = (t: SshTarget) => `${t.host}:${t.username}`;
+const keyFor = (t: SshTarget) => `${t.host}:${t.port ?? 22}:${t.username}`;
 
 async function openSession(t: SshTarget): Promise<CiscoSshSession> {
   const s = new CiscoSshSession(t);
@@ -45,7 +45,10 @@ export async function withDeviceSession<T>(
     entry.sessionP.catch(() => evict(key));   // failed connect must not poison the pool
   }
   const mine = entry;
-  const run = mine.chain.then(async () => {
+  const run = mine.chain.then(async (): Promise<T> => {
+    // If a failure evicted this entry while we were queued behind it, the
+    // session is closed - start over and acquire a fresh one.
+    if (pool.get(key) !== mine) return withDeviceSession(target, fn);
     const session = await mine.sessionP;
     mine.lastUsed = Date.now();
     try {

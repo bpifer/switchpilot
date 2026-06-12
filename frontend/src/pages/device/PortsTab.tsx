@@ -214,8 +214,9 @@ function PortHistory({ deviceId, portPath }: { deviceId: string; portPath: strin
 /**
  * Full port configuration. Only fields the operator touches are sent, so an
  * apply never rewrites settings that weren't changed.
+ * Exported for unit tests.
  */
-function PortConfigModal({ port, busy, onClose, onApply }: {
+export function PortConfigModal({ port, busy, onClose, onApply }: {
   port: Port; busy: boolean; onClose: () => void; onApply: (body: any) => void;
 }) {
   const [mode, setMode] = useState<'unchanged' | 'access' | 'trunk'>('unchanged');

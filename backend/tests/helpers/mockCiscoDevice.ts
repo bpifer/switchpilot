@@ -16,6 +16,8 @@ export interface MockDeviceOptions {
 export interface RunningMock {
   port: number;
   close: () => Promise<void>;
+  /** Number of SSH connections accepted since start (for pool reuse tests). */
+  connectionCount: () => number;
 }
 
 function hostKey(): string {
@@ -32,6 +34,7 @@ export async function startMockDevice(opts: MockDeviceOptions = {}): Promise<Run
   const responses = opts.responses ?? {};
   const reject = opts.rejectConfigContaining ?? [];
 
+  let connections = 0;
   const server = new Server({
     hostKeys: [hostKey()],
     // The real CiscoSshSession offers legacy + modern kex; pin the server to
@@ -41,6 +44,7 @@ export async function startMockDevice(opts: MockDeviceOptions = {}): Promise<Run
       kex: ['curve25519-sha256', 'ecdh-sha2-nistp256', 'diffie-hellman-group14-sha256', 'diffie-hellman-group14-sha1']
     }
   }, client => {
+    connections++;
     client.on('authentication', ctx => ctx.accept());
     client.on('ready', () => {
       client.on('session', accept => {
@@ -102,6 +106,7 @@ export async function startMockDevice(opts: MockDeviceOptions = {}): Promise<Run
 
   return {
     port,
-    close: () => new Promise<void>(resolve => server.close(() => resolve()))
+    close: () => new Promise<void>(resolve => server.close(() => resolve())),
+    connectionCount: () => connections
   };
 }
