@@ -1,6 +1,13 @@
 import { describe, it, beforeAll, afterAll, expect } from 'vitest';
 import { authenticator } from 'otplib';
+import { createHash } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
+
+// Firmware uploads write to FIRMWARE_DIR; point it somewhere writable before
+// config.ts is (dynamically) imported.
+process.env.FIRMWARE_DIR ??= path.join(tmpdir(), 'switchpilot-fw-test');
 
 // HTTP-level tests that boot the real app and drive it with Fastify `inject`.
 // They need a Postgres instance, so they only run when RUN_DB_TESTS=1 (set in
@@ -203,4 +210,62 @@ describe('MFA enrollment, login, and backup codes', () => {
     });
     expect(reuse.statusCode).toBe(401);
   }, 30000);
+});
+
+describe('firmware upload', () => {
+  function multipartPayload(fields: Record<string, string>, fileContent: string) {
+    const b = '----vitestboundary42';
+    let body = '';
+    for (const [k, v] of Object.entries(fields)) {
+      body += `--${b}\r\ncontent-disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`;
+    }
+    body += `--${b}\r\ncontent-disposition: form-data; name="file"; filename="test-image.bin"\r\n` +
+            `content-type: application/octet-stream\r\n\r\n${fileContent}\r\n--${b}--\r\n`;
+    return { body, contentType: `multipart/form-data; boundary=${b}` };
+  }
+
+  itDb('rejects an unknown family with 400', async () => {
+    const { body, contentType } = multipartPayload({ family: 'not-a-family', version: '1.0' }, 'FAKE');
+    const res = await app.inject({
+      method: 'POST', url: '/api/firmware',
+      headers: { 'content-type': contentType, authorization: `Bearer ${adminToken}` },
+      payload: body
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain('Unknown family');
+  });
+
+  itDb('rejects a version with invalid characters', async () => {
+    const { listFamilies } = await import('../src/cisco/capabilities.js');
+    const family = Object.keys(listFamilies())[0];
+    const { body, contentType } = multipartPayload({ family, version: 'bad version!' }, 'FAKE');
+    const res = await app.inject({
+      method: 'POST', url: '/api/firmware',
+      headers: { 'content-type': contentType, authorization: `Bearer ${adminToken}` },
+      payload: body
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  itDb('stores a valid upload and computes the MD5 server-side', async () => {
+    const { listFamilies } = await import('../src/cisco/capabilities.js');
+    const family = Object.keys(listFamilies())[0];
+    const content = 'PRETEND-IOS-IMAGE-' + Date.now();
+    const { body, contentType } = multipartPayload({ family, version: '15.2(7)E14' }, content);
+    const res = await app.inject({
+      method: 'POST', url: '/api/firmware',
+      headers: { 'content-type': contentType, authorization: `Bearer ${adminToken}` },
+      payload: body
+    });
+    expect(res.statusCode).toBe(201);
+    const img = res.json();
+    expect(img.family).toBe(family);
+    expect(img.md5).toBe(createHash('md5').update(content).digest('hex'));
+    expect(img.size_bytes).toBe(content.length);
+
+    // and the unauthenticated file endpoint serves it (switch download path)
+    const dl = await app.inject({ method: 'GET', url: `/api/firmware/files/${img.filename}` });
+    expect(dl.statusCode).toBe(200);
+    expect(dl.body).toBe(content);
+  });
 });

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import type { Me } from '../App';
@@ -43,15 +44,12 @@ function scoreColor(pct: number): string {
 }
 
 export default function Compliance({ me }: { me: Me }) {
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [loading, setLoading] = useState(true);
   const [evaluating, setEvaluating] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const canEdit = me.role === 'superadmin' || me.role === 'netadmin';
 
-  const load = () => api<Summary>('/api/compliance/summary')
-    .then(setSummary).catch(() => setSummary(null)).finally(() => setLoading(false));
-  useEffect(() => { load(); }, []);
+  const { data: summary = null, isLoading: loading, refetch: load } =
+    useApiQuery<Summary>('/api/compliance/summary', { refetchInterval: 60000 });
 
   async function evaluate() {
     setEvaluating(true);

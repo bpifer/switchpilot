@@ -1,7 +1,10 @@
 // Bridges database rows (device + credential) to live device sessions.
+// All operations go through the SSH pool: one cached session per device with a
+// 90s idle TTL, so back-to-back UI actions and sweeps reuse the handshake.
 import { query } from '../db.js';
 import { decryptSecret } from '../crypto/secrets.js';
-import { CiscoSshSession, runCommands, type SshTarget } from '../cisco/sshClient.js';
+import { type SshTarget } from '../cisco/sshClient.js';
+import { withDeviceSession } from '../cisco/sshPool.js';
 import type { SnmpTarget } from '../cisco/snmpClient.js';
 import { expandInterfaceName } from '../cisco/parsers.js';
 
@@ -64,7 +67,11 @@ export async function snmpTargetFor(device: DeviceRow): Promise<SnmpTarget | nul
 export async function deviceExec(deviceId: string, commands: string[]): Promise<Record<string, string>> {
   const device = await getDevice(deviceId);
   const target = await sshTargetFor(device);
-  return runCommands(target, commands);
+  return withDeviceSession(target, async session => {
+    const results: Record<string, string> = {};
+    for (const cmd of commands) results[cmd] = await session.exec(cmd);
+    return results;
+  });
 }
 
 /** Push configuration lines to a device, optionally saving to startup config. */
@@ -75,10 +82,7 @@ export async function devicePushConfig(
 ): Promise<string> {
   const device = await getDevice(deviceId);
   const target = await sshTargetFor(device);
-  const session = new CiscoSshSession(target);
-  await session.connect();
-  try {
-    if (!target.skipEnable) await session.enable();
+  return withDeviceSession(target, async session => {
     const output = await session.configure(lines);
     if (save) {
       const saveCmd = (device.capabilities as any)?.os === 'nxos'
@@ -86,9 +90,7 @@ export async function devicePushConfig(
       await session.saveConfig(saveCmd);
     }
     return output;
-  } finally {
-    session.close();
-  }
+  });
 }
 
 /** Administratively bounce a port (shutdown / no shutdown). */
@@ -96,16 +98,11 @@ export async function bouncePort(deviceId: string, portName: string): Promise<st
   const iface = expandInterfaceName(portName);
   const device = await getDevice(deviceId);
   const target = await sshTargetFor(device);
-  const session = new CiscoSshSession(target);
-  await session.connect();
-  try {
-    if (!target.skipEnable) await session.enable();
+  return withDeviceSession(target, async session => {
     await session.configure([`interface ${iface}`, 'shutdown']);
     await new Promise(r => setTimeout(r, 3000));
-    return await session.configure([`interface ${iface}`, 'no shutdown']);
-  } finally {
-    session.close();
-  }
+    return session.configure([`interface ${iface}`, 'no shutdown']);
+  });
 }
 
 /** Run a TDR cable test on a copper port and return results. */
@@ -113,14 +110,9 @@ export async function cableTest(deviceId: string, portName: string): Promise<str
   const iface = expandInterfaceName(portName);
   const device = await getDevice(deviceId);
   const target = await sshTargetFor(device);
-  const session = new CiscoSshSession(target);
-  await session.connect();
-  try {
-    if (!target.skipEnable) await session.enable();
+  return withDeviceSession(target, async session => {
     await session.exec(`test cable-diagnostics tdr interface ${iface}`);
     await new Promise(r => setTimeout(r, 7000)); // TDR takes a few seconds
-    return await session.exec(`show cable-diagnostics tdr interface ${iface}`);
-  } finally {
-    session.close();
-  }
+    return session.exec(`show cable-diagnostics tdr interface ${iface}`);
+  });
 }

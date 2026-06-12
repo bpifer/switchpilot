@@ -60,6 +60,32 @@ Gi1/0/4   bad port           err-disabled 10           auto   auto 10/100/1000Ba
     expect(rows[2].vlan).toBe('trunk');
     expect(rows[3].status).toBe('err-disabled');
   });
+
+  it('handles \\r\\n line endings from SSH shell output', () => {
+    const out = 'Port      Name               Status       Vlan       Duplex  Speed Type\r\n' +
+      'Gi1/0/1   UPLINK             connected    trunk      a-full a-1000 10/100/1000BaseTX\r\n' +
+      'Gi1/0/2                      notconnect   10           auto   auto 10/100/1000BaseTX\r\n';
+    const rows = parseInterfacesStatus(out);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ name: 'Gi1/0/1', status: 'connected', vlan: 'trunk' });
+    expect(rows[1]).toMatchObject({ name: 'Gi1/0/2', status: 'notconnect', vlan: '10' });
+  });
+
+  it('normalizes IOS-XE status variants to the standard set', () => {
+    const out = `
+Port      Name               Status       Vlan       Duplex  Speed Type
+Te1/1/1                      sfpAbsent    1            full    10G SFP-10GBase-SR
+Te1/1/2                      sfpPresent   1            full    10G SFP-10GBase-SR
+Gi0/0                        up           routed       full   1000 RJ45
+Gi0/1                        down         routed       auto   auto RJ45
+`;
+    const rows = parseInterfacesStatus(out);
+    expect(rows).toHaveLength(4);
+    expect(rows[0].status).toBe('notconnect');  // sfpAbsent -> notconnect
+    expect(rows[1].status).toBe('notconnect');  // sfpPresent (no link) -> notconnect
+    expect(rows[2].status).toBe('connected');   // up -> connected
+    expect(rows[3].status).toBe('notconnect');  // down -> notconnect
+  });
 });
 
 describe('parseMacTable', () => {

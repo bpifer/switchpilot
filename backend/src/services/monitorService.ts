@@ -3,6 +3,7 @@ import dns from 'node:dns/promises';
 import { query } from '../db.js';
 import { redis } from '../redis.js';
 import { CiscoSshSession } from '../cisco/sshClient.js';
+import { withDeviceSession } from '../cisco/sshPool.js';
 import { snmpProbe } from '../cisco/snmpClient.js';
 import {
   parseShowVersion, parseInterfacesStatus, parseMacTable, parseCdpNeighborsDetail,
@@ -56,12 +57,9 @@ export async function pollStatus(device: DeviceRow): Promise<void> {
 export async function refreshDevice(deviceId: string): Promise<void> {
   const device = await getDevice(deviceId);
   const target = await sshTargetFor(device);
-  const session = new CiscoSshSession(target);
-  await session.connect();
-  try {
-    // NX-OS SSH sessions land directly at privilege 15; enable() would be a no-op or error
-    if ((device.capabilities as any)?.os !== 'nxos') await session.enable();
-
+  // Pooled session: repeated sweeps reuse the SSH handshake (enable mode is
+  // handled by the pool via target.skipEnable for NX-OS).
+  await withDeviceSession(target, async session => {
     // --- identity ---
     const ver = parseShowVersion(await session.exec('show version'));
     const caps = ver.model ? resolveCapabilities(ver.model, ver.iosVersion) : device.capabilities;
@@ -251,9 +249,7 @@ export async function refreshDevice(deviceId: string): Promise<void> {
     }
 
     await redis.set(`device:${deviceId}:lastRefresh`, Date.now().toString()).catch(() => { /* cache only */ });
-  } finally {
-    session.close();
-  }
+  });
 }
 
 async function evaluateHealthAlerts(

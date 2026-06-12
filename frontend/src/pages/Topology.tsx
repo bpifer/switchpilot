@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../api';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card } from '../components/ui';
 
 interface Node { id: string; label: string; model: string; status: string; managed: boolean; ip: string; stackSize: number; }
@@ -11,14 +11,9 @@ interface Edge { source: string; target: string; sourcePort: string; targetPort:
  * unmanaged neighbors on an outer ring, links drawn as SVG lines.
  */
 export default function Topology() {
-  const [graph, setGraph] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] });
+  const { data: graph = { nodes: [], edges: [] } } =
+    useApiQuery<{ nodes: Node[]; edges: Edge[] }>('/api/topology', { refetchInterval: 60000 });
   const [hover, setHover] = useState<string | null>(null);
-
-  useEffect(() => {
-    api('/api/topology').then(setGraph).catch(() => {});
-    const t = setInterval(() => api('/api/topology').then(setGraph).catch(() => {}), 60000);
-    return () => clearInterval(t);
-  }, []);
 
   const W = 1000, H = 640, CX = W / 2, CY = H / 2;
   const positions = useMemo(() => {

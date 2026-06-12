@@ -6,6 +6,18 @@ import { setOuiCache } from '../cisco/oui.js';
 const IEEE_OUI_CSV = 'https://standards-oui.ieee.org/oui/oui.csv';
 const RESYNC_AFTER_DAYS = 30;
 
+/** Parse the IEEE oui.csv format: MA-L,28FF3E,"zte corporation","address…" */
+export function parseOuiCsv(csv: string): { oui: string; vendor: string }[] {
+  const entries: { oui: string; vendor: string }[] = [];
+  for (const line of csv.split('\n')) {
+    const m = line.match(/^MA-L,([0-9A-Fa-f]{6}),(?:"([^"]*)"|([^,]*))/);
+    if (!m) continue;
+    const vendor = (m[2] ?? m[3] ?? '').trim();
+    if (vendor) entries.push({ oui: m[1].toUpperCase(), vendor });
+  }
+  return entries;
+}
+
 /** Load the DB table into the in-process cache used by lookupVendor(). */
 export async function loadOuiCache(): Promise<number> {
   const { rows } = await query<{ oui: string; vendor: string }>('SELECT oui, vendor FROM oui_vendors');
@@ -32,19 +44,10 @@ export async function syncOuiDatabase(log: (msg: string) => void = console.log):
   log('OUI registry: downloading IEEE database…');
   const res = await fetch(IEEE_OUI_CSV, { signal: AbortSignal.timeout(120_000) });
   if (!res.ok) throw new Error(`IEEE OUI download failed: HTTP ${res.status}`);
-  const csv = await res.text();
-
-  // Format: MA-L,28FF3E,"zte corporation","..." - org name may be quoted with commas
-  const entries: { oui: string; vendor: string }[] = [];
-  for (const line of csv.split('\n')) {
-    const m = line.match(/^MA-L,([0-9A-Fa-f]{6}),(?:"([^"]*)"|([^,]*))/);
-    if (!m) continue;
-    const vendor = (m[2] ?? m[3] ?? '').trim();
-    if (vendor) entries.push({ oui: m[1].toUpperCase(), vendor });
-  }
+  const entries = parseOuiCsv(await res.text());
   if (entries.length < 10_000) throw new Error(`IEEE OUI parse produced only ${entries.length} entries; format change?`);
 
-  // Upsert in chunks to keep parameter payloads reasonable
+  // Upsert in chunks; yield between them so a busy pool isn't monopolized
   for (let i = 0; i < entries.length; i += 5000) {
     const chunk = entries.slice(i, i + 5000);
     await query(
@@ -53,6 +56,7 @@ export async function syncOuiDatabase(log: (msg: string) => void = console.log):
        FROM jsonb_to_recordset($1::jsonb) AS t(oui char(6), vendor text)
        ON CONFLICT (oui) DO UPDATE SET vendor=EXCLUDED.vendor, updated_at=now()`,
       [JSON.stringify(chunk)]);
+    await new Promise(r => setTimeout(r, 50));
   }
   log(`OUI registry: synced ${entries.length} entries`);
 

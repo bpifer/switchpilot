@@ -1,5 +1,6 @@
 import { query } from '../db.js';
 import { CiscoSshSession } from '../cisco/sshClient.js';
+import { evictDevice } from '../cisco/sshPool.js';
 import { getDevice, sshTargetFor } from './deviceComms.js';
 import { commandsForFamily } from '../cisco/capabilities.js';
 import { raiseAlert } from './alertService.js';
@@ -31,7 +32,9 @@ export async function upgradeFirmware(
   const url = `${platformUrl}/api/firmware/files/${image.filename}`;
   const sizeMb = (image.size_bytes / 1024 / 1024).toFixed(1);
 
-  const session = new CiscoSshSession({ ...(await sshTargetFor(device)), timeoutMs: 30000 });
+  // Dedicated (un-pooled) session: the reload at the end drops the connection.
+  const target = await sshTargetFor(device);
+  const session = new CiscoSshSession({ ...target, timeoutMs: 30000 });
   await session.connect();
   const log: string[] = [];
   try {
@@ -99,6 +102,7 @@ export async function upgradeFirmware(
         .catch(() => { /* alert is best-effort */ });
       await onStage('reloading device (5-10 min downtime)');
       log.push(await session.reload());
+      evictDevice(target);   // any pooled session to this device just died
     }
     return log.join('\n---\n');
   } finally {

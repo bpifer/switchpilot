@@ -20,6 +20,7 @@ import PoE from './pages/PoE';
 import Lifecycle from './pages/Lifecycle';
 import Firmware from './pages/Firmware';
 import Logs from './pages/Logs';
+import ErrorBoundary from './components/ErrorBoundary';
 import Campaigns from './pages/Campaigns';
 import Compliance from './pages/Compliance';
 import SecurityGate from './pages/SecurityGate';
@@ -232,6 +233,7 @@ export default function App() {
       </aside>
 
       <main className="flex-1 overflow-auto">
+        <ErrorBoundary>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/devices" element={<Devices me={me} />} />
@@ -254,6 +256,7 @@ export default function App() {
           {me.role === 'superadmin' && <Route path="/users" element={<Users />} />}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
+        </ErrorBoundary>
       </main>
     </div>
   );

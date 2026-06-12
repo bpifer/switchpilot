@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
 
@@ -46,18 +47,12 @@ function LifecycleBadge({ date, label }: { date: string | null; label: string })
 type Filter = 'all' | 'eol_passed' | 'eol_soon' | 'eos_passed';
 
 export default function Lifecycle({ me }: { me: Me }) {
-  const [devices, setDevices] = useState<LifecycleDevice[]>([]);
   const [filter, setFilter] = useState<Filter>('all');
-  const [loading, setLoading] = useState(true);
   const [showCatalog, setShowCatalog] = useState(false);
   const canEdit = me.role === 'superadmin';
 
-  useEffect(() => {
-    api<LifecycleDevice[]>('/api/devices/lifecycle')
-      .then(setDevices)
-      .catch(() => setDevices([]))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: devices = [], isLoading: loading } =
+    useApiQuery<LifecycleDevice[]>('/api/devices/lifecycle');
 
   const filtered = devices.filter(d => {
     const eolDays = daysBetween(d.eol_date);

@@ -1,18 +1,15 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card, Button, Modal, Field, inputCls, StatusBadge } from '../components/ui';
 
 export default function Users() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [audit, setAudit] = useState<any[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [showPolicy, setShowPolicy] = useState(false);
 
-  const load = () => {
-    api('/api/users').then(setUsers).catch(() => {});
-    api('/api/audit?limit=50').then(setAudit).catch(() => {});
-  };
-  useEffect(load, []);
+  const { data: users = [], refetch: reloadUsers } = useApiQuery<any[]>('/api/users');
+  const { data: audit = [], refetch: reloadAudit } = useApiQuery<any[]>('/api/audit?limit=50', { refetchInterval: 30000 });
+  const load = () => { reloadUsers(); reloadAudit(); };
 
   const unlock = (id: string) => api(`/api/security/unlock/${id}`, { method: 'POST' }).then(load).catch(() => {});
 
