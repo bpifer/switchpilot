@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card, Button, Modal } from '../components/ui';
 
 interface Window { id: string; name: string; device_ids: string[]; starts_at: string; ends_at: string; created_by: string; }
@@ -16,16 +17,12 @@ function isUpcoming(w: Window) {
 }
 
 export default function Maintenance() {
-  const [windows, setWindows] = useState<Window[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(blank);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  function load() {
-    api<Window[]>('/api/maintenance').then(setWindows).catch(() => {});
-  }
-  useEffect(load, []);
+  const { data: windows = [], refetch: load } = useApiQuery<Window[]>('/api/maintenance');
 
   async function save() {
     setSaving(true); setError('');

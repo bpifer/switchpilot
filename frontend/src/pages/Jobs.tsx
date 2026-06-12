@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card, StatusBadge, Modal, Button } from '../components/ui';
 import { useWebSocket } from '../hooks/useWebSocket';
 
@@ -30,17 +31,15 @@ interface JobResult {
 }
 
 export default function Jobs() {
-  const [jobs, setJobs] = useState<Job[]>([]);
   const [detail, setDetail] = useState<(Job & { results: JobResult[] }) | null>(null);
   const [retrying, setRetrying] = useState('');
   const detailIdRef = useRef<string | null>(null);
   detailIdRef.current = detail?.id ?? null;
 
-  const load = () => api<Job[]>('/api/jobs').then(setJobs).catch(() => {});
+  const { data: jobs = [], refetch } = useApiQuery<Job[]>('/api/jobs', { refetchInterval: 30000 });
+  const load = async () => { await refetch(); };
   const openDetail = (id: string) =>
     api<Job & { results: JobResult[] }>(`/api/jobs/${id}`).then(setDetail).catch(() => {});
-
-  useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, []);
 
   // Live updates: refresh the list (and the open detail) whenever a job advances.
   const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -261,7 +261,8 @@ describe('firmware upload', () => {
     const img = res.json();
     expect(img.family).toBe(family);
     expect(img.md5).toBe(createHash('md5').update(content).digest('hex'));
-    expect(img.size_bytes).toBe(content.length);
+    // BIGINT comes back from pg as a string
+    expect(Number(img.size_bytes)).toBe(content.length);
 
     // and the unauthenticated file endpoint serves it (switch download path)
     const dl = await app.inject({ method: 'GET', url: `/api/firmware/files/${img.filename}` });

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../api';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card, Button } from '../components/ui';
 
 interface Suggestion { neighbor_name: string; neighbor_ip: string; neighbor_platform: string; protocol: string; seen_by_hostname: string; seen_by_ip: string; }
@@ -13,20 +14,12 @@ core-sw02,10.0.0.2,WS-C3750X-48P-L,,`;
 
 export default function Discovery() {
   const [tab, setTab] = useState<'suggest' | 'import'>('suggest');
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [loadingSugg, setLoadingSugg] = useState(false);
   const [csv, setCsv] = useState('');
   const [importing, setImporting] = useState(false);
   const [importResults, setImportResults] = useState<ImportResult[] | null>(null);
 
-  function loadSuggestions() {
-    setLoadingSugg(true);
-    api<Suggestion[]>('/api/discovery/suggest')
-      .then(setSuggestions)
-      .catch(() => setSuggestions([]))
-      .finally(() => setLoadingSugg(false));
-  }
-  useEffect(() => { if (tab === 'suggest') loadSuggestions(); }, [tab]);
+  const { data: suggestions = [], isLoading: loadingSugg, refetch: loadSuggestions } =
+    useApiQuery<Suggestion[]>('/api/discovery/suggest', { enabled: tab === 'suggest' });
 
   async function runImport() {
     setImporting(true); setImportResults(null);

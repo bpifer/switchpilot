@@ -3,7 +3,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer
 } from 'recharts';
-import { api } from '../api';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card } from '../components/ui';
 
 type Range = '7d' | '30d' | '90d' | '1y';
@@ -43,51 +43,26 @@ const CHART_COLORS = {
 };
 
 export default function Analytics() {
-  const [devices, setDevices] = useState<any[]>([]);
   const [deviceId, setDeviceId] = useState('');
   const [range, setRange] = useState<Range>('7d');
-
-  const [cpuData,  setCpuData]  = useState<any[]>([]);
-  const [memData,  setMemData]  = useState<any[]>([]);
-  const [tempData, setTempData] = useState<any[]>([]);
-  const [poeData,  setPoeData]  = useState<any[]>([]);
-
-  const [ports,    setPorts]    = useState<string[]>([]);
   const [portName, setPortName] = useState('');
-  const [portData, setPortData] = useState<any[]>([]);
 
-  useEffect(() => {
-    api('/api/devices').then((ds: any[]) => {
-      setDevices(ds);
-      if (ds.length > 0) setDeviceId(ds[0].id);
-    }).catch(() => {});
-  }, []);
+  const { data: devices = [] } = useApiQuery<any[]>('/api/devices');
+  useEffect(() => { if (!deviceId && devices.length > 0) setDeviceId(devices[0].id); }, [devices, deviceId]);
 
-  useEffect(() => {
-    if (!deviceId) return;
-    const load = (metric: string) =>
-      api(`/api/analytics/device/${deviceId}?metric=${metric}&range=${range}`).catch(() => []);
+  const metric = (m: string) =>
+    useApiQuery<any[]>(`/api/analytics/device/${deviceId}?metric=${m}&range=${range}`, { enabled: !!deviceId });
+  const { data: cpuData = [] }  = metric('cpu');
+  const { data: memData = [] }  = metric('memory');
+  const { data: tempData = [] } = metric('temp');
+  const { data: poeData = [] }  = metric('poe_used');
 
-    Promise.all([load('cpu'), load('memory'), load('temp'), load('poe_used')])
-      .then(([cpu, mem, temp, poe]) => {
-        setCpuData(cpu);
-        setMemData(mem);
-        setTempData(temp);
-        setPoeData(poe);
-      });
+  const { data: ports = [] } = useApiQuery<string[]>(`/api/analytics/port/${deviceId}`, { enabled: !!deviceId });
+  useEffect(() => { if (!portName && ports.length > 0) setPortName(ports[0]); }, [ports, portName]);
 
-    api(`/api/analytics/port/${deviceId}`).then((ps: string[]) => {
-      setPorts(ps);
-      if (ps.length > 0 && !portName) setPortName(ps[0]);
-    }).catch(() => {});
-  }, [deviceId, range]);
-
-  useEffect(() => {
-    if (!deviceId || !portName) return;
-    api(`/api/analytics/port/${deviceId}/${encodeURIComponent(portName)}?range=${range}`)
-      .then(setPortData)
-      .catch(() => {});
-  }, [deviceId, portName, range]);
+  const { data: portData = [] } = useApiQuery<any[]>(
+    `/api/analytics/port/${deviceId}/${encodeURIComponent(portName)}?range=${range}`,
+    { enabled: !!deviceId && !!portName });
 
   function chartFmt(ts: string) { return fmtBucket(ts, range); }
 

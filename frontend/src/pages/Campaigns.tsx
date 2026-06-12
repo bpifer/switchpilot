@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card, Button } from '../components/ui';
 
 interface Campaign {
@@ -53,33 +54,24 @@ function daysElapsed(since: string | null): number | null {
 }
 
 export default function Campaigns() {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [images, setImages] = useState<FirmwareImage[]>([]);
   const [ringCounts, setRingCounts] = useState<Partial<RingCount>>({});
   const [showCreate, setShowCreate] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ name: '', imageId: '', rings: ['pilot', 'production'] as string[], waitDays: 7 });
   const [busy, setBusy] = useState('');
 
-  const load = () => {
-    setLoading(true);
-    Promise.all([
-      api<Campaign[]>('/api/campaigns'),
-      api<FirmwareImage[]>('/api/firmware')
-    ]).then(([c, imgs]) => {
-      setCampaigns(c);
-      setImages(imgs);
-    }).catch(() => {}).finally(() => setLoading(false));
+  const { data: campaigns = [], isLoading: loading, refetch: reloadCampaigns } =
+    useApiQuery<Campaign[]>('/api/campaigns', { refetchInterval: 30000 });
+  const { data: images = [] } = useApiQuery<FirmwareImage[]>('/api/firmware');
 
-    // get ring counts from a campaign detail if available
-    api<any>('/api/campaigns').then((cs: Campaign[]) => {
-      if (cs[0]) api<any>(`/api/campaigns/${cs[0].id}`).then((d: any) => {
-        setRingCounts(d.ring_counts ?? {});
-      }).catch(() => {});
-    }).catch(() => {});
-  };
+  // ring counts come from a campaign detail when one exists
+  useEffect(() => {
+    if (!campaigns[0]) return;
+    api<any>(`/api/campaigns/${campaigns[0].id}`)
+      .then((d: any) => setRingCounts(d.ring_counts ?? {}))
+      .catch(() => {});
+  }, [campaigns[0]?.id]);
 
-  useEffect(load, []);
+  const load = () => { reloadCampaigns(); };
 
   const act = async (url: string, method = 'POST') => {
     setBusy(url);

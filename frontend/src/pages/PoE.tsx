@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { api } from '../api';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card } from '../components/ui';
 
 interface PoEDevice {
@@ -58,15 +57,8 @@ function PoEBar({ pct }: { pct: number | null }) {
 }
 
 export default function PoE() {
-  const [data, setData] = useState<{ devices: PoEDevice[]; sites: PoESite[] } | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    api<{ devices: PoEDevice[]; sites: PoESite[] }>('/api/poe/summary')
-      .then(setData)
-      .catch(() => setData({ devices: [], sites: [] }))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data = null, isLoading: loading } =
+    useApiQuery<{ devices: PoEDevice[]; sites: PoESite[] }>('/api/poe/summary', { refetchInterval: 60000 });
 
   if (loading) return <div className="p-8 text-slate-400 text-sm">Loading PoE data…</div>;
 

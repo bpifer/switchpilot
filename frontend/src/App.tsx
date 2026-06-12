@@ -1,32 +1,35 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom';
 import { api, getToken, setToken } from './api';
 import { Icon } from './components/ui';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Devices from './pages/Devices';
-import DeviceDetail from './pages/DeviceDetail';
-import Templates from './pages/Templates';
-import Jobs from './pages/Jobs';
-import Alerts from './pages/Alerts';
-import Topology from './pages/Topology';
-import Users from './pages/Users';
-import Analytics from './pages/Analytics';
-import Clients from './pages/Clients';
-import Maintenance from './pages/Maintenance';
-import Discovery from './pages/Discovery';
-import Locate from './pages/Locate';
-import PoE from './pages/PoE';
-import Lifecycle from './pages/Lifecycle';
-import Firmware from './pages/Firmware';
-import Logs from './pages/Logs';
+import SecurityGate from './pages/SecurityGate';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApiQuery } from './hooks/useApiQuery';
-import Campaigns from './pages/Campaigns';
-import Compliance from './pages/Compliance';
-import SecurityGate from './pages/SecurityGate';
 import { useWebSocket } from './hooks/useWebSocket';
+
+// Route-level code splitting: each page loads on first visit, keeping the
+// initial bundle small (recharts alone is several hundred KB in Analytics).
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Devices = lazy(() => import('./pages/Devices'));
+const DeviceDetail = lazy(() => import('./pages/DeviceDetail'));
+const Templates = lazy(() => import('./pages/Templates'));
+const Jobs = lazy(() => import('./pages/Jobs'));
+const Alerts = lazy(() => import('./pages/Alerts'));
+const Topology = lazy(() => import('./pages/Topology'));
+const Users = lazy(() => import('./pages/Users'));
+const Analytics = lazy(() => import('./pages/Analytics'));
+const Clients = lazy(() => import('./pages/Clients'));
+const Maintenance = lazy(() => import('./pages/Maintenance'));
+const Discovery = lazy(() => import('./pages/Discovery'));
+const Locate = lazy(() => import('./pages/Locate'));
+const PoE = lazy(() => import('./pages/PoE'));
+const Lifecycle = lazy(() => import('./pages/Lifecycle'));
+const Firmware = lazy(() => import('./pages/Firmware'));
+const Logs = lazy(() => import('./pages/Logs'));
+const Campaigns = lazy(() => import('./pages/Campaigns'));
+const Compliance = lazy(() => import('./pages/Compliance'));
 
 export interface Me {
   id: string;
@@ -263,6 +266,7 @@ export default function App() {
 
       <main className="flex-1 overflow-auto">
         <ErrorBoundary>
+        <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading…</div>}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/devices" element={<Devices me={me} />} />
@@ -285,6 +289,7 @@ export default function App() {
           {me.role === 'superadmin' && <Route path="/users" element={<Users />} />}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
+        </Suspense>
         </ErrorBoundary>
       </main>
     </div>

@@ -1,17 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../api';
+import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
 
 export default function Templates({ me }: { me: Me }) {
-  const [templates, setTemplates] = useState<any[]>([]);
-  const [devices, setDevices] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
   const [deploying, setDeploying] = useState<any | null>(null);
   const canEdit = me.role === 'superadmin' || me.role === 'netadmin';
 
-  const load = () => api('/api/templates').then(setTemplates).catch(() => {});
-  useEffect(() => { load(); api('/api/devices').then(setDevices).catch(() => {}); }, []);
+  const { data: templates = [], refetch: load } = useApiQuery<any[]>('/api/templates');
+  const { data: devices = [] } = useApiQuery<any[]>('/api/devices');
 
   return (
     <div>
