@@ -105,11 +105,22 @@ export async function remediate(deviceId: string, ruleId: string, by: string): P
   const { rows } = await query<ComplianceRule>('SELECT * FROM compliance_rules WHERE id=$1', [ruleId]);
   const rule = rows[0];
   if (!rule) throw new Error('Rule not found');
-  const lines = rule.remediation.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // {platform_host} lets the seeded syslog rule target this deployment
+  const platformHost = (process.env.PLATFORM_URL ?? '').match(/^https?:\/\/([^:/]+)/)?.[1];
+  let remediation = rule.remediation;
+  if (remediation.includes('{platform_host}')) {
+    if (!platformHost) throw new Error('Remediation uses {platform_host} but PLATFORM_URL is not set');
+    remediation = remediation.replaceAll('{platform_host}', platformHost);
+  }
+  const lines = remediation.split('\n').map(l => l.trim()).filter(Boolean);
   if (!lines.length) throw new Error('Rule has no remediation configured');
 
   await backupDevice(deviceId, by, { reason: `pre-remediation: ${rule.name}` });
   const output = await devicePushConfig(deviceId, lines, true);
+  // Evaluation reads the latest backup - take a fresh one so the re-evaluation
+  // sees the change we just pushed instead of the pre-remediation snapshot.
+  await backupDevice(deviceId, by, { reason: `post-remediation: ${rule.name}` });
   await evaluateDevice(deviceId);
   return output;
 }

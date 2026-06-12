@@ -116,8 +116,16 @@ export default function Firmware({ me }: { me: Me }) {
                   <td className="pr-3 font-mono text-[10px] text-slate-400" title={img.md5}>{img.md5.slice(0, 12)}…</td>
                   <td className="pr-3 text-xs text-slate-500">{new Date(img.created_at).toLocaleDateString()} by {img.uploaded_by}</td>
                   {canManage && (
-                    <td className="text-right">
+                    <td className="space-x-3 text-right">
                       <Button variant="secondary" onClick={() => setUpgrading(img)}>Upgrade devices…</Button>
+                      <button className="text-xs text-red-600 hover:underline"
+                              onClick={async () => {
+                                if (!confirm(`Delete ${img.filename} from SwitchPilot? Switches that already copied it are unaffected.`)) return;
+                                try { await api(`/api/firmware/${img.id}`, { method: 'DELETE' }); refetchImages(); }
+                                catch (err: any) { alert(err.message); }
+                              }}>
+                        delete
+                      </button>
                     </td>
                   )}
                 </tr>

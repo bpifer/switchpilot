@@ -11,6 +11,7 @@ interface Analysis {
   users: { name: string; priv15: boolean }[];
   checklist: { key: string; label: string; present: boolean; why: string }[];
   usingPlatformAccount: boolean;
+  spAdminExists: boolean;
   otherAdmins: string[];
 }
 
@@ -44,7 +45,9 @@ export default function OnboardWizard({ sites, onClose }: { sites: any[]; onClos
         body: { mgmtIp: form.mgmtIp.trim(), username: form.username.trim(), password: form.password, enablePassword: form.enablePassword || undefined }
       });
       setAnalysis(a);
-      if (a.usingPlatformAccount) setCreateAccount(false);
+      // Don't offer to (re)create SPAdmin when it already exists - creating it
+      // again would overwrite its password out from under whoever holds it.
+      if (a.usingPlatformAccount || a.spAdminExists) setCreateAccount(false);
       setStep('review');
     } catch (err: any) { setError(err.message); }
     finally { setBusy(false); }
@@ -160,6 +163,19 @@ export default function OnboardWizard({ sites, onClose }: { sites: any[]; onClos
               {analysis.otherAdmins.length === 0 &&
                 ' Warning: no other privilege-15 account exists. Create a break-glass admin so you cannot be locked out.'}
             </div>
+          ) : analysis.spAdminExists ? (
+            <label className="mb-3 flex cursor-pointer items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <input type="checkbox" className="mt-0.5 rounded border-amber-300"
+                     checked={createAccount} onChange={e => setCreateAccount(e.target.checked)} />
+              <span className="text-sm">
+                <span className="font-medium text-amber-800">SPAdmin already exists on this switch</span>
+                <span className="mt-0.5 block text-xs text-amber-700">
+                  Best option: go back and onboard with the SPAdmin credentials directly. Checking this
+                  box instead RESETS its password to a new random one (the old password stops working)
+                  and uses that. Leaving it unchecked onboards with the "{form.username}" account.
+                </span>
+              </span>
+            </label>
           ) : (
             <label className="mb-3 flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
               <input type="checkbox" className="mt-0.5 rounded border-slate-300"

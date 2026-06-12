@@ -30,6 +30,31 @@ export default async function deviceRoutes(app: FastifyInstance) {
     return reply.code(201).send(rows[0]);
   });
 
+  app.put('/api/sites/:id', {
+    preHandler: requireRole('netadmin'),
+    schema: {
+      tags: ['devices'],
+      body: { type: 'object', required: ['name'], properties: { name: { type: 'string' }, address: { type: 'string' } } }
+    }
+  }, async (req, reply) => {
+    const { name, address } = req.body as any;
+    const { rows } = await query('UPDATE sites SET name=$1, address=$2 WHERE id=$3 RETURNING *',
+      [name, address ?? '', (req.params as any).id]);
+    if (!rows[0]) return reply.code(404).send({ error: 'Site not found' });
+    return rows[0];
+  });
+
+  app.delete('/api/sites/:id', { preHandler: requireRole('netadmin'), schema: { tags: ['devices'] } },
+    async (req, reply) => {
+      const { id } = req.params as any;
+      const inUse = await query('SELECT count(*)::int AS n FROM devices WHERE site_id=$1', [id]);
+      if (inUse.rows[0].n > 0) {
+        return reply.code(409).send({ error: `Site has ${inUse.rows[0].n} device(s) assigned - reassign them first` });
+      }
+      await query('DELETE FROM sites WHERE id=$1', [id]);
+      return { ok: true };
+    });
+
   // ----- Credential profiles -----
   app.get('/api/credentials', { preHandler: requireRole('netadmin'), schema: { tags: ['devices'] } },
     async () => (await query('SELECT id, name, ssh_username, snmp_version, created_at FROM credentials ORDER BY name')).rows);

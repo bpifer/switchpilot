@@ -17,6 +17,16 @@ export default async function jobRoutes(app: FastifyInstance) {
     return rows;
   });
 
+  // Clear finished history (running/pending jobs are never touched).
+  // Registered before /:id so "finished" isn't captured as an id.
+  app.delete('/api/jobs/finished', { preHandler: requireRole('netadmin'), schema: { tags: ['jobs'] } },
+    async (req) => {
+      const me = req.user as any;
+      const { rowCount } = await query(`DELETE FROM jobs WHERE status IN ('done','failed','cancelled')`);
+      await audit(me.username, 'jobs.clear', 'finished', { removed: rowCount }, req.ip);
+      return { removed: rowCount };
+    });
+
   app.get('/api/jobs/:id', { preHandler: requireRole('readonly'), schema: { tags: ['jobs'] } },
     async (req, reply) => {
       const { id } = req.params as any;

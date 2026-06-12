@@ -21,6 +21,8 @@ import Lifecycle from './pages/Lifecycle';
 import Firmware from './pages/Firmware';
 import Logs from './pages/Logs';
 import ErrorBoundary from './components/ErrorBoundary';
+import { useQueryClient } from '@tanstack/react-query';
+import { useApiQuery } from './hooks/useApiQuery';
 import Campaigns from './pages/Campaigns';
 import Compliance from './pages/Compliance';
 import SecurityGate from './pages/SecurityGate';
@@ -103,14 +105,40 @@ function Initials({ name }: { name: string }) {
   );
 }
 
+function AlertsBell() {
+  const navigate = useNavigate();
+  const { data: summary } = useApiQuery<{ openAlerts: Record<string, number> }>('/api/summary', { refetchInterval: 30000 });
+  const open = summary ? Object.values(summary.openAlerts).reduce((a, b) => a + b, 0) : 0;
+  const critical = (summary?.openAlerts?.critical ?? 0) > 0;
+  return (
+    <button
+      title={open > 0 ? `${open} open alert${open !== 1 ? 's' : ''}` : 'No open alerts'}
+      onClick={() => navigate('/alerts')}
+      className="relative rounded-lg p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-white"
+    >
+      <Icon d={ICONS.alerts} className="h-5 w-5" />
+      {open > 0 && (
+        <span className={`absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white ${critical ? 'bg-red-500' : 'bg-amber-500'}`}>
+          {open > 99 ? '99+' : open}
+        </span>
+      )}
+    </button>
+  );
+}
+
 export default function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
   const [liveAlertCount, setLiveAlertCount] = useState(0);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   useWebSocket(msg => {
-    if (msg.type === 'alert') setLiveAlertCount(n => n + 1);
+    if (msg.type === 'alert') {
+      setLiveAlertCount(n => n + 1);
+      // keep the global bell count fresh the moment an alert fires
+      queryClient.invalidateQueries({ queryKey: ['/api/summary'] });
+    }
   });
 
   useEffect(() => {
@@ -163,10 +191,11 @@ export default function App() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500">
             <Icon d={ICONS.devices} className="h-4 w-4 text-white" />
           </div>
-          <div>
+          <div className="flex-1">
             <div className="text-sm font-semibold leading-none">SwitchPilot</div>
             <div className="mt-0.5 text-[10px] text-slate-400 leading-none">Network Management</div>
           </div>
+          <AlertsBell />
         </div>
 
         {/* Nav */}

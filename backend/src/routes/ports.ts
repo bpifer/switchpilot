@@ -51,10 +51,16 @@ export default async function portRoutes(app: FastifyInstance) {
         type: 'object',
         properties: {
           vlan: { type: 'integer', minimum: 1, maximum: 4094 },
+          voiceVlan: { type: 'integer', minimum: 1, maximum: 4094 },
           description: { type: 'string', maxLength: 200 },
           mode: { type: 'string', enum: ['access', 'trunk'] },
-          trunkNativeVlan: { type: 'integer' },
-          trunkAllowedVlans: { type: 'string', pattern: '^[0-9,\\-]*$' }
+          trunkNativeVlan: { type: 'integer', minimum: 1, maximum: 4094 },
+          trunkAllowedVlans: { type: 'string', pattern: '^[0-9,\\-]*$' },
+          speed: { type: 'string', enum: ['auto', '10', '100', '1000', '10000'] },
+          duplex: { type: 'string', enum: ['auto', 'full', 'half'] },
+          portfast: { type: 'boolean' },
+          bpduGuard: { type: 'boolean' },
+          poeEnabled: { type: 'boolean' }
         }
       }
     }
@@ -75,6 +81,12 @@ export default async function portRoutes(app: FastifyInstance) {
     } else if (b.vlan) {
       lines.push(`switchport access vlan ${b.vlan}`);
     }
+    if (b.voiceVlan !== undefined) lines.push(`switchport voice vlan ${b.voiceVlan}`);
+    if (b.speed) lines.push(`speed ${b.speed}`);
+    if (b.duplex) lines.push(`duplex ${b.duplex}`);
+    if (b.portfast !== undefined) lines.push(b.portfast ? 'spanning-tree portfast' : 'no spanning-tree portfast');
+    if (b.bpduGuard !== undefined) lines.push(b.bpduGuard ? 'spanning-tree bpduguard enable' : 'spanning-tree bpduguard disable');
+    if (b.poeEnabled !== undefined) lines.push(b.poeEnabled ? 'power inline auto' : 'power inline never');
     const output = await devicePushConfig(id, lines);
     // Mirror the change into the ports table so the UI is correct immediately
     // (the next full refresh re-syncs from the device anyway)

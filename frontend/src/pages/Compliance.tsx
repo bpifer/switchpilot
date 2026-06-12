@@ -186,6 +186,7 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
 }) {
   const [checks, setChecks] = useState<DeviceCheck[]>([]);
   const [busy, setBusy] = useState('');
+  const [checking, setChecking] = useState(false);
 
   const load = () => api<DeviceCheck[]>(`/api/compliance/device/${deviceId}`).then(setChecks).catch(() => setChecks([]));
   useEffect(() => { load(); }, []);
@@ -197,8 +198,28 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
     finally { setBusy(''); }
   }
 
+  // Pull the running config and re-evaluate against it, so the results reflect
+  // the device as it is now (including manual changes made outside SwitchPilot).
+  async function checkNow() {
+    setChecking(true);
+    try { await api(`/api/compliance/evaluate?deviceId=${deviceId}&fresh=true`, { method: 'POST' }); await load(); onChanged(); }
+    catch (err: any) { alert(err.message); }
+    finally { setChecking(false); }
+  }
+
+  const passedCount = checks.filter(c => c.passed === true).length;
+
   return (
     <Modal title="Compliance checks" onClose={onClose}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-xs text-slate-500">
+          Checks run against the most recent config backup ({passedCount}/{checks.length} passed).
+          "Check now" pulls the running config first.
+        </p>
+        <Button variant="secondary" onClick={checkNow} disabled={checking}>
+          {checking ? 'Checking…' : 'Check now'}
+        </Button>
+      </div>
       <div className="space-y-2">
         {checks.map(c => (
           <div key={c.rule_id} className={`rounded-lg border p-2.5 ${
@@ -206,15 +227,27 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
             <div className="flex items-center gap-2">
               <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${SEV_COLOR[c.severity]}`}>{c.severity}</span>
               <span className="text-sm font-medium text-slate-800">{c.name}</span>
-              <span className="ml-auto text-xs font-semibold">
-                {c.passed === null ? <span className="text-slate-400">not checked</span>
-                  : c.passed ? <span className="text-green-600">PASS</span> : <span className="text-red-600">FAIL</span>}
+              <span className="ml-auto">
+                {c.passed === null ? (
+                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-500"
+                        title='No result yet - use "Check now"'>not checked</span>
+                ) : c.passed ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-[11px] font-semibold text-green-700">
+                    ✓ Passed
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-semibold text-red-700">Failed</span>
+                )}
               </span>
             </div>
             {c.description && <p className="mt-1 text-xs text-slate-500">{c.description}</p>}
             {c.detail && c.passed === false && <p className="mt-1 font-mono text-xs text-red-600">{c.detail}</p>}
+            {c.passed && c.detail && <p className="mt-1 font-mono text-xs text-green-700/70">{c.detail}</p>}
             {canEdit && c.passed === false && c.remediation && (
-              <div className="mt-2 text-right">
+              <div className="mt-2 flex items-center justify-end gap-2">
+                <span className="font-mono text-[10px] text-slate-400" title="Lines that will be pushed">
+                  {c.remediation.split('\n')[0]}{c.remediation.includes('\n') ? ' …' : ''}
+                </span>
                 <Button variant="secondary" onClick={() => remediate(c.rule_id)} disabled={busy === c.rule_id}>
                   {busy === c.rule_id ? 'Remediating…' : 'Remediate'}
                 </Button>

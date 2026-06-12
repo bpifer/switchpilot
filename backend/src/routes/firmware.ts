@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import crypto from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { mkdir, stat, statfs } from 'node:fs/promises';
+import { mkdir, stat, statfs, unlink } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -63,6 +63,23 @@ export default async function firmwareRoutes(app: FastifyInstance) {
         [filename, family, version, hash.digest('hex'), size, me.username]);
       await audit(me.username, 'firmware.upload', filename, { family, version }, req.ip);
       return reply.code(201).send(rows[0]);
+    });
+
+  // Delete an image (DB row + file). Refused while an upgrade job references it.
+  app.delete('/api/firmware/:imageId', { preHandler: requireRole('netadmin'), schema: { tags: ['firmware'] } },
+    async (req, reply) => {
+      const { imageId } = req.params as any;
+      const me = req.user as any;
+      const { rows } = await query('SELECT * FROM firmware_images WHERE id=$1', [imageId]);
+      if (!rows[0]) return reply.code(404).send({ error: 'Image not found' });
+      const active = await query(
+        `SELECT 1 FROM jobs WHERE type='firmware_upgrade' AND status IN ('pending','running')
+           AND payload->>'imageId' = $1 LIMIT 1`, [imageId]);
+      if (active.rows[0]) return reply.code(409).send({ error: 'An active upgrade job references this image' });
+      await query('DELETE FROM firmware_images WHERE id=$1', [imageId]);
+      await unlink(path.join(config.firmwareDir, rows[0].filename)).catch(() => { /* already gone */ });
+      await audit(me.username, 'firmware.delete', rows[0].filename, {}, req.ip);
+      return { ok: true };
     });
 
   // Serve image files so switches can `copy http://... flash:`.

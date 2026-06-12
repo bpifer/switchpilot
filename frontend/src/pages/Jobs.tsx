@@ -64,9 +64,17 @@ export default function Jobs() {
 
   const isActive = (s: string) => s === 'running' || s === 'pending';
 
+  const clearFinished = async () => {
+    if (!confirm('Remove all finished jobs (done, failed, cancelled) and their results? Running and pending jobs are kept.')) return;
+    try { await api('/api/jobs/finished', { method: 'DELETE' }); await load(); }
+    catch (err: any) { alert(err.message); }
+  };
+
   return (
     <div>
-      <PageHeader title="Jobs" />
+      <PageHeader title="Jobs">
+        <Button variant="secondary" onClick={clearFinished}>Clear finished</Button>
+      </PageHeader>
       <div className="p-6">
         <Card>
           <div className="overflow-x-auto">

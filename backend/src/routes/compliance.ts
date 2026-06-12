@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
 import { evaluateAllCompliance, evaluateDevice, remediate } from '../services/complianceService.js';
+import { backupDevice } from '../services/configService.js';
 
 export default async function complianceRoutes(app: FastifyInstance) {
   // ----- Rules CRUD -----
@@ -74,10 +75,25 @@ export default async function complianceRoutes(app: FastifyInstance) {
   // ----- Evaluation -----
   app.post('/api/compliance/evaluate', {
     preHandler: requireRole('helpdesk'),
-    schema: { tags: ['compliance'], querystring: { type: 'object', properties: { deviceId: { type: 'string' } } } }
+    schema: {
+      tags: ['compliance'],
+      querystring: {
+        type: 'object',
+        properties: {
+          deviceId: { type: 'string' },
+          fresh: { type: 'boolean', description: 'take a new config backup before evaluating (per-device only)' }
+        }
+      }
+    }
   }, async (req) => {
-    const { deviceId } = req.query as any;
-    if (deviceId) return evaluateDevice(deviceId);
+    const { deviceId, fresh } = req.query as any;
+    const me = req.user as any;
+    if (deviceId) {
+      // Evaluation reads the latest backup; "fresh" pulls the running config
+      // first so the result reflects what is on the device right now.
+      if (fresh) await backupDevice(deviceId, me.username, { reason: 'compliance evaluation' });
+      return evaluateDevice(deviceId);
+    }
     await evaluateAllCompliance();
     return { ok: true };
   });

@@ -93,6 +93,7 @@ export default async function onboardingRoutes(app: FastifyInstance) {
     return {
       ...inspection,
       usingPlatformAccount,
+      spAdminExists: inspection.users.some(u => u.name === PLATFORM_ACCOUNT),
       otherAdmins: inspection.users.filter(u => u.priv15 && u.name !== PLATFORM_ACCOUNT).map(u => u.name)
     };
   });

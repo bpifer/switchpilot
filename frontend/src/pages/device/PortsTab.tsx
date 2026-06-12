@@ -36,12 +36,10 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
   const [busy, setBusy] = useState('');
   const [result, setResult] = useState('');
   const [editVlan, setEditVlan] = useState(false);
-  const [vlan, setVlan] = useState('');
-  const [desc, setDesc] = useState(port.description);
   // Port names contain slashes (Gi1/0/1) - encode so they stay one path segment
   const portPath = encodeURIComponent(port.name);
 
-  useEffect(() => { setDesc(port.description); setResult(''); }, [port.name]);
+  useEffect(() => { setResult(''); }, [port.name]);
 
   async function action(label: string, fn: () => Promise<any>) {
     setBusy(label); setResult('');
@@ -115,25 +113,156 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
       )}
 
       {editVlan && (
-        <Modal title={`Configure ${port.name}`} onClose={() => setEditVlan(false)}>
+        <PortConfigModal
+          port={port}
+          busy={busy === 'cfg'}
+          onClose={() => setEditVlan(false)}
+          onApply={body => action('cfg', async () => {
+            await api(`/api/devices/${deviceId}/ports/${portPath}/config`, { method: 'POST', body });
+            setEditVlan(false);
+          })}
+        />
+      )}
+    </Card>
+  );
+}
+
+/**
+ * Full port configuration. Only fields the operator touches are sent, so an
+ * apply never rewrites settings that weren't changed.
+ */
+function PortConfigModal({ port, busy, onClose, onApply }: {
+  port: Port; busy: boolean; onClose: () => void; onApply: (body: any) => void;
+}) {
+  const [mode, setMode] = useState<'unchanged' | 'access' | 'trunk'>('unchanged');
+  const [vlan, setVlan] = useState('');
+  const [voiceVlan, setVoiceVlan] = useState('');
+  const [nativeVlan, setNativeVlan] = useState('');
+  const [allowedVlans, setAllowedVlans] = useState('');
+  const [desc, setDesc] = useState(port.description);
+  const [descTouched, setDescTouched] = useState(false);
+  const [speed, setSpeed] = useState('');
+  const [duplex, setDuplex] = useState('');
+  const [portfast, setPortfast] = useState<'' | 'on' | 'off'>('');
+  const [bpduGuard, setBpduGuard] = useState<'' | 'on' | 'off'>('');
+  const [poe, setPoe] = useState<'' | 'on' | 'off'>('');
+
+  function apply() {
+    const body: any = {};
+    if (descTouched) body.description = desc;
+    if (mode === 'access') {
+      body.mode = 'access';
+      if (vlan) body.vlan = parseInt(vlan, 10);
+    } else if (mode === 'trunk') {
+      body.mode = 'trunk';
+      if (nativeVlan) body.trunkNativeVlan = parseInt(nativeVlan, 10);
+      if (allowedVlans) body.trunkAllowedVlans = allowedVlans;
+    } else if (vlan) {
+      body.vlan = parseInt(vlan, 10);
+    }
+    if (voiceVlan) body.voiceVlan = parseInt(voiceVlan, 10);
+    if (speed) body.speed = speed;
+    if (duplex) body.duplex = duplex;
+    if (portfast) body.portfast = portfast === 'on';
+    if (bpduGuard) body.bpduGuard = bpduGuard === 'on';
+    if (poe) body.poeEnabled = poe === 'on';
+    if (Object.keys(body).length === 0) { onClose(); return; }
+    onApply(body);
+  }
+
+  const selCls = inputCls;
+  return (
+    <Modal title={`Configure ${port.name}`} onClose={onClose}>
+      <Field label="Description">
+        <input className={inputCls} value={desc}
+               onChange={e => { setDesc(e.target.value); setDescTouched(true); }} />
+      </Field>
+
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Switching</div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Port mode">
+          <select className={selCls} value={mode} onChange={e => setMode(e.target.value as any)}>
+            <option value="unchanged">Keep current ({port.mode})</option>
+            <option value="access">Access</option>
+            <option value="trunk">Trunk</option>
+          </select>
+        </Field>
+        {mode !== 'trunk' ? (
           <Field label="Access VLAN">
             <input className={inputCls} value={vlan} onChange={e => setVlan(e.target.value)} placeholder={port.vlan} />
           </Field>
-          <Field label="Description">
-            <input className={inputCls} value={desc} onChange={e => setDesc(e.target.value)} />
+        ) : (
+          <Field label="Native VLAN">
+            <input className={inputCls} value={nativeVlan} onChange={e => setNativeVlan(e.target.value)} placeholder="1" />
           </Field>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setEditVlan(false)}>Cancel</Button>
-            <Button disabled={busy === 'cfg'} onClick={() => action('cfg', async () => {
-              const body: any = { description: desc };
-              if (vlan) { body.mode = 'access'; body.vlan = parseInt(vlan, 10); }
-              await api(`/api/devices/${deviceId}/ports/${portPath}/config`, { method: 'POST', body });
-              setEditVlan(false);
-            })}>{busy === 'cfg' ? 'Applying…' : 'Apply'}</Button>
-          </div>
-        </Modal>
+        )}
+      </div>
+      {mode === 'trunk' ? (
+        <Field label="Allowed VLANs (e.g. 10,20,30-39 - blank = all)">
+          <input className={inputCls} value={allowedVlans} onChange={e => setAllowedVlans(e.target.value)} />
+        </Field>
+      ) : (
+        <Field label="Voice VLAN (optional)">
+          <input className={inputCls} value={voiceVlan} onChange={e => setVoiceVlan(e.target.value)} placeholder="e.g. 100" />
+        </Field>
       )}
-    </Card>
+
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Link</div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Speed">
+          <select className={selCls} value={speed} onChange={e => setSpeed(e.target.value)}>
+            <option value="">Keep current ({port.speed || 'auto'})</option>
+            <option value="auto">Auto-negotiate</option>
+            <option value="10">10 Mbps</option>
+            <option value="100">100 Mbps</option>
+            <option value="1000">1 Gbps</option>
+          </select>
+        </Field>
+        <Field label="Duplex">
+          <select className={selCls} value={duplex} onChange={e => setDuplex(e.target.value)}>
+            <option value="">Keep current ({port.duplex || 'auto'})</option>
+            <option value="auto">Auto</option>
+            <option value="full">Full</option>
+            <option value="half">Half</option>
+          </select>
+        </Field>
+      </div>
+
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Spanning tree &amp; power</div>
+      <div className="grid grid-cols-3 gap-3">
+        <Field label="PortFast">
+          <select className={selCls} value={portfast} onChange={e => setPortfast(e.target.value as any)}>
+            <option value="">Keep current</option>
+            <option value="on">Enabled</option>
+            <option value="off">Disabled</option>
+          </select>
+        </Field>
+        <Field label="BPDU Guard">
+          <select className={selCls} value={bpduGuard} onChange={e => setBpduGuard(e.target.value as any)}>
+            <option value="">Keep current</option>
+            <option value="on">Enabled</option>
+            <option value="off">Disabled</option>
+          </select>
+        </Field>
+        <Field label="PoE">
+          <select className={selCls} value={poe} onChange={e => setPoe(e.target.value as any)}>
+            <option value="">Keep current</option>
+            <option value="on">Auto (on)</option>
+            <option value="off">Never (off)</option>
+          </select>
+        </Field>
+      </div>
+      {mode === 'trunk' && (
+        <p className="mb-3 text-xs text-amber-600">
+          Careful: changing your own uplink to the wrong trunk settings can cut off management access.
+        </p>
+      )}
+
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button onClick={apply} disabled={busy}>{busy ? 'Applying…' : 'Apply'}</Button>
+      </div>
+    </Modal>
   );
 }
 

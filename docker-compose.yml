@@ -30,8 +30,11 @@ services:
     environment:
       POSTGRES_HOST: db
       REDIS_URL: redis://redis:6379
+      # non-root container can't bind <1024; host 514/udp maps to 5514 inside
+      SYSLOG_PORT: "5514"
     ports:
       - "3000:3000"
+      - "514:5514/udp"
     volumes:
       - firmware:/data/firmware
       - confighistory:/data/config-history

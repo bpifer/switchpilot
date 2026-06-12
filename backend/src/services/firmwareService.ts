@@ -1,9 +1,31 @@
 import { query } from '../db.js';
-import { CiscoSshSession } from '../cisco/sshClient.js';
+import { CiscoSshSession, type SshTarget } from '../cisco/sshClient.js';
 import { evictDevice } from '../cisco/sshPool.js';
 import { getDevice, sshTargetFor } from './deviceComms.js';
 import { commandsForFamily } from '../cisco/capabilities.js';
+import { parseShowVersion } from '../cisco/parsers.js';
 import { raiseAlert } from './alertService.js';
+
+/** Poll until the device accepts SSH again. Returns the running version, or null on timeout. */
+async function waitForReboot(target: SshTarget, timeoutMs: number): Promise<string | null> {
+  const deadline = Date.now() + timeoutMs;
+  await new Promise(r => setTimeout(r, 90_000));   // bootloader + image decompress; nothing answers earlier
+  while (Date.now() < deadline) {
+    try {
+      const probe = new CiscoSshSession({ ...target, timeoutMs: 10_000 });
+      await probe.connect();
+      try {
+        if (!target.skipEnable) await probe.enable();
+        return parseShowVersion(await probe.exec('show version')).iosVersion;
+      } finally {
+        probe.close();
+      }
+    } catch {
+      await new Promise(r => setTimeout(r, 20_000));
+    }
+  }
+  return null;
+}
 
 /**
  * Upgrade a device to a registered firmware image.
@@ -103,6 +125,28 @@ export async function upgradeFirmware(
       await onStage('reloading device (5-10 min downtime)');
       log.push(await session.reload());
       evictDevice(target);   // any pooled session to this device just died
+
+      // Track the reboot instead of declaring victory at reload time
+      await onStage('rebooting - waiting for the switch to come back online');
+      const runningVersion = await waitForReboot(target, 15 * 60_000);
+      if (runningVersion === null) {
+        await raiseAlert(deviceId, 'firmware_upgrade_done', 'critical',
+          `${device.hostname} did not come back online within 15 minutes of the upgrade reload - check console access`)
+          .catch(() => {});
+        throw new Error('Device did not come back online within 15 minutes of reload. ' +
+          'It may still be booting - check it manually before retrying.');
+      }
+      log.push(`device back online running ${runningVersion}`);
+      await query(`UPDATE devices SET ios_version=$1, status='online', last_seen_at=now() WHERE id=$2`,
+        [runningVersion, deviceId]).catch(() => {});
+      if (runningVersion === image.version) {
+        await raiseAlert(deviceId, 'firmware_upgrade_done', 'info',
+          `${device.hostname} upgraded to ${image.version} and is back online`).catch(() => {});
+      } else {
+        await raiseAlert(deviceId, 'firmware_upgrade_done', 'warning',
+          `${device.hostname} is back online but reports ${runningVersion} - expected ${image.version}. Check the boot statement.`)
+          .catch(() => {});
+      }
     }
     return log.join('\n---\n');
   } finally {

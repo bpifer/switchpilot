@@ -117,6 +117,7 @@ export default function PortGrid({ ports, selected, onSelect }: {
         <Legend cls="bg-red-500" label="Err-disabled" />
         <Legend cls="bg-yellow-400" label="Errors" />
         <Legend cls="bg-green-500 shadow-[inset_0_-3px_0_rgba(37,99,235,0.9)]" label="PoE active" />
+        <span className="flex items-center gap-1.5"><span className="text-sky-500">▲</span>Trunk / uplink</span>
       </div>
     </div>
   );
@@ -140,7 +141,7 @@ function PortButton({ p, selected, onSelect, label, wide = false }: {
       title={tooltip}
       onClick={() => onSelect(p.name)}
       className={`
-        ${wide ? 'h-8 w-10' : 'h-6 w-7'} rounded-sm border-2 text-[8px] leading-none font-medium
+        relative ${wide ? 'h-8 w-10' : 'h-6 w-7'} rounded-sm border-2 text-[8px] leading-none font-medium
         ${portColor(p)}
         ${selected === p.name ? 'ring-2 ring-sky-400 ring-offset-1 ring-offset-gray-800' : ''}
         ${p.poe_watts ? 'shadow-[inset_0_-3px_0_rgba(37,99,235,0.9)]' : ''}
@@ -148,6 +149,10 @@ function PortButton({ p, selected, onSelect, label, wide = false }: {
       `}
     >
       {label}
+      {p.mode === 'trunk' && (
+        <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-[7px] leading-none text-sky-300"
+              title="Trunk / uplink">▲</span>
+      )}
     </button>
   );
 }
