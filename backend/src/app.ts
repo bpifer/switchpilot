@@ -36,6 +36,8 @@ import lifecycleRoutes from './routes/lifecycle.js';
 import complianceRoutes from './routes/compliance.js';
 import securityRoutes from './routes/security.js';
 import wsRoutes from './routes/ws.js';
+import logRoutes from './routes/logs.js';
+import onboardingRoutes from './routes/onboarding.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true, bodyLimit: 10 * 1024 * 1024 });
@@ -135,6 +137,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(complianceRoutes);
   await app.register(securityRoutes);
   await app.register(wsRoutes);
+  await app.register(logRoutes);
+  await app.register(onboardingRoutes);
 
   return app;
 }

@@ -4,53 +4,8 @@ import { api } from '../api';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, StatusBadge, Modal, Field, inputCls, fmtUptime } from '../components/ui';
+import OnboardWizard from '../components/OnboardWizard';
 
-const CISCO_MODELS = [
-  {
-    family: 'Catalyst 2960',
-    models: [
-      'WS-C2960-24TT-L', 'WS-C2960-48TT-L',
-      'WS-C2960+24PC-L', 'WS-C2960+48PST-L',
-      'WS-C2960X-24PD-L', 'WS-C2960X-48FPD-L', 'WS-C2960X-48LPD-L',
-      'WS-C2960XR-24PD-I', 'WS-C2960XR-48FPD-I',
-    ],
-  },
-  {
-    family: 'Catalyst 3560',
-    models: [
-      'WS-C3560-24PS-S', 'WS-C3560-48PS-S',
-      'WS-C3560X-24P-S', 'WS-C3560X-48P-S',
-      'WS-C3560CX-8PC-S', 'WS-C3560CX-12PD-S',
-    ],
-  },
-  {
-    family: 'Catalyst 3750',
-    models: [
-      'WS-C3750X-24P-S', 'WS-C3750X-48P-S',
-      'WS-C3750X-24PF-S', 'WS-C3750X-48PF-S',
-    ],
-  },
-  {
-    family: 'Catalyst 9200',
-    models: [
-      'C9200-24P', 'C9200-24T',
-      'C9200-48P', 'C9200-48T',
-      'C9200L-24P-4G', 'C9200L-48P-4G',
-    ],
-  },
-  {
-    family: 'Catalyst 9300',
-    models: [
-      'C9300-24P', 'C9300-24T',
-      'C9300-48P', 'C9300-48T', 'C9300-48UXM',
-      'C9300L-24P-4G', 'C9300L-48P-4G',
-    ],
-  },
-  {
-    family: 'Catalyst 9400',
-    models: ['C9404R', 'C9407R', 'C9410R'],
-  },
-];
 
 export default function Devices({ me }: { me: Me }) {
   const [showAdd, setShowAdd] = useState(false);
@@ -84,6 +39,7 @@ export default function Devices({ me }: { me: Me }) {
                   <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">CPU</th>
                   <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Mem</th>
                   <th className="pb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Site</th>
+                  {canEdit && <th className="pb-3"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -123,6 +79,19 @@ export default function Devices({ me }: { me: Me }) {
                       ) : '—'}
                     </td>
                     <td className="py-3 text-slate-600">{d.site_name ?? '—'}</td>
+                    {canEdit && (
+                      <td className="py-3 pl-2 text-right">
+                        <button
+                          className="text-xs text-slate-300 opacity-0 transition hover:text-red-600 hover:underline group-hover:opacity-100"
+                          onClick={async () => {
+                            if (!confirm(`Remove ${d.hostname || d.mgmt_ip} from SwitchPilot?\n\nThis deletes its history (ports, metrics, backups, alerts) from the platform. The switch itself is not touched.`)) return;
+                            try { await api(`/api/devices/${d.id}`, { method: 'DELETE' }); load(); }
+                            catch (err: any) { alert(err.message); }
+                          }}>
+                          remove
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
                 {devices.length === 0 && (
@@ -151,8 +120,7 @@ export default function Devices({ me }: { me: Me }) {
       </div>
 
       {showAdd && (
-        <AddDevice
-          credentials={credentials}
+        <OnboardWizard
           sites={sites}
           onClose={() => { setShowAdd(false); load(); }}
         />
@@ -164,122 +132,6 @@ export default function Devices({ me }: { me: Me }) {
         />
       )}
     </div>
-  );
-}
-
-function AddDevice({ credentials, sites, onClose }: { credentials: any[]; sites: any[]; onClose: () => void }) {
-  const [form, setForm] = useState<any>({
-    mgmtIp: '', credentialId: credentials[0]?.id ?? '', model: '', location: '', siteId: '',
-  });
-  const [provision, setProvision] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  async function submit() {
-    setBusy(true); setError('');
-    try {
-      const body: any = { mgmtIp: form.mgmtIp, credentialId: form.credentialId, provision };
-      if (form.model)    body.model    = form.model;
-      if (form.location) body.location = form.location;
-      if (form.siteId)   body.siteId   = form.siteId;
-      await api('/api/devices', { method: 'POST', body });
-      onClose();
-    } catch (err: any) { setError(err.message); }
-    finally { setBusy(false); }
-  }
-
-  return (
-    <Modal title="Add switch" onClose={onClose}>
-      {error && (
-        <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">
-          {error}
-        </div>
-      )}
-
-      <Field label="Management IP">
-        <input
-          className={inputCls}
-          value={form.mgmtIp}
-          onChange={e => setForm({ ...form, mgmtIp: e.target.value })}
-          placeholder="10.0.0.10"
-        />
-      </Field>
-
-      <Field label="Credential profile">
-        <select
-          className={inputCls}
-          value={form.credentialId}
-          onChange={e => setForm({ ...form, credentialId: e.target.value })}
-        >
-          {credentials.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          {credentials.length === 0 && (
-            <option value="">— create a credential profile first —</option>
-          )}
-        </select>
-      </Field>
-
-      <Field label="Model">
-        <select
-          className={inputCls}
-          value={form.model}
-          onChange={e => setForm({ ...form, model: e.target.value })}
-        >
-          <option value="">— Auto-detect via SSH / SNMP —</option>
-          {CISCO_MODELS.map(group => (
-            <optgroup key={group.family} label={group.family}>
-              {group.models.map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-        {!form.model && (
-          <p className="mt-1 text-xs text-slate-400">
-            Leave on auto-detect if unsure — the platform will identify the model via SSH.
-          </p>
-        )}
-      </Field>
-
-      <Field label="Site">
-        <select
-          className={inputCls}
-          value={form.siteId}
-          onChange={e => setForm({ ...form, siteId: e.target.value })}
-        >
-          <option value="">—</option>
-          {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-      </Field>
-
-      <Field label="Location">
-        <input
-          className={inputCls}
-          value={form.location}
-          onChange={e => setForm({ ...form, location: e.target.value })}
-          placeholder="IDF-2, rack 4"
-        />
-      </Field>
-
-      <label className="mb-1 flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-        <input type="checkbox" className="mt-0.5 rounded border-slate-300"
-               checked={provision} onChange={e => setProvision(e.target.checked)} />
-        <span className="text-sm">
-          <span className="font-medium text-slate-700">Apply baseline config after onboarding</span>
-          <span className="mt-0.5 block text-xs text-slate-500">
-            Pushes <span className="font-mono">lldp run</span> (non-Cisco neighbor discovery), syslog
-            forwarding to SwitchPilot (real-time alerts), and the SNMP read community from the
-            credential profile (fast status polls). Runs as a job you can review.
-          </span>
-        </span>
-      </label>
-
-      <div className="mt-5 flex justify-end gap-2">
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={submit} disabled={busy || !form.mgmtIp || !form.credentialId}>
-          {busy ? 'Onboarding…' : 'Add switch'}
-        </Button>
-      </div>
-    </Modal>
   );
 }
 

@@ -52,8 +52,19 @@ export function startSyslogListener(): void {
   const sock = dgram.createSocket('udp4');
 
   sock.on('message', async (msg, rinfo) => {
-    const text = msg.toString('utf8').slice(0, 1024);
+    let text = msg.toString('utf8').slice(0, 1024);
     const sourceIp = rinfo.address;
+
+    // RFC 3164/5424 priority prefix: <PRI> where severity = PRI % 8, facility = PRI / 8
+    let severity: number | null = null;
+    let facility: number | null = null;
+    const pri = text.match(/^<(\d+)>/);
+    if (pri) {
+      const p = parseInt(pri[1], 10);
+      severity = p % 8;
+      facility = p >> 3;
+      text = text.slice(pri[0].length).trim();
+    }
 
     // Look up the device by its management IP
     let deviceId = '';
@@ -63,6 +74,13 @@ export function startSyslogListener(): void {
         'SELECT id, hostname, mgmt_ip FROM devices WHERE mgmt_ip::text = $1 LIMIT 1', [sourceIp]);
       if (rows[0]) { deviceId = rows[0].id; hostname = rows[0].hostname || sourceIp; }
     } catch { /* db unavailable — skip */ }
+
+    // Store every message for the log viewer (best-effort)
+    await query(
+      `INSERT INTO syslog_messages (device_id, source_ip, facility, severity, message)
+       VALUES ($1,$2,$3,$4,$5)`,
+      [deviceId || null, sourceIp, facility, severity, text]
+    ).catch(() => { /* viewer storage is non-critical */ });
 
     for (const { re, handler } of PATTERNS) {
       const m = text.match(re);
@@ -88,4 +106,10 @@ export function startSyslogListener(): void {
   sock.bind(port, () => {
     console.log(`syslog listener on UDP ${port}`);
   });
+
+  // Retention: purge messages older than 14 days, hourly
+  setInterval(() => {
+    query(`DELETE FROM syslog_messages WHERE received_at < now() - interval '14 days'`)
+      .catch(() => { /* retry next hour */ });
+  }, 3600_000).unref();
 }

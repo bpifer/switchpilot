@@ -19,6 +19,7 @@ import Locate from './pages/Locate';
 import PoE from './pages/PoE';
 import Lifecycle from './pages/Lifecycle';
 import Firmware from './pages/Firmware';
+import Logs from './pages/Logs';
 import Campaigns from './pages/Campaigns';
 import Compliance from './pages/Compliance';
 import SecurityGate from './pages/SecurityGate';
@@ -52,6 +53,7 @@ const ICONS: Record<string, string> = {
   campaigns:   'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z',
   compliance:  'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
   firmware:    'M21.75 17.25v-.228a4.5 4.5 0 00-.12-1.03l-2.268-9.64a3.375 3.375 0 00-3.285-2.602H7.923a3.375 3.375 0 00-3.285 2.602l-2.268 9.64a4.5 4.5 0 00-.12 1.03v.228m19.5 0a3 3 0 01-3 3H5.25a3 3 0 01-3-3m19.5 0a3 3 0 00-3-3H5.25a3 3 0 00-3 3m16.5 0h.008v.008h-.008v-.008zm-3 0h.008v.008h-.008v-.008z',
+  logs:        'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z',
 };
 
 interface NavItem { to: string; label: string; icon: string; role?: string }
@@ -68,6 +70,7 @@ const NAV: NavSection[] = [
     { to: '/clients',   label: 'Clients',   icon: ICONS.clients },
     { to: '/locate',    label: 'Locate',    icon: ICONS.locate },
     { to: '/discovery', label: 'Discovery', icon: ICONS.discovery },
+    { to: '/logs',      label: 'Logs',      icon: ICONS.logs },
   ]},
   { title: 'Operations', items: [
     { to: '/jobs',        label: 'Jobs',        icon: ICONS.jobs },
@@ -243,6 +246,7 @@ export default function App() {
           <Route path="/poe" element={<PoE />} />
           <Route path="/lifecycle" element={<Lifecycle me={me} />} />
           <Route path="/firmware" element={<Firmware me={me} />} />
+          <Route path="/logs" element={<Logs />} />
           <Route path="/campaigns" element={<Campaigns />} />
           <Route path="/compliance" element={<Compliance me={me} />} />
           <Route path="/maintenance" element={<Maintenance />} />
