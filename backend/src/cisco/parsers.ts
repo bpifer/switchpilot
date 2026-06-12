@@ -61,14 +61,19 @@ export interface InterfaceStatus {
 /** Parse `show interfaces status`. Columns are fixed-width-ish; parse from the right. */
 export function parseInterfacesStatus(output: string): InterfaceStatus[] {
   const results: InterfaceStatus[] = [];
-  for (const line of output.split('\n')) {
+  // Strip \r so \r\n SSH output doesn't break end-of-line matching
+  for (const line of output.replace(/\r/g, '').split('\n')) {
     const m = line.match(
-      /^(\S+)\s+(.*?)\s+(connected|notconnect|disabled|err-disabled|inactive|monitoring|suspended)\s+(\S+)\s+(\S+)\s+(\S+)\s*(.*)$/
+      /^(\S+)\s+(.*?)\s+(connected|notconnect|disabled|err-disabled|inactive|monitoring|suspended|sfpAbsent|sfpPresent|xcvrAbsent|xcvrPresent|down|up)\s+(\S+)\s+(\S+)\s+(\S+)\s*(.*)$/
     );
     if (!m) continue;
     const [, name, description, status, vlan, duplex, speed, type] = m;
     if (!/^(Gi|Fa|Te|Tw|Fo|Hu|Po|Eth|Ap)/.test(name)) continue;
-    results.push({ name, description: description.trim(), status, vlan, duplex, speed, type: type.trim() });
+    // Normalise non-standard status words to the values the rest of the app expects
+    const normStatus = status === 'up' ? 'connected'
+      : (status === 'down' || status.startsWith('sfp') || status.startsWith('xcvr')) ? 'notconnect'
+      : status;
+    results.push({ name, description: description.trim(), status: normStatus, vlan, duplex, speed, type: type.trim() });
   }
   return results;
 }
