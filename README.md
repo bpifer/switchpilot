@@ -72,7 +72,8 @@ Communicates directly over **SSH and SNMP** - no Cisco DNA Center, no Meraki lic
 
 ### Security & Access Control
 - **RBAC** - Super Admin / Network Admin / Help Desk / Read Only
-- **Auth** - local accounts, LDAP/Active Directory, TOTP MFA
+- **Auth** - local accounts, LDAP/Active Directory, TOTP MFA with 8 single-use **recovery codes** issued at enrollment (shown once, stored hashed)
+- **Sliding sessions** - the UI silently exchanges its token for a fresh one every 30 minutes (`POST /api/auth/refresh`), so open dashboards never hit a mid-session expiry
 - **Configurable security policy** (Super Admin) -
   - **Password complexity** - min length + upper/lower/digit/symbol requirements, enforced on every password set
   - **Password expiry** - optional max age forces a change at next login
@@ -110,6 +111,7 @@ API docs: **http://localhost:3000/docs**
 | `JWT_SECRET` | `dev-only-secret` | **Required in production** - 32+ random chars. With `NODE_ENV=production` the API **refuses to start** if left at the default. |
 | `CREDENTIAL_KEY` | `00…00` (32 bytes hex) | AES-256-GCM key for credential encryption. Same hard-fail in production if left at the default. |
 | `REDIS_URL` | `redis://redis:6379` | Redis connection string |
+| `DB_POOL_MAX` | `10` | Max Postgres connections per API instance |
 | `ALLOWED_ORIGINS` | - | Comma-separated CORS allow-list (e.g. `https://switchpilot.corp`). Unset reflects any origin (dev only). |
 | `ENABLE_API_DOCS` | `true` | Serve Swagger UI at `/docs`. Set `false` to hide the API schema in production. |
 | `FIRMWARE_DIR` | `/data/firmware` | Where IOS image files are stored |
@@ -134,7 +136,8 @@ cisco-switch-manager/
 │   │   ├── 004_lifecycle_rings_inventory.sql
 │   │   ├── 005_job_reliability_lifecycle_catalog.sql
 │   │   ├── 006_compliance_engine.sql
-│   │   └── 007_security_hardening.sql
+│   │   ├── 007_security_hardening.sql
+│   │   └── 008_mfa_backup_codes.sql
 │   └── src/
 │       ├── cisco/           # SSH client, SNMP, parsers, capability DB, OUI, lifecycle
 │       ├── routes/          # Fastify route handlers

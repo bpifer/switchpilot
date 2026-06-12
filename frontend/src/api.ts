@@ -11,6 +11,17 @@ export function getToken(): string | null {
   return token;
 }
 
+// Sliding session: while logged in, exchange the token for a fresh one every
+// 30 minutes so an open dashboard never hits a silent mid-session expiry.
+const REFRESH_INTERVAL_MS = 30 * 60_000;
+setInterval(async () => {
+  if (!token) return;
+  try {
+    const { token: fresh } = await api<{ token: string }>('/api/auth/refresh', { method: 'POST' });
+    if (fresh) setToken(fresh);
+  } catch { /* a 401 here already redirected to login */ }
+}, REFRESH_INTERVAL_MS);
+
 export class ApiError extends Error {
   constructor(public status: number, message: string, public detail?: unknown) {
     super(message);

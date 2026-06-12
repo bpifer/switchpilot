@@ -10,7 +10,7 @@ import pg from 'pg';
 import { config } from './config.js';
 
 const LEADER_LOCK_KEY = 911_002;   // arbitrary, must be identical across replicas
-const RETRY_MS = 10_000;
+const RETRY_MS = 3_000;   // short retry keeps the failover blind spot small
 
 let leader = false;
 let client: pg.Client | null = null;

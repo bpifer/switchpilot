@@ -77,19 +77,31 @@ export default async function deviceRoutes(app: FastifyInstance) {
     preHandler: requireRole('readonly'),
     schema: {
       tags: ['devices'],
-      querystring: { type: 'object', properties: { siteId: { type: 'string' }, status: { type: 'string' } } }
+      querystring: {
+        type: 'object',
+        properties: {
+          siteId: { type: 'string' }, status: { type: 'string' },
+          limit: { type: 'integer', minimum: 1, maximum: 1000, description: 'Page size; omit for all rows' },
+          after: { type: 'string', description: 'Keyset cursor: return devices with hostname > this value' }
+        }
+      }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const q = req.query as any;
     const conds: string[] = [];
     const params: unknown[] = [];
     if (q.siteId) { params.push(q.siteId); conds.push(`d.site_id=$${params.length}`); }
     if (q.status) { params.push(q.status); conds.push(`d.status=$${params.length}`); }
+    if (q.after) { params.push(q.after); conds.push(`d.hostname > $${params.length}`); }
+    let limitClause = '';
+    if (q.limit) { params.push(q.limit); limitClause = `LIMIT $${params.length}`; }
     const { rows } = await query(
       `SELECT d.*, s.name AS site_name
        FROM devices d LEFT JOIN sites s ON s.id=d.site_id
        ${conds.length ? 'WHERE ' + conds.join(' AND ') : ''}
-       ORDER BY d.hostname`, params);
+       ORDER BY d.hostname ${limitClause}`, params);
+    // Cursor for the next page (clients pass it back as ?after=)
+    if (q.limit && rows.length === q.limit) reply.header('x-next-cursor', rows[rows.length - 1].hostname);
     return rows;
   });
 

@@ -1,5 +1,10 @@
 # SwitchPilot Kubernetes manifests (namespace: switchpilot)
-# Create switchpilot-secrets first — see docs/DEPLOYMENT.md.
+# Create switchpilot-secrets first - see docs/DEPLOYMENT.md.
+#
+# PRODUCTION NOTE: the in-cluster Postgres and Redis below are single-replica with
+# no HA and no backups - fine for evaluation, not for production. For real
+# deployments point POSTGRES_HOST/REDIS_URL at a managed service (RDS, Cloud SQL,
+# ElastiCache) or a proper HA operator, and delete the db/redis resources here.
 apiVersion: apps/v1
 kind: Deployment
 metadata: { name: db, labels: { app: db } }
@@ -76,7 +81,12 @@ spec:
             - { name: POSTGRES_USER, value: switchpilot }
             - { name: REDIS_URL, value: "redis://redis:6379" }
             - { name: ENABLE_API_DOCS, value: "false" }   # hide the API schema in prod
-            # - { name: ALLOWED_ORIGINS, value: "https://switchpilot.your-domain" }
+            # CORS allow-list. REQUIRED: change to your real frontend origin before deploying;
+            # removing this line makes the API reflect any Origin (dev behaviour, CSRF risk).
+            - { name: ALLOWED_ORIGINS, value: "https://switchpilot.example.com" }
+            # Syslog ingest (UDP 514) is NOT exposed by the Service below; switches cannot
+            # reach it through the HTTP Ingress. To receive syslog in K8s, add a separate
+            # LoadBalancer/NodePort Service for UDP, or set SYSLOG_PORT > 1024 and expose it.
             - name: POSTGRES_PASSWORD
               valueFrom: { secretKeyRef: { name: switchpilot-secrets, key: POSTGRES_PASSWORD } }
             - name: JWT_SECRET
@@ -127,6 +137,9 @@ spec:
         - name: web
           image: switchpilot-web:latest   # replace with your registry path
           ports: [{ containerPort: 80 }]
+          resources:
+            requests: { cpu: "25m", memory: "32Mi" }
+            limits:   { cpu: "200m", memory: "128Mi" }
 ---
 apiVersion: v1
 kind: Service

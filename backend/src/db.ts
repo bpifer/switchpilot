@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 
-export const pool = new pg.Pool({ ...config.db, max: 10 });
+export const pool = new pg.Pool({ ...config.db, max: parseInt(process.env.DB_POOL_MAX ?? '10', 10) });
 
 export async function query<T extends pg.QueryResultRow = any>(
   text: string,

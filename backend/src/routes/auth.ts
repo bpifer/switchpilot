@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import bcrypt from 'bcryptjs';
+import { randomBytes } from 'node:crypto';
 import { authenticator } from 'otplib';
 import { query } from '../db.js';
 import { audit } from '../audit.js';
@@ -7,6 +8,19 @@ import { encryptSecret, decryptSecret } from '../crypto/secrets.js';
 import { ldapAuthenticate, ldapEnabled } from '../auth/ldap.js';
 import { requireRole } from '../auth/rbac.js';
 import { getPolicy, roleRequiresMfa, passwordExpired, assertPasswordAllowed } from '../auth/securityPolicy.js';
+
+/** Try to redeem a single-use MFA backup code. Returns true (and burns the code) on match. */
+async function redeemBackupCode(userId: string, code: string): Promise<boolean> {
+  const { rows } = await query(
+    'SELECT id, code_hash FROM mfa_backup_codes WHERE user_id=$1 AND used_at IS NULL', [userId]);
+  for (const row of rows) {
+    if (await bcrypt.compare(code, row.code_hash)) {
+      await query('UPDATE mfa_backup_codes SET used_at=now() WHERE id=$1', [row.id]);
+      return true;
+    }
+  }
+  return false;
+}
 
 export default async function authRoutes(app: FastifyInstance) {
   app.post('/api/auth/login', {
@@ -75,10 +89,14 @@ export default async function authRoutes(app: FastifyInstance) {
     if (user.mfa_enabled) {
       if (!totp) return reply.code(401).send({ error: 'MFA code required', mfaRequired: true });
       const secret = decryptSecret(user.mfa_secret);
-      if (!authenticator.verify({ token: totp, secret })) {
+      const totpOk = authenticator.verify({ token: totp, secret });
+      // Longer codes are recovery codes: single-use fallback for a lost authenticator.
+      const backupOk = !totpOk && totp.length > 6 && await redeemBackupCode(user.id, totp);
+      if (!totpOk && !backupOk) {
         await audit(username, 'login.mfa_failed', '', {}, req.ip);
         return reply.code(401).send({ error: 'Invalid MFA code' });
       }
+      if (backupOk) await audit(username, 'login.backup_code_used', '', {}, req.ip);
     }
 
     // Successful auth: clear any failure/lock state.
@@ -160,12 +178,36 @@ export default async function authRoutes(app: FastifyInstance) {
     const { rows } = await query('SELECT mfa_secret FROM users WHERE id=$1', [me.sub]);
     const secret = decryptSecret(rows[0]?.mfa_secret ?? '');
     if (!secret || !authenticator.verify({ token: totp, secret })) {
-      return reply.code(400).send({ error: 'Invalid code — MFA not enabled' });
+      return reply.code(400).send({ error: 'Invalid code - MFA not enabled' });
     }
     await query('UPDATE users SET mfa_enabled=TRUE WHERE id=$1', [me.sub]);
+
+    // Issue 8 single-use recovery codes (shown once; only hashes are stored).
+    // Replaces any codes from a previous enrollment.
+    await query('DELETE FROM mfa_backup_codes WHERE user_id=$1', [me.sub]);
+    const backupCodes: string[] = [];
+    for (let i = 0; i < 8; i++) {
+      const code = randomBytes(5).toString('hex'); // 10 chars, distinct from 6-digit TOTP
+      backupCodes.push(code);
+      await query('INSERT INTO mfa_backup_codes (user_id, code_hash) VALUES ($1,$2)',
+        [me.sub, await bcrypt.hash(code, 10)]);
+    }
+
     await audit(me.username, 'mfa.enabled', '', {}, req.ip);
-    return { ok: true };
+    return { ok: true, backupCodes };
   });
+
+  // Sliding session: a valid (non-expired) token can be exchanged for a fresh one,
+  // so long-lived dashboards never hit a silent mid-session expiry.
+  app.post('/api/auth/refresh', { preHandler: requireRole('readonly'), schema: { tags: ['auth'] } },
+    async (req, reply) => {
+      const me = req.user as any;
+      const { rows } = await query('SELECT id, username, role, enabled FROM users WHERE id=$1', [me.sub]);
+      const user = rows[0];
+      if (!user?.enabled) return reply.code(401).send({ error: 'Account disabled' });
+      // Re-read role from the DB so a demotion takes effect at refresh time.
+      return { token: app.jwt.sign({ sub: user.id, username: user.username, role: user.role }) };
+    });
 
   app.get('/api/auth/me', { preHandler: requireRole('readonly'), schema: { tags: ['auth'] } },
     async (req) => {

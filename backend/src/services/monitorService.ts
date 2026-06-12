@@ -135,38 +135,64 @@ export async function refreshDevice(deviceId: string): Promise<void> {
     const poeByPort = new Map(poe.map(p => [p.port, p.watts]));
     const errByPort = new Map(errors.map(e => [shortName(e.name), e]));
 
-    for (const i of ifaces) {
-      const err = errByPort.get(i.name);
-      const prev = await query('SELECT oper_status, flap_count_1h, last_flap_at FROM ports WHERE device_id=$1 AND name=$2', [deviceId, i.name]);
-      const flapped = prev.rows[0] && prev.rows[0].oper_status !== 'unknown' && prev.rows[0].oper_status !== i.status;
-      const windowExpired = prev.rows[0]?.last_flap_at &&
-        Date.now() - new Date(prev.rows[0].last_flap_at).getTime() > 3600_000;
-      const flapCount = flapped ? (windowExpired ? 1 : (prev.rows[0]?.flap_count_1h ?? 0) + 1) : (windowExpired ? 0 : prev.rows[0]?.flap_count_1h ?? 0);
-      const portEntry = macsByPort.get(i.name);
+    // Previous port state in one query; flap detection runs in JS so the whole
+    // port table writes in two batched statements instead of 3 queries per port.
+    const prevPorts = await query<{ name: string; oper_status: string; flap_count_1h: number; last_flap_at: string | null }>(
+      'SELECT name, oper_status, flap_count_1h, last_flap_at FROM ports WHERE device_id=$1', [deviceId]);
+    const prevByName = new Map(prevPorts.rows.map(r => [r.name, r]));
 
+    const portRows = ifaces.map(i => {
+      const err = errByPort.get(i.name);
+      const prev = prevByName.get(i.name);
+      const flapped = !!prev && prev.oper_status !== 'unknown' && prev.oper_status !== i.status;
+      const windowExpired = !!prev?.last_flap_at &&
+        Date.now() - new Date(prev.last_flap_at).getTime() > 3600_000;
+      const flapCount = flapped ? (windowExpired ? 1 : (prev?.flap_count_1h ?? 0) + 1) : (windowExpired ? 0 : prev?.flap_count_1h ?? 0);
+      const lastFlapAt = flapped ? new Date().toISOString() : prev?.last_flap_at ?? null;
+      return { i, err, flapped, flapCount, lastFlapAt };
+    });
+
+    if (portRows.length) {
       await query(
         `INSERT INTO ports (device_id, name, description, admin_up, oper_status, vlan, mode, speed, duplex,
             poe_watts, input_errors, output_errors, macs, last_flap_at, flap_count_1h, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now())
+         SELECT $1, t.name, t.description, t.admin_up, t.oper_status, t.vlan, t.mode, t.speed, t.duplex,
+            t.poe_watts, t.input_errors, t.output_errors, t.macs, t.last_flap_at, t.flap_count_1h, now()
+         FROM jsonb_to_recordset($2::jsonb) AS t(
+            name text, description text, admin_up boolean, oper_status text, vlan text, mode text,
+            speed text, duplex text, poe_watts real, input_errors bigint, output_errors bigint,
+            macs jsonb, last_flap_at timestamptz, flap_count_1h int)
          ON CONFLICT (device_id, name) DO UPDATE SET
-            description=$3, admin_up=$4, oper_status=$5, vlan=$6, mode=$7, speed=$8, duplex=$9,
-            poe_watts=$10, input_errors=$11, output_errors=$12, macs=$13,
-            last_flap_at=$14, flap_count_1h=$15, updated_at=now()`,
-        [deviceId, i.name, i.description, i.status !== 'disabled', i.status,
-         i.vlan, i.vlan === 'trunk' ? 'trunk' : i.vlan === 'routed' ? 'routed' : 'access',
-         i.speed, i.duplex, poeByPort.get(i.name) ?? null,
-         err?.inputErrors ?? 0, err?.outputErrors ?? 0,
-         JSON.stringify(portEntry?.macs ?? []),
-         flapped ? new Date() : prev.rows[0]?.last_flap_at ?? null, flapCount]);
+            description=EXCLUDED.description, admin_up=EXCLUDED.admin_up, oper_status=EXCLUDED.oper_status,
+            vlan=EXCLUDED.vlan, mode=EXCLUDED.mode, speed=EXCLUDED.speed, duplex=EXCLUDED.duplex,
+            poe_watts=EXCLUDED.poe_watts, input_errors=EXCLUDED.input_errors, output_errors=EXCLUDED.output_errors,
+            macs=EXCLUDED.macs, last_flap_at=EXCLUDED.last_flap_at, flap_count_1h=EXCLUDED.flap_count_1h, updated_at=now()`,
+        [deviceId, JSON.stringify(portRows.map(({ i, err, flapCount, lastFlapAt }) => ({
+          name: i.name, description: i.description, admin_up: i.status !== 'disabled', oper_status: i.status,
+          vlan: i.vlan, mode: i.vlan === 'trunk' ? 'trunk' : i.vlan === 'routed' ? 'routed' : 'access',
+          speed: i.speed, duplex: i.duplex, poe_watts: poeByPort.get(i.name) ?? null,
+          input_errors: err?.inputErrors ?? 0, output_errors: err?.outputErrors ?? 0,
+          macs: macsByPort.get(i.name)?.macs ?? [],
+          last_flap_at: lastFlapAt, flap_count_1h: flapCount
+        })))]);
 
-      // port bandwidth + error metrics
+      // port bandwidth + error metrics, one batched insert
       await query(
         `INSERT INTO port_metrics (device_id, port_name, in_bps, out_bps, in_errors, out_errors, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [deviceId, i.name, err?.inBps ?? null, err?.outBps ?? null,
-         err?.inputErrors ?? 0, err?.outputErrors ?? 0, i.status]);
+         SELECT $1, t.port_name, t.in_bps, t.out_bps, t.in_errors, t.out_errors, t.status
+         FROM jsonb_to_recordset($2::jsonb) AS t(
+            port_name text, in_bps bigint, out_bps bigint, in_errors bigint, out_errors bigint, status text)`,
+        [deviceId, JSON.stringify(portRows.map(({ i, err }) => ({
+          port_name: i.name, in_bps: err?.inBps ?? null, out_bps: err?.outBps ?? null,
+          in_errors: err?.inputErrors ?? 0, out_errors: err?.outputErrors ?? 0, status: i.status
+        })))]);
+    }
+
+    for (const { i, flapped, flapCount } of portRows) {
+      const portEntry = macsByPort.get(i.name);
 
       // client tracking: upsert each dynamic MAC seen on this port, include IP/vendor/PTR if known
+      // (stays per-MAC: the reverse-DNS lookup dominates, not the insert)
       if (portEntry) {
         for (const mac of portEntry.macs) {
           const ip = ipByMac.get(mac) ?? null;

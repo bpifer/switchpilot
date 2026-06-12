@@ -88,11 +88,16 @@ export async function evaluateDevice(deviceId: string): Promise<{ evaluated: num
 }
 
 /** Evaluate every monitored device. Called by the scheduler. */
-export async function evaluateAllCompliance(): Promise<void> {
+export async function evaluateAllCompliance(concurrency = 8): Promise<void> {
   const { rows } = await query('SELECT id FROM devices WHERE monitor_enabled');
-  for (const d of rows) {
-    await evaluateDevice(d.id).catch(err => console.warn(`compliance eval failed for ${d.id}: ${err.message}`));
-  }
+  const queue = [...rows];
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length) {
+      const d = queue.shift()!;
+      await evaluateDevice(d.id).catch(err => console.warn(`compliance eval failed for ${d.id}: ${err.message}`));
+    }
+  });
+  await Promise.all(workers);
 }
 
 /** Push a rule's remediation lines to a device, then re-evaluate it. */

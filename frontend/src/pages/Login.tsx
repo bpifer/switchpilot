@@ -87,10 +87,10 @@ export default function Login({ onLogin }: { onLogin: (me: Me) => void }) {
               <input
                 className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                 value={totp}
-                inputMode="numeric"
                 onChange={e => setTotp(e.target.value)}
                 autoFocus
               />
+              <p className="mt-1 text-xs text-slate-400">6-digit authenticator code, or a saved recovery code.</p>
             </div>
           )}
 

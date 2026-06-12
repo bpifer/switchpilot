@@ -75,6 +75,7 @@ function EnrollMfa({ username, onDone }: { username: string; onDone: () => void 
   const [secret, setSecret] = useState('');
   const [otpauth, setOtpauth] = useState('');
   const [totp, setTotp] = useState('');
+  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -91,10 +92,33 @@ function EnrollMfa({ username, onDone }: { username: string; onDone: () => void 
     e.preventDefault();
     setBusy(true); setError('');
     try {
-      await api('/api/auth/mfa/confirm', { method: 'POST', body: { totp } });
-      onDone();
+      const r = await api<{ ok: boolean; backupCodes?: string[] }>('/api/auth/mfa/confirm', { method: 'POST', body: { totp } });
+      // Recovery codes are shown exactly once; the server stores only hashes.
+      if (r.backupCodes?.length) setBackupCodes(r.backupCodes);
+      else onDone();
     } catch (err: any) { setError(err.message ?? 'Invalid code'); }
     finally { setBusy(false); }
+  }
+
+  if (backupCodes) {
+    return (
+      <div>
+        <p className="mb-2 text-sm font-semibold text-slate-800">MFA enabled. Save your recovery codes.</p>
+        <p className="mb-3 text-xs text-slate-500">
+          Each code signs you in once if you lose your authenticator. They are shown only now - store them somewhere safe.
+        </p>
+        <div className="mb-4 grid grid-cols-2 gap-2 rounded-lg bg-slate-100 p-3 font-mono text-sm text-slate-800">
+          {backupCodes.map(c => <span key={c}>{c}</span>)}
+        </div>
+        <button onClick={() => navigator.clipboard?.writeText(backupCodes.join('\n')).catch(() => {})}
+                className="mb-2 w-full rounded-lg border border-slate-300 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          Copy codes
+        </button>
+        <button onClick={onDone} className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700">
+          I saved them - continue
+        </button>
+      </div>
+    );
   }
 
   if (!secret) {

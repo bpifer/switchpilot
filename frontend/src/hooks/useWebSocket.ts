@@ -27,6 +27,7 @@ export function useWebSocket(onEvent: (e: WsEvent) => void): void {
     let ws: WebSocket;
     let retryTimer: ReturnType<typeof setTimeout>;
     let stopped = false;
+    let retryMs = 2000;
 
     function connect() {
       const token = getToken();
@@ -35,11 +36,17 @@ export function useWebSocket(onEvent: (e: WsEvent) => void): void {
       // The /ws endpoint authenticates this token before accepting the upgrade.
       ws = new WebSocket(`${proto}//${location.host}/ws?token=${encodeURIComponent(token)}`);
 
+      ws.onopen = () => { retryMs = 2000; };
       ws.onmessage = e => {
         try { handlerRef.current(JSON.parse(e.data)); } catch { /* ignore malformed */ }
       };
       ws.onclose = () => {
-        if (!stopped) retryTimer = setTimeout(connect, 5000);
+        if (stopped) return;
+        // Exponential backoff with jitter so a service restart doesn't get a
+        // thundering herd of simultaneous reconnects.
+        const delay = retryMs + Math.random() * retryMs;
+        retryMs = Math.min(retryMs * 2, 30_000);
+        retryTimer = setTimeout(connect, delay);
       };
       ws.onerror = () => ws.close();
     }
