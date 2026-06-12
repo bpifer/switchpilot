@@ -30,6 +30,8 @@ function PortPanel({ deviceId, port, canOperate, onChanged }: {
   const [editVlan, setEditVlan] = useState(false);
   const [vlan, setVlan] = useState('');
   const [desc, setDesc] = useState(port.description);
+  // Port names contain slashes (Gi1/0/1) - encode so they stay one path segment
+  const portPath = encodeURIComponent(port.name);
 
   useEffect(() => { setDesc(port.description); setResult(''); }, [port.name]);
 
@@ -65,16 +67,16 @@ function PortPanel({ deviceId, port, canOperate, onChanged }: {
       {canOperate && (
         <div className="flex flex-wrap gap-2 border-t pt-3">
           <Button variant="secondary" disabled={!!busy}
-                  onClick={() => action('admin', () => api(`/api/devices/${deviceId}/ports/${port.name}/admin`,
+                  onClick={() => action('admin', () => api(`/api/devices/${deviceId}/ports/${portPath}/admin`,
                     { method: 'POST', body: { enabled: !port.admin_up } }))}>
             {busy === 'admin' ? '…' : port.admin_up ? 'Disable' : 'Enable'}
           </Button>
           <Button variant="secondary" disabled={!!busy}
-                  onClick={() => action('bounce', () => api(`/api/devices/${deviceId}/ports/${port.name}/bounce`, { method: 'POST' }))}>
+                  onClick={() => action('bounce', () => api(`/api/devices/${deviceId}/ports/${portPath}/bounce`, { method: 'POST' }))}>
             {busy === 'bounce' ? 'Bouncing…' : 'Bounce'}
           </Button>
           <Button variant="secondary" disabled={!!busy}
-                  onClick={() => action('tdr', () => api(`/api/devices/${deviceId}/ports/${port.name}/cable-test`, { method: 'POST' }))}>
+                  onClick={() => action('tdr', () => api(`/api/devices/${deviceId}/ports/${portPath}/cable-test`, { method: 'POST' }))}>
             {busy === 'tdr' ? 'Testing…' : 'Cable test'}
           </Button>
           <Button variant="secondary" onClick={() => setEditVlan(true)}>Edit VLAN/desc</Button>
@@ -95,7 +97,7 @@ function PortPanel({ deviceId, port, canOperate, onChanged }: {
             <Button onClick={() => action('cfg', async () => {
               const body: any = { description: desc };
               if (vlan) { body.mode = 'access'; body.vlan = parseInt(vlan, 10); }
-              await api(`/api/devices/${deviceId}/ports/${port.name}/config`, { method: 'POST', body });
+              await api(`/api/devices/${deviceId}/ports/${portPath}/config`, { method: 'POST', body });
               setEditVlan(false);
             })}>{busy === 'cfg' ? 'Applying…' : 'Apply'}</Button>
           </div>
