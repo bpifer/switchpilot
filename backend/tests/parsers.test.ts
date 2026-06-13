@@ -206,6 +206,27 @@ VLAN Name                             Status    Ports
     expect(vlans[0].ports.every(p => !p.includes('\r'))).toBe(true);
     expect(vlans[3]).toMatchObject({ id: 30, name: 'MGMT' }); // act/lshut state kept
   });
+
+  it('parses real 2960X output (wrapped lists, \\r\\n) keeping all user VLANs', () => {
+    const out = [
+      'VLAN Name                             Status    Ports',
+      '---- -------------------------------- --------- -------------------------------',
+      '1    default                          active    Gi1/0/25, Gi1/0/26, Gi1/0/27',
+      '                                                Gi1/0/28',
+      '10   data                             active    Gi1/0/2, Gi1/0/4, Gi1/0/6',
+      '                                                Gi1/0/7, Gi1/0/9, Gi1/0/10',
+      '                                                Gi1/0/11, Gi1/0/12, Gi1/0/13',
+      '20   iot                              active    Gi1/0/3',
+      '30   home                             active    Gi1/0/8',
+      '40   vpn                              active    Gi1/0/5',
+      '1002 fddi-default                     act/unsup',
+    ].join('\r\n') + '\r\n';
+    const vlans = parseVlanBrief(out);
+    expect(vlans.map(v => v.id)).toEqual([1, 10, 20, 30, 40, 1002]);  // endpoint filters 1002 later
+    expect(vlans.find(v => v.id === 1)!.ports).toContain('Gi1/0/28');  // wrapped onto line 2
+    expect(vlans.find(v => v.id === 10)!.ports).toContain('Gi1/0/13'); // wrapped onto line 3
+    expect(vlans.find(v => v.id === 30)!.ports).toEqual(['Gi1/0/8']);
+  });
 });
 
 describe('expandInterfaceName', () => {
