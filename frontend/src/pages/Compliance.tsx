@@ -190,6 +190,7 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
   const [checking, setChecking] = useState(false);
   const [preview, setPreview] = useState<{ rule: DeviceCheck; lines: any[]; summary: any; warnings: string[] } | null>(null);
   const [secretPw, setSecretPw] = useState('');
+  const [enableModal, setEnableModal] = useState(false);
 
   const load = () => api<DeviceCheck[]>(`/api/compliance/device/${deviceId}`).then(setChecks).catch(() => setChecks([]));
   useEffect(() => { load(); }, []);
@@ -201,14 +202,16 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
     finally { setBusy(''); }
   }
 
-  // Special remediation: generate + push an enable secret, store it on the
-  // device credential, and reveal the generated value once.
-  async function setEnableSecret() {
-    if (!confirm('Generate a strong enable secret, push it to the switch, and store it in this device\'s credential profile?')) return;
+  // Special remediation: push an enable secret (generated or operator-supplied),
+  // store it on the device credential, and reveal a generated value once.
+  async function setEnableSecret(password?: string) {
     setBusy('enable-secret');
     try {
-      const r = await api(`/api/devices/${deviceId}/remediate/enable-secret`, { method: 'POST' });
-      if (r.password) setSecretPw(r.password);
+      const r = await api(`/api/devices/${deviceId}/remediate/enable-secret`, {
+        method: 'POST', body: password ? { password } : {}
+      });
+      if (r.password) setSecretPw(r.password);   // only returned when generated
+      setEnableModal(false);
       await load(); onChanged();
     } catch (err: any) { alert(err.message); }
     finally { setBusy(''); }
@@ -297,7 +300,7 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
             )}
             {canEdit && c.passed === false && /enable secret/i.test(c.name) && (
               <div className="mt-2 flex justify-end">
-                <Button variant="secondary" onClick={setEnableSecret} disabled={busy === 'enable-secret'}>
+                <Button variant="secondary" onClick={() => setEnableModal(true)} disabled={busy === 'enable-secret'}>
                   {busy === 'enable-secret' ? 'Setting…' : 'Set enable secret'}
                 </Button>
               </div>
@@ -306,6 +309,14 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
         ))}
         {checks.length === 0 && <p className="py-4 text-center text-sm text-slate-400">No checks for this device.</p>}
       </div>
+
+      {enableModal && (
+        <EnableSecretModal
+          busy={busy === 'enable-secret'}
+          onClose={() => setEnableModal(false)}
+          onSubmit={pw => setEnableSecret(pw)}
+        />
+      )}
 
       {preview && (
         <Modal title={`Preview: ${preview.rule.name}`} onClose={() => setPreview(null)}>
@@ -344,6 +355,50 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
           </div>
         </Modal>
       )}
+    </Modal>
+  );
+}
+
+function EnableSecretModal({ busy, onClose, onSubmit }: {
+  busy: boolean; onClose: () => void; onSubmit: (pw?: string) => void;
+}) {
+  const [mode, setMode] = useState<'generate' | 'custom'>('generate');
+  const [pw, setPw] = useState('');
+  // Mirror the backend charset rule so the operator gets immediate feedback
+  const valid = /^[\w.@!%*+=:-]{4,64}$/.test(pw);
+
+  return (
+    <Modal title="Set enable secret" onClose={onClose}>
+      <p className="mb-3 text-sm text-slate-500">
+        Pushes <span className="font-mono text-xs">enable secret …</span> to the switch and saves it to this
+        device's credential profile so SwitchPilot can still enter privileged mode.
+      </p>
+      <label className="mb-2 flex items-center gap-2 text-sm">
+        <input type="radio" checked={mode === 'generate'} onChange={() => setMode('generate')} />
+        Generate a strong secret (shown once)
+      </label>
+      <label className="mb-2 flex items-center gap-2 text-sm">
+        <input type="radio" checked={mode === 'custom'} onChange={() => setMode('custom')} />
+        Set my own
+      </label>
+      {mode === 'custom' && (
+        <div className="mb-2">
+          <input className={inputCls} type="text" value={pw} onChange={e => setPw(e.target.value)}
+                 placeholder="enable secret" autoFocus />
+          {pw && !valid && (
+            <p className="mt-1 text-xs text-red-600">4-64 chars: letters, digits, and . @ ! % * + = : - _</p>
+          )}
+        </div>
+      )}
+      <div className="mt-3 flex justify-end gap-2">
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button
+          onClick={() => onSubmit(mode === 'custom' ? pw : undefined)}
+          disabled={busy || (mode === 'custom' && !valid)}
+        >
+          {busy ? 'Setting…' : 'Apply'}
+        </Button>
+      </div>
     </Modal>
   );
 }

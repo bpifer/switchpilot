@@ -7,7 +7,7 @@ import { backupDevice } from '../services/configService.js';
 import { devicePushConfig } from '../services/deviceComms.js';
 import { encryptSecret } from '../crypto/secrets.js';
 import { randomBytes } from 'node:crypto';
-import { siteFilter } from './util.js';
+import { siteFilter, isSafeEnableSecret } from './util.js';
 
 export default async function complianceRoutes(app: FastifyInstance) {
   // ----- Rules CRUD -----
@@ -193,9 +193,8 @@ export default async function complianceRoutes(app: FastifyInstance) {
     const me = req.user as any;
     const provided = (req.body as any)?.password as string | undefined;
     const password = provided || randomBytes(12).toString('base64url'); // ~16 url-safe chars
-    // restrict to characters that are safe in an IOS config line
-    if (!/^[\w.@!%*+=:-]{4,64}$/.test(password)) {
-      return reply.code(400).send({ error: 'Password may only contain letters, digits, and . @ ! % * + = : - _' });
+    if (!isSafeEnableSecret(password)) {
+      return reply.code(400).send({ error: 'Password must be 4-64 chars: letters, digits, and . @ ! % * + = : - _' });
     }
     const dev = await query('SELECT credential_id FROM devices WHERE id=$1', [id]);
     if (!dev.rows[0]) return reply.code(404).send({ error: 'Device not found' });
