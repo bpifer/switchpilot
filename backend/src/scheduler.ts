@@ -85,13 +85,15 @@ export function startScheduler(): void {
     evaluateAllCompliance().catch(err => console.error('compliance evaluation failed:', err));
   });
 
-  // prune history daily at 03:30
+  // prune history daily at 03:30 (windows configurable via RETAIN_* env vars)
   cron.schedule('30 3 * * *', async () => {
     if (!isLeader()) return;
-    await query(`DELETE FROM device_metrics WHERE ts < now() - interval '400 days'`);
-    await query(`DELETE FROM port_metrics WHERE recorded_at < now() - interval '90 days'`);
-    await query(`DELETE FROM client_tracking WHERE last_seen < now() - interval '1 year'`);
-    await query(`DELETE FROM alerts WHERE resolved_at IS NOT NULL AND resolved_at < now() - interval '90 days'`);
+    const r = config.retention;
+    await query(`DELETE FROM device_metrics WHERE ts < now() - ($1 * interval '1 day')`, [r.metricsDays]);
+    await query(`DELETE FROM port_metrics WHERE recorded_at < now() - ($1 * interval '1 day')`, [r.portMetricsDays]);
+    await query(`DELETE FROM client_tracking WHERE last_seen < now() - ($1 * interval '1 day')`, [r.clientDays]);
+    await query(`DELETE FROM alerts WHERE resolved_at IS NOT NULL AND resolved_at < now() - ($1 * interval '1 day')`, [r.alertDays]);
+    await query(`DELETE FROM syslog_messages WHERE received_at < now() - ($1 * interval '1 day')`, [r.syslogDays]);
     // clean up expired maintenance windows older than 30 days
     await query(`DELETE FROM maintenance_windows WHERE ends_at < now() - interval '30 days'`);
     // keep the config-history git repo compact (runs --auto, so it's cheap on most days)

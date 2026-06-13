@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, getToken } from '../api';
 
 export type WsEvent =
@@ -15,13 +15,17 @@ export type WsEvent =
       manualRetry?: boolean;
     } };
 
+export type WsStatus = 'connecting' | 'live' | 'down';
+
 /**
  * Opens a WebSocket connection to /ws and calls onEvent for each message.
  * Automatically reconnects on disconnect. Cleans up on unmount.
+ * Returns a live connection status for surfacing in the UI.
  */
-export function useWebSocket(onEvent: (e: WsEvent) => void): void {
+export function useWebSocket(onEvent: (e: WsEvent) => void): WsStatus {
   const handlerRef = useRef(onEvent);
   handlerRef.current = onEvent;
+  const [status, setStatus] = useState<WsStatus>('connecting');
 
   useEffect(() => {
     let ws: WebSocket;
@@ -37,19 +41,20 @@ export function useWebSocket(onEvent: (e: WsEvent) => void): void {
       try {
         ({ token: nonce } = await api<{ token: string }>('/api/auth/ws-token', { method: 'POST' }));
       } catch {
-        if (!stopped) retryTimer = setTimeout(connect, retryMs);
+        if (!stopped) { setStatus('down'); retryTimer = setTimeout(connect, retryMs); }
         return;
       }
       if (stopped) return;
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
       ws = new WebSocket(`${proto}//${location.host}/ws?token=${encodeURIComponent(nonce)}`);
 
-      ws.onopen = () => { retryMs = 2000; };
+      ws.onopen = () => { retryMs = 2000; setStatus('live'); };
       ws.onmessage = e => {
         try { handlerRef.current(JSON.parse(e.data)); } catch { /* ignore malformed */ }
       };
       ws.onclose = () => {
         if (stopped) return;
+        setStatus('down');
         // Exponential backoff with jitter so a service restart doesn't get a
         // thundering herd of simultaneous reconnects.
         const delay = retryMs + Math.random() * retryMs;
@@ -66,4 +71,6 @@ export function useWebSocket(onEvent: (e: WsEvent) => void): void {
       ws?.close();
     };
   }, []);
+
+  return status;
 }

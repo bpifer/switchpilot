@@ -33,6 +33,8 @@ Communicates directly over **SSH and SNMP** - no Cisco DNA Center, no Meraki lic
 - **Syslog ingest** - UDP syslog receiver (port 514); parses link-down, config-change, PoE-fault, and hardware-error events from IOS and NX-OS
 - **Config-change alerting** - scheduler detects changed backups and raises a `config_changed` alert
 - **Notifications** - Email (SMTP), Microsoft Teams webhook, Slack webhook
+- **Outbound webhooks** - per-subscription URLs (Slack, Teams, PagerDuty, Opsgenie, custom) fired on alerts at or above a configurable severity, with an optional HMAC-SHA256 signature (`X-SwitchPilot-Signature`) and a one-click test delivery
+- **Email throttling** - alert email is limited to warning+ severity, one per device+kind per hour, so a flapping link cannot flood an inbox
 - **Maintenance windows** - suppress alerts for planned outages; scoped to all devices or a specific list
 - **Real-time push** - authenticated WebSocket endpoint streams alerts to the dashboard instantly via Redis pub/sub (scales across multiple API replicas). The upgrade is authorized by a 30-second single-purpose nonce from `POST /api/auth/ws-token`, so the session JWT never appears in a URL or proxy log
 - **Prometheus metrics** - `GET /metrics` exposes process defaults plus SwitchPilot gauges (devices by status, open alerts by severity, job queue depth) and an HTTP latency histogram, ready to scrape into Grafana/Datadog
@@ -73,6 +75,7 @@ Communicates directly over **SSH and SNMP** - no Cisco DNA Center, no Meraki lic
 
 ### Security & Access Control
 - **RBAC** - Super Admin / Network Admin / Help Desk / Read Only
+- **API keys** - non-expiring `sp_…` bearer tokens for scripts and integrations (Grafana, Ansible, Netbox), assignable to any role; stored as SHA-256 hashes
 - **Auth** - local accounts, LDAP/Active Directory, TOTP MFA with 8 single-use **recovery codes** issued at enrollment (shown once, stored hashed)
 - **Sliding sessions** - the UI silently exchanges its token for a fresh one every 30 minutes (`POST /api/auth/refresh`), so open dashboards never hit a mid-session expiry
 - **Configurable security policy** (Super Admin) -

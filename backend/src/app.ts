@@ -39,6 +39,8 @@ import securityRoutes from './routes/security.js';
 import wsRoutes from './routes/ws.js';
 import logRoutes from './routes/logs.js';
 import onboardingRoutes from './routes/onboarding.js';
+import integrationRoutes from './routes/integrations.js';
+import searchRoutes from './routes/search.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true, bodyLimit: 10 * 1024 * 1024 });
@@ -148,6 +150,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(wsRoutes);
   await app.register(logRoutes);
   await app.register(onboardingRoutes);
+  await app.register(integrationRoutes);
+  await app.register(searchRoutes);
 
   return app;
 }

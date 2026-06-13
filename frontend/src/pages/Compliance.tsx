@@ -188,14 +188,26 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
   const [checks, setChecks] = useState<DeviceCheck[]>([]);
   const [busy, setBusy] = useState('');
   const [checking, setChecking] = useState(false);
+  const [preview, setPreview] = useState<{ rule: DeviceCheck; lines: any[]; summary: any } | null>(null);
 
   const load = () => api<DeviceCheck[]>(`/api/compliance/device/${deviceId}`).then(setChecks).catch(() => setChecks([]));
   useEffect(() => { load(); }, []);
 
   async function remediate(ruleId: string) {
     setBusy(ruleId);
-    try { await api('/api/compliance/remediate', { method: 'POST', body: { deviceId, ruleId } }); await load(); onChanged(); }
+    try { await api('/api/compliance/remediate', { method: 'POST', body: { deviceId, ruleId } }); await load(); onChanged(); setPreview(null); }
     catch (err: any) { alert(err.message); }
+    finally { setBusy(''); }
+  }
+
+  // Dry run: show what the remediation would change before touching the device
+  async function previewRemediation(c: DeviceCheck) {
+    setBusy(c.rule_id);
+    try {
+      const lines = c.remediation.split('\n').map(l => l.trim()).filter(Boolean);
+      const r = await api(`/api/devices/${deviceId}/config/preview`, { method: 'POST', body: { lines } });
+      setPreview({ rule: c, lines: r.lines, summary: r.summary });
+    } catch (err: any) { alert(err.message); }
     finally { setBusy(''); }
   }
 
@@ -242,13 +254,15 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
               </span>
             </div>
             {c.description && <p className="mt-1 text-xs text-slate-500">{c.description}</p>}
-            {c.detail && c.passed === false && <p className="mt-1 font-mono text-xs text-red-600">{c.detail}</p>}
-            {c.passed && c.detail && <p className="mt-1 font-mono text-xs text-green-700/70">{c.detail}</p>}
+            {c.detail && c.passed === false && (
+              <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-red-600">{c.detail}</pre>
+            )}
+            {c.passed && c.detail && <p className="mt-1 truncate font-mono text-xs text-green-700/70">{c.detail}</p>}
             {canEdit && c.passed === false && c.remediation && (
               <div className="mt-2 flex items-center justify-end gap-2">
-                <span className="font-mono text-[10px] text-slate-400" title="Lines that will be pushed">
-                  {c.remediation.split('\n')[0]}{c.remediation.includes('\n') ? ' …' : ''}
-                </span>
+                <Button variant="secondary" onClick={() => previewRemediation(c)} disabled={busy === c.rule_id}>
+                  {busy === c.rule_id ? '…' : 'Preview'}
+                </Button>
                 <Button variant="secondary" onClick={() => remediate(c.rule_id)} disabled={busy === c.rule_id}>
                   {busy === c.rule_id ? 'Remediating…' : 'Remediate'}
                 </Button>
@@ -258,6 +272,36 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
         ))}
         {checks.length === 0 && <p className="py-4 text-center text-sm text-slate-400">No checks for this device.</p>}
       </div>
+
+      {preview && (
+        <Modal title={`Preview: ${preview.rule.name}`} onClose={() => setPreview(null)}>
+          <p className="mb-3 text-sm text-slate-500">
+            Comparing the remediation against the live running config. Nothing has been changed yet.
+            <span className="ml-1 font-medium text-slate-700">
+              {preview.summary.new} new, {preview.summary.present} already present
+              {preview.summary.removes > 0 ? `, ${preview.summary.removes} removed` : ''}.
+            </span>
+          </p>
+          <div className="max-h-72 space-y-1 overflow-auto rounded-lg bg-gray-900 p-3 font-mono text-xs">
+            {preview.lines.map((l: any, i: number) => (
+              <div key={i} className={
+                l.status === 'new' ? 'text-green-400'
+                : l.status === 'removes' ? 'text-red-400'
+                : l.status === 'present' ? 'text-slate-500'
+                : 'text-cyan-400'}>
+                <span className="inline-block w-16 select-none text-[10px] uppercase opacity-60">{l.status}</span>
+                {l.line}
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setPreview(null)}>Cancel</Button>
+            <Button onClick={() => remediate(preview.rule.rule_id)} disabled={busy === preview.rule.rule_id}>
+              {busy === preview.rule.rule_id ? 'Applying…' : 'Apply remediation'}
+            </Button>
+          </div>
+        </Modal>
+      )}
     </Modal>
   );
 }

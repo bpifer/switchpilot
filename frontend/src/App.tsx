@@ -5,6 +5,7 @@ import { Icon } from './components/ui';
 import Login from './pages/Login';
 import SecurityGate from './pages/SecurityGate';
 import ErrorBoundary from './components/ErrorBoundary';
+import CommandPalette from './components/CommandPalette';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApiQuery } from './hooks/useApiQuery';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -31,6 +32,7 @@ const Firmware = lazy(() => import('./pages/Firmware'));
 const Logs = lazy(() => import('./pages/Logs'));
 const Campaigns = lazy(() => import('./pages/Campaigns'));
 const Compliance = lazy(() => import('./pages/Compliance'));
+const Integrations = lazy(() => import('./pages/Integrations'));
 
 export interface Me {
   id: string;
@@ -61,6 +63,7 @@ const ICONS: Record<string, string> = {
   compliance:  'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
   firmware:    'M21.75 17.25v-.228a4.5 4.5 0 00-.12-1.03l-2.268-9.64a3.375 3.375 0 00-3.285-2.602H7.923a3.375 3.375 0 00-3.285 2.602l-2.268 9.64a4.5 4.5 0 00-.12 1.03v.228m19.5 0a3 3 0 01-3 3H5.25a3 3 0 01-3-3m19.5 0a3 3 0 00-3-3H5.25a3 3 0 00-3 3m16.5 0h.008v.008h-.008v-.008zm-3 0h.008v.008h-.008v-.008z',
   logs:        'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z',
+  integrations:'M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a.64.64 0 01-.657.643 48.39 48.39 0 01-4.163-.3c.186 1.613.293 3.25.315 4.907a.656.656 0 01-.658.663v0c-.355 0-.676-.186-.959-.401a1.647 1.647 0 00-1.003-.349c-1.036 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401v0c.31 0 .555.26.532.57a48.039 48.039 0 01-.642 5.056c1.518.19 3.058.309 4.616.354a.64.64 0 00.657-.643v0c0-.355-.186-.676-.401-.959a1.647 1.647 0 01-.349-1.003c0-1.035 1.008-1.875 2.25-1.875 1.243 0 2.25.84 2.25 1.875 0 .369-.128.713-.349 1.003-.215.283-.4.604-.4.959v0c0 .333.277.599.61.58a48.1 48.1 0 005.427-.63 48.05 48.05 0 00.582-4.717.532.532 0 00-.533-.57v0c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.035 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.37 0 .714.128 1.004.349.282.215.603.401.958.401v0a.656.656 0 00.659-.663 47.703 47.703 0 00-.31-4.82c-1.444.183-2.91.30-4.395.351a.64.64 0 01-.658-.643z',
 };
 
 interface NavItem { to: string; label: string; icon: string; role?: string }
@@ -93,9 +96,13 @@ const NAV: NavSection[] = [
     { to: '/firmware',  label: 'Firmware',  icon: ICONS.firmware },
   ]},
   { title: 'Admin', items: [
-    { to: '/users', label: 'Users', icon: ICONS.users, role: 'superadmin' },
+    { to: '/integrations', label: 'Integrations', icon: ICONS.integrations, role: 'netadmin' },
+    { to: '/users',        label: 'Users',        icon: ICONS.users, role: 'superadmin' },
   ]},
 ];
+
+const ROLE_RANK: Record<string, number> = { superadmin: 4, netadmin: 3, helpdesk: 2, readonly: 1 };
+function roleRank(r: string): number { return ROLE_RANK[r] ?? 0; }
 
 function Initials({ name }: { name: string }) {
   const parts = name.trim().split(/\s+/);
@@ -166,7 +173,7 @@ export default function App() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  useWebSocket(msg => {
+  const wsStatus = useWebSocket(msg => {
     if (msg.type === 'alert') {
       setLiveAlertCount(n => n + 1);
       // keep the global bell count fresh the moment an alert fires
@@ -218,6 +225,7 @@ export default function App() {
 
   return (
     <SiteScopeProvider>
+    <CommandPalette />
     <div className="flex h-screen bg-slate-50">
       <aside className="flex w-60 shrink-0 flex-col bg-slate-900 text-white">
         {/* Logo */}
@@ -238,7 +246,7 @@ export default function App() {
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-2">
           {NAV.map((section, si) => {
-            const items = section.items.filter(n => !n.role || n.role === me.role);
+            const items = section.items.filter(n => !n.role || roleRank(me.role) >= roleRank(n.role));
             if (items.length === 0) return null;
             return (
               <div key={section.title ?? si} className={si > 0 ? 'mt-4' : ''}>
@@ -277,6 +285,19 @@ export default function App() {
             );
           })}
         </nav>
+
+        {/* Connection status */}
+        <div className="border-t border-slate-800 px-4 py-2">
+          <div className="flex items-center gap-2 text-xs">
+            <span className={`h-1.5 w-1.5 rounded-full ${
+              wsStatus === 'live' ? 'bg-green-500'
+              : wsStatus === 'connecting' ? 'bg-amber-400 animate-pulse'
+              : 'bg-slate-500 animate-pulse'}`} />
+            <span className={wsStatus === 'live' ? 'text-slate-400' : 'text-amber-400'}>
+              {wsStatus === 'live' ? 'Live' : wsStatus === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
+            </span>
+          </div>
+        </div>
 
         {/* User */}
         <div className="border-t border-slate-800 px-4 py-4">
@@ -320,6 +341,7 @@ export default function App() {
           <Route path="/compliance" element={<Compliance me={me} />} />
           <Route path="/maintenance" element={<Maintenance />} />
           <Route path="/discovery" element={<Discovery />} />
+          {roleRank(me.role) >= roleRank('netadmin') && <Route path="/integrations" element={<Integrations />} />}
           {me.role === 'superadmin' && <Route path="/users" element={<Users />} />}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

@@ -37,11 +37,25 @@ export function evaluateRule(rule: ComplianceRule, configText: string): { passed
       let re: RegExp;
       try { re = new RegExp(rule.pattern, 'm'); }
       catch { return { passed: false, detail: `invalid regex: ${rule.pattern}` }; }
-      const matched = re.test(configText);
+      const matches = lines.filter(l => { try { return re.test(l); } catch { return false; } });
+      const matched = matches.length > 0 || re.test(configText);
       if (rule.match_type === 'regex_present') {
-        return matched ? { passed: true, detail: 'pattern matched' } : { passed: false, detail: `pattern /${rule.pattern}/ not found` };
+        if (matched) return { passed: true, detail: matches[0]?.trim() || 'pattern matched' };
+        // Help diagnosis: show config lines that look related (share a keyword)
+        const keyword = (rule.pattern.match(/[a-z][a-z-]{2,}/i)?.[0] ?? '').toLowerCase();
+        const near = keyword
+          ? lines.filter(l => l.toLowerCase().includes(keyword)).slice(0, 3).map(l => l.trim())
+          : [];
+        return {
+          passed: false,
+          detail: near.length
+            ? `pattern not found. related lines on device:\n${near.join('\n')}`
+            : `pattern /${rule.pattern}/ not found - nothing related is configured`
+        };
       }
-      return matched ? { passed: false, detail: `forbidden pattern /${rule.pattern}/ matched` } : { passed: true, detail: '' };
+      return matched
+        ? { passed: false, detail: `forbidden lines present:\n${matches.slice(0, 3).map(l => l.trim()).join('\n')}` }
+        : { passed: true, detail: '' };
     }
     default:
       return { passed: false, detail: `unknown match_type ${rule.match_type}` };

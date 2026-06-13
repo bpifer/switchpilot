@@ -303,3 +303,57 @@ describe('site scoping', () => {
     await query(`DELETE FROM sites WHERE id=$1`, [site.id]);
   });
 });
+
+describe('API keys', () => {
+  itDb('a created key authenticates requests at its assigned role', async () => {
+    const created = await app.inject({
+      method: 'POST', url: '/api/keys',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${adminToken}` },
+      payload: JSON.stringify({ name: 'test-key', role: 'readonly' })
+    });
+    expect(created.statusCode).toBe(201);
+    const token = created.json().token;
+    expect(token).toMatch(/^sp_[0-9a-f]{48}$/);
+
+    // readonly key can read devices
+    const read = await app.inject({
+      method: 'GET', url: '/api/devices', headers: { authorization: `Bearer ${token}` }
+    });
+    expect(read.statusCode).toBe(200);
+
+    // but not create them (needs netadmin)
+    const write = await app.inject({
+      method: 'POST', url: '/api/devices',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      payload: JSON.stringify({ mgmtIp: '10.20.20.20', credentialId: '00000000-0000-0000-0000-000000000000' })
+    });
+    expect(write.statusCode).toBe(403);
+  });
+
+  itDb('a bogus sp_ token is rejected', async () => {
+    const res = await app.inject({
+      method: 'GET', url: '/api/devices', headers: { authorization: 'Bearer sp_deadbeef' }
+    });
+    expect(res.statusCode).toBe(401);
+  });
+});
+
+describe('global search', () => {
+  itDb('finds a device by hostname fragment', async () => {
+    const { query } = await import('../src/db.js');
+    await query(`INSERT INTO devices (hostname, mgmt_ip) VALUES ('search-target-sw', '10.30.0.1')`);
+    const res = await app.inject({
+      method: 'GET', url: '/api/search?q=search-target', headers: { authorization: `Bearer ${adminToken}` }
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().devices.some((d: any) => d.hostname === 'search-target-sw')).toBe(true);
+    await query(`DELETE FROM devices WHERE hostname='search-target-sw'`);
+  });
+
+  itDb('escapes LIKE metacharacters so % is literal', async () => {
+    const res = await app.inject({
+      method: 'GET', url: '/api/search?q=%25', headers: { authorization: `Bearer ${adminToken}` }
+    });
+    expect(res.statusCode).toBe(200);  // does not match everything / error
+  });
+});

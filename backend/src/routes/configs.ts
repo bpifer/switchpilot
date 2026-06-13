@@ -18,6 +18,55 @@ async function deviceGitContext(id: string): Promise<{ hostname: string; site: s
 }
 
 export default async function configRoutes(app: FastifyInstance) {
+  /**
+   * Dry run: classify proposed config lines against the device's LIVE running
+   * config without changing anything. Not a semantic diff - a line-presence
+   * check that catches "already configured" and shows exactly what is new.
+   */
+  app.post('/api/devices/:id/config/preview', {
+    preHandler: requireRole('helpdesk'),
+    schema: {
+      tags: ['configs'],
+      body: {
+        type: 'object', required: ['lines'],
+        properties: { lines: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 500 } }
+      }
+    }
+  }, async (req) => {
+    const { id } = req.params as any;
+    const { lines } = req.body as { lines: string[] };
+    const out = await deviceExec(id, ['show running-config']);
+    const running = new Set(
+      (Object.values(out)[0] ?? '').split('\n').map(l => l.trim()).filter(Boolean));
+
+    const result = lines
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith('!'))
+      .map(line => {
+        if (line.startsWith('no ')) {
+          const positive = line.slice(3).trim();
+          return running.has(positive)
+            ? { line, status: 'removes', note: 'currently configured - this removes it' }
+            : { line, status: 'no-op', note: 'nothing to remove - already absent' };
+        }
+        if (line.startsWith('interface ') || line === 'end' || line === 'exit') {
+          return { line, status: 'context', note: 'mode selector' };
+        }
+        return running.has(line)
+          ? { line, status: 'present', note: 'already in running config' }
+          : { line, status: 'new', note: 'will be added' };
+      });
+
+    return {
+      lines: result,
+      summary: {
+        new: result.filter(r => r.status === 'new').length,
+        present: result.filter(r => r.status === 'present').length,
+        removes: result.filter(r => r.status === 'removes').length
+      }
+    };
+  });
+
   // Live running/startup config
   app.get('/api/devices/:id/config/:kind', {
     preHandler: requireRole('readonly'),

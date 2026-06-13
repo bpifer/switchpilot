@@ -31,6 +31,13 @@ export const config = {
     backupCron: process.env.BACKUP_CRON ?? '0 2 * * *',
     complianceCron: process.env.COMPLIANCE_CRON ?? '*/15 * * * *'
   },
+  retention: {
+    metricsDays: parseInt(process.env.RETAIN_METRICS_DAYS ?? '400', 10),
+    portMetricsDays: parseInt(process.env.RETAIN_PORT_METRICS_DAYS ?? '90', 10),
+    clientDays: parseInt(process.env.RETAIN_CLIENTS_DAYS ?? '365', 10),
+    alertDays: parseInt(process.env.RETAIN_ALERTS_DAYS ?? '90', 10),
+    syslogDays: parseInt(process.env.RETAIN_SYSLOG_DAYS ?? '14', 10)
+  },
   firmwareDir: process.env.FIRMWARE_DIR ?? '/data/firmware',
   configHistoryDir: process.env.CONFIG_HISTORY_DIR ?? '/data/config-history',
   syslogPort: parseInt(process.env.SYSLOG_PORT ?? '514', 10),

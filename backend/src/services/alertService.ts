@@ -1,9 +1,17 @@
 import nodemailer from 'nodemailer';
+import { createHmac } from 'node:crypto';
 import { query } from '../db.js';
 import { config } from '../config.js';
 import { publishEvent } from '../redis.js';
 
 export type Severity = 'info' | 'warning' | 'critical';
+const SEV_RANK: Record<Severity, number> = { info: 1, warning: 2, critical: 3 };
+
+// Email throttle: at most one email per (device, kind) per hour, so a flapping
+// link doesn't fill an inbox. Per-replica state is fine - alerts dedupe in the
+// DB first, so only the replica that raised the alert sends anything.
+const lastEmail = new Map<string, number>();
+const EMAIL_THROTTLE_MS = 3600_000;
 
 /**
  * Record an alert and fan out notifications.
@@ -45,11 +53,54 @@ export async function raiseAlert(
     hostname = d.rows[0] ? `${d.rows[0].hostname} (${d.rows[0].mgmt_ip})` : deviceId;
   }
   const title = `[SwitchPilot ${severity.toUpperCase()}] ${hostname}: ${kind}`;
+
+  // Email only for warning+ and throttled per device+kind
+  const emailKey = `${deviceId ?? 'platform'}:${kind}`;
+  const shouldEmail = SEV_RANK[severity] >= SEV_RANK.warning &&
+    Date.now() - (lastEmail.get(emailKey) ?? 0) > EMAIL_THROTTLE_MS;
+  if (shouldEmail) lastEmail.set(emailKey, Date.now());
+
   await Promise.allSettled([
-    sendEmail(title, message),
+    shouldEmail ? sendEmail(title, message) : Promise.resolve(),
     sendTeams(title, message, severity),
-    sendSlack(title, message)
+    sendSlack(title, message),
+    fireWebhooks({ event: 'alert', deviceId, hostname, kind, severity, message, ts: new Date().toISOString() })
   ]);
+}
+
+/**
+ * POST the payload to every enabled webhook subscription whose min_severity
+ * is at or below the alert's severity. When a secret is configured the body
+ * is signed: X-SwitchPilot-Signature: sha256=<hmac-sha256-hex>.
+ */
+export async function fireWebhooks(payload: {
+  event: string; deviceId: string | null; hostname: string;
+  kind: string; severity: Severity; message: string; ts: string;
+}): Promise<void> {
+  const { rows: subs } = await query(
+    'SELECT * FROM webhook_subscriptions WHERE enabled').catch(() => ({ rows: [] as any[] }));
+  const body = JSON.stringify(payload);
+  await Promise.allSettled(subs
+    .filter(s => SEV_RANK[payload.severity] >= SEV_RANK[s.min_severity as Severity])
+    .map(async s => {
+      let status: string;
+      try {
+        const headers: Record<string, string> = { 'content-type': 'application/json' };
+        if (s.secret) {
+          headers['x-switchpilot-signature'] =
+            'sha256=' + createHmac('sha256', s.secret).update(body).digest('hex');
+        }
+        const res = await fetch(s.url, {
+          method: 'POST', headers, body, signal: AbortSignal.timeout(10_000)
+        });
+        status = String(res.status);
+      } catch (err) {
+        status = `error: ${(err as Error).message.slice(0, 100)}`;
+      }
+      await query(
+        'UPDATE webhook_subscriptions SET last_fired_at=now(), last_status=$1 WHERE id=$2',
+        [status, s.id]).catch(() => {});
+    }));
 }
 
 /** Resolve any open alert of a kind for a device (e.g. device came back online). */

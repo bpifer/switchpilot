@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
@@ -12,9 +12,17 @@ import HistoryTab from './device/HistoryTab';
 import NeighborsTab from './device/NeighborsTab';
 import VlansTab from './device/VlansTab';
 
+type DeviceTab = 'ports' | 'config' | 'backups' | 'history' | 'neighbors' | 'vlans';
+const TABS: DeviceTab[] = ['ports', 'config', 'backups', 'history', 'vlans', 'neighbors'];
+
 export default function DeviceDetail({ me }: { me: Me }) {
   const { id } = useParams<{ id: string }>();
-  const [tab, setTab] = useState<'ports' | 'config' | 'backups' | 'history' | 'neighbors' | 'vlans'>('ports');
+  // Tab lives in the URL (?tab=) so it's bookmarkable and survives refresh
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab') as DeviceTab | null;
+  const tab: DeviceTab = tabParam && TABS.includes(tabParam) ? tabParam : 'ports';
+  const setTab = (t: DeviceTab) =>
+    setSearchParams(prev => { prev.set('tab', t); return prev; }, { replace: true });
   const [busy, setBusy] = useState(false);
   const [showProvision, setShowProvision] = useState(false);
   const canOperate = me.role !== 'readonly';
@@ -74,7 +82,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
       {/* Tabs */}
       <div className="px-6 pt-4">
         <div className="flex gap-1 border-b border-slate-200">
-          {(['ports', 'config', 'backups', 'history', 'vlans', 'neighbors'] as const).map(t => (
+          {TABS.map(t => (
             <button key={t} onClick={() => setTab(t)}
                     className={`px-4 py-2 text-sm capitalize transition-colors ${tab === t
                       ? 'border-b-2 border-brand-600 font-medium text-brand-700'
