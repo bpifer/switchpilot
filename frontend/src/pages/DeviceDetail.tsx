@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
-import { PageHeader, Button, StatusBadge, fmtUptime, Modal } from '../components/ui';
+import { PageHeader, Button, StatusBadge, fmtUptime, Modal, Field, inputCls } from '../components/ui';
 import type { Port } from '../components/PortGrid';
 import PortsTab from './device/PortsTab';
 import ConfigTab from './device/ConfigTab';
@@ -25,10 +25,12 @@ export default function DeviceDetail({ me }: { me: Me }) {
     setSearchParams(prev => { prev.set('tab', t); return prev; }, { replace: true });
   const [busy, setBusy] = useState(false);
   const [showProvision, setShowProvision] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const canOperate = me.role !== 'readonly';
   const canConfig = me.role === 'superadmin' || me.role === 'netadmin';
 
   const { data: device, refetch: refetchDevice } = useApiQuery<any>(`/api/devices/${id}`, { refetchInterval: 60000 });
+  const { data: sites = [] } = useApiQuery<{ id: string; name: string }[]>('/api/sites');
   const { data: ports = [], refetch: refetchPorts } = useApiQuery<Port[]>(`/api/devices/${id}/ports`, { refetchInterval: 60000 });
   const reload = () => { refetchDevice(); refetchPorts(); };
 
@@ -48,11 +50,20 @@ export default function DeviceDetail({ me }: { me: Me }) {
   return (
     <div>
       <PageHeader title={device.hostname || device.mgmt_ip}>
+        {canConfig && <Button variant="secondary" onClick={() => setShowSettings(true)}>Settings</Button>}
         {canConfig && <Button variant="secondary" onClick={() => setShowProvision(true)}>Baseline config</Button>}
         {canOperate && <Button variant="secondary" onClick={refresh} disabled={busy}>{busy ? 'Refreshing…' : '↻ Refresh now'}</Button>}
       </PageHeader>
 
       {showProvision && <ProvisionModal deviceId={id!} onClose={() => setShowProvision(false)} />}
+      {showSettings && (
+        <DeviceSettingsModal
+          deviceId={id!} sites={sites}
+          current={{ siteId: device.site_id ?? '', location: device.location ?? '' }}
+          onClose={() => setShowSettings(false)}
+          onSaved={() => { setShowSettings(false); refetchDevice(); }}
+        />
+      )}
 
       {/* Identity + health summary band */}
       <div className="px-6 pt-5">
@@ -64,6 +75,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
             <Meta label="IOS" value={device.ios_version} mono />
             <Meta label="Uptime" value={fmtUptime(device.uptime_seconds)} />
             <Meta label="Ports" value={ports.length ? `${connectedPorts}/${ports.length} up` : null} />
+            <Meta label="Site" value={sites.find(s => s.id === device.site_id)?.name ?? null} />
             <Meta label="Location" value={device.location} />
             <Meta label="Last seen" value={device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : null} />
           </div>
@@ -102,6 +114,52 @@ export default function DeviceDetail({ me }: { me: Me }) {
         {tab === 'neighbors' && <NeighborsTab deviceId={id!} />}
       </div>
     </div>
+  );
+}
+
+function DeviceSettingsModal({ deviceId, sites, current, onClose, onSaved }: {
+  deviceId: string;
+  sites: { id: string; name: string }[];
+  current: { siteId: string; location: string };
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [siteId, setSiteId] = useState(current.siteId);
+  const [location, setLocation] = useState(current.location);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function save() {
+    setBusy(true); setError('');
+    try {
+      await api(`/api/devices/${deviceId}`, {
+        method: 'PATCH',
+        // siteId '' clears the assignment (nullable on the backend)
+        body: { siteId: siteId || null, location }
+      });
+      onSaved();
+    } catch (err: any) { setError(err.message); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <Modal title="Device settings" onClose={onClose}>
+      <Field label="Site">
+        <select className={inputCls} value={siteId} onChange={e => setSiteId(e.target.value)}>
+          <option value="">Unassigned</option>
+          {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+      </Field>
+      <Field label="Location">
+        <input className={inputCls} value={location} onChange={e => setLocation(e.target.value)}
+               placeholder="e.g. IDF-2, rack 4" />
+      </Field>
+      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
+      </div>
+    </Modal>
   );
 }
 
