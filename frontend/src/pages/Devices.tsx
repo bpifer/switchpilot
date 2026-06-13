@@ -11,18 +11,16 @@ import { useSiteScope, scoped } from '../context/SiteContext';
 export default function Devices({ me }: { me: Me }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showCred, setShowCred] = useState(false);
-  const [showSites, setShowSites] = useState(false);
   const canEdit = me.role === 'superadmin' || me.role === 'netadmin';
 
   const { siteId } = useSiteScope();
   const { data: devices = [], refetch: load } = useApiQuery<any[]>(scoped('/api/devices', siteId), { refetchInterval: 30000 });
-  const { data: sites = [], refetch: reloadSites } = useApiQuery<any[]>('/api/sites');
+  const { data: sites = [] } = useApiQuery<any[]>('/api/sites');
   const { data: credentials = [], refetch: reloadCreds } = useApiQuery<any[]>('/api/credentials', { enabled: canEdit });
 
   return (
     <div>
       <PageHeader title="Devices">
-        {canEdit && <Button variant="secondary" onClick={() => setShowSites(true)}>Sites</Button>}
         {canEdit && <Button variant="secondary" onClick={() => setShowCred(true)}>Credentials</Button>}
         {canEdit && <Button onClick={() => setShowAdd(true)}>+ Add switch</Button>}
       </PageHeader>
@@ -135,13 +133,6 @@ export default function Devices({ me }: { me: Me }) {
           onClose={() => { setShowCred(false); reloadCreds(); }}
         />
       )}
-      {showSites && (
-        <SiteManager
-          sites={sites}
-          onChanged={reloadSites}
-          onClose={() => { setShowSites(false); reloadSites(); }}
-        />
-      )}
     </div>
   );
 }
@@ -213,82 +204,6 @@ function CredentialManager({ credentials, onClose }: { credentials: any[]; onClo
         <Button variant="secondary" onClick={onClose}>Close</Button>
         <Button onClick={submit} disabled={busy || !form.name}>Save profile</Button>
       </div>
-    </Modal>
-  );
-}
-
-function SiteManager({ sites, onChanged, onClose }: {
-  sites: any[]; onChanged: () => void; onClose: () => void;
-}) {
-  const [editing, setEditing] = useState<any | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  async function save() {
-    if (!editing?.name?.trim()) return;
-    setBusy(true); setError('');
-    try {
-      if (editing.id) {
-        await api(`/api/sites/${editing.id}`, { method: 'PUT', body: { name: editing.name.trim(), address: editing.address ?? '' } });
-      } else {
-        await api('/api/sites', { method: 'POST', body: { name: editing.name.trim(), address: editing.address ?? '' } });
-      }
-      setEditing(null); onChanged();
-    } catch (err: any) { setError(err.message); }
-    finally { setBusy(false); }
-  }
-
-  async function remove(s: any) {
-    if (!confirm(`Delete site "${s.name}"?`)) return;
-    setError('');
-    try { await api(`/api/sites/${s.id}`, { method: 'DELETE' }); onChanged(); }
-    catch (err: any) { setError(err.message); }
-  }
-
-  return (
-    <Modal title="Sites" onClose={onClose}>
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm text-slate-500">Group devices by physical location. Assign a site when adding a switch.</p>
-        <Button onClick={() => setEditing({ name: '', address: '' })}>Add site</Button>
-      </div>
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
-
-      <table className="w-full text-sm">
-        <thead><tr className="border-b text-left text-xs uppercase text-slate-500">
-          <th className="py-1.5 pr-3">Name</th><th className="pr-3">Address</th><th></th></tr></thead>
-        <tbody>
-          {sites.map(s => (
-            <tr key={s.id} className="border-b last:border-0">
-              <td className="py-2 pr-3 font-medium text-slate-700">{s.name}</td>
-              <td className="pr-3 text-slate-500">{s.address || '-'}</td>
-              <td className="space-x-2 text-right">
-                <button className="text-xs text-brand-600 hover:underline" onClick={() => setEditing({ ...s })}>edit</button>
-                <button className="text-xs text-red-600 hover:underline" onClick={() => remove(s)}>delete</button>
-              </td>
-            </tr>
-          ))}
-          {sites.length === 0 && <tr><td colSpan={3} className="py-4 text-center text-slate-400">No sites yet</td></tr>}
-        </tbody>
-      </table>
-
-      {editing && (
-        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">{editing.id ? 'Edit site' : 'New site'}</h3>
-          <Field label="Name">
-            <input className={inputCls} value={editing.name}
-                   onChange={e => setEditing((p: any) => ({ ...p, name: e.target.value }))}
-                   placeholder="e.g. HQ - Building A" autoFocus />
-          </Field>
-          <Field label="Address">
-            <input className={inputCls} value={editing.address ?? ''}
-                   onChange={e => setEditing((p: any) => ({ ...p, address: e.target.value }))} />
-          </Field>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setEditing(null)}>Cancel</Button>
-            <Button onClick={save} disabled={busy || !editing.name?.trim()}>{busy ? 'Saving…' : 'Save'}</Button>
-          </div>
-        </div>
-      )}
     </Modal>
   );
 }
