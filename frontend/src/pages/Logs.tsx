@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useSiteScope } from '../context/SiteContext';
-import { PageHeader, Card, inputCls } from '../components/ui';
+import { PageHeader, Card, Button, inputCls } from '../components/ui';
 
 const SEV: { name: string; cls: string }[] = [
   { name: 'emerg',  cls: 'bg-red-100 text-red-800' },
@@ -31,9 +31,30 @@ export default function Logs() {
   const { data: logs = [], isLoading } = useApiQuery<any[]>(`/api/logs?${params}`, { refetchInterval: 10000 });
   const { data: devices = [] } = useApiQuery<any[]>(siteId ? `/api/devices?siteId=${siteId}` : '/api/devices');
 
+  function exportCsv() {
+    const esc = (v: string) => `"${(v ?? '').replace(/"/g, '""')}"`;
+    const header = 'Time,Device,Source IP,Severity,Message';
+    const rows = logs.map(l => [
+      new Date(l.received_at).toISOString(),
+      l.hostname ?? '',
+      l.source_ip ?? '',
+      l.severity != null ? (SEV[l.severity]?.name ?? l.severity) : '',
+      l.message ?? ''
+    ].map(esc).join(','));
+    const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `syslog-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div>
-      <PageHeader title="Logs" />
+      <PageHeader title="Logs">
+        <Button variant="secondary" onClick={exportCsv} disabled={logs.length === 0}>Export CSV</Button>
+      </PageHeader>
       <div className="p-6">
         <Card>
           <div className="mb-4 flex flex-wrap items-center gap-3">

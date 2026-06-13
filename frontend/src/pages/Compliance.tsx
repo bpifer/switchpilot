@@ -5,6 +5,7 @@ import { api } from '../api';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
 import { useSiteScope, scoped } from '../context/SiteContext';
+import ConfigPreviewModal from '../components/ConfigPreviewModal';
 
 interface RuleRollup {
   id: string;
@@ -319,41 +320,14 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
       )}
 
       {preview && (
-        <Modal title={`Preview: ${preview.rule.name}`} onClose={() => setPreview(null)}>
-          {preview.warnings.length > 0 && (
-            <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
-              <div className="text-sm font-medium text-amber-800">⚠ Review before applying</div>
-              <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-amber-700">
-                {preview.warnings.map((w, i) => <li key={i}>{w}</li>)}
-              </ul>
-            </div>
-          )}
-          <p className="mb-3 text-sm text-slate-500">
-            Comparing the remediation against the live running config. Nothing has been changed yet.
-            <span className="ml-1 font-medium text-slate-700">
-              {preview.summary.new} new, {preview.summary.present} already present
-              {preview.summary.removes > 0 ? `, ${preview.summary.removes} removed` : ''}.
-            </span>
-          </p>
-          <div className="max-h-72 space-y-1 overflow-auto rounded-lg bg-gray-900 p-3 font-mono text-xs">
-            {preview.lines.map((l: any, i: number) => (
-              <div key={i} className={
-                l.status === 'new' ? 'text-green-400'
-                : l.status === 'removes' ? 'text-red-400'
-                : l.status === 'present' ? 'text-slate-500'
-                : 'text-cyan-400'}>
-                <span className="inline-block w-16 select-none text-[10px] uppercase opacity-60">{l.status}</span>
-                {l.line}
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setPreview(null)}>Cancel</Button>
-            <Button onClick={() => remediate(preview.rule.rule_id)} disabled={busy === preview.rule.rule_id}>
-              {busy === preview.rule.rule_id ? 'Applying…' : 'Apply remediation'}
-            </Button>
-          </div>
-        </Modal>
+        <ConfigPreviewModal
+          title={`Preview: ${preview.rule.name}`}
+          data={{ lines: preview.lines, warnings: preview.warnings, summary: preview.summary }}
+          busy={busy === preview.rule.rule_id}
+          applyLabel="Apply remediation"
+          onApply={() => remediate(preview.rule.rule_id)}
+          onClose={() => setPreview(null)}
+        />
       )}
     </Modal>
   );
