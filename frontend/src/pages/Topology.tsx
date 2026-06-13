@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card } from '../components/ui';
+import { useSiteScope, scoped } from '../context/SiteContext';
 
 interface Node { id: string; label: string; model: string; status: string; managed: boolean; ip: string; stackSize: number; }
 interface Edge { source: string; target: string; sourcePort: string; targetPort: string; protocol: string; }
@@ -12,7 +13,7 @@ interface Edge { source: string; target: string; sourcePort: string; targetPort:
  */
 export default function Topology() {
   const { data: graph = { nodes: [], edges: [] } } =
-    useApiQuery<{ nodes: Node[]; edges: Edge[] }>('/api/topology', { refetchInterval: 60000 });
+    useApiQuery<{ nodes: Node[]; edges: Edge[] }>(scoped('/api/topology', useSiteScope().siteId), { refetchInterval: 60000 });
   const [hover, setHover] = useState<string | null>(null);
 
   const W = 1000, H = 640, CX = W / 2, CY = H / 2;

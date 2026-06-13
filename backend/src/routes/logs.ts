@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
 import { requireRole } from '../auth/rbac.js';
+import { siteFilter } from './util.js';
 
 export default async function logRoutes(app: FastifyInstance) {
   // Syslog viewer: filter by device, max severity (0=emerg..7=debug), text search
@@ -12,6 +13,7 @@ export default async function logRoutes(app: FastifyInstance) {
         type: 'object',
         properties: {
           deviceId: { type: 'string' },
+          siteId: { type: 'string' },
           severity: { type: 'integer', minimum: 0, maximum: 7, description: 'show messages at this severity or more urgent' },
           q: { type: 'string', maxLength: 200 },
           limit: { type: 'integer', minimum: 1, maximum: 1000, default: 200 }
@@ -19,10 +21,12 @@ export default async function logRoutes(app: FastifyInstance) {
       }
     }
   }, async (req) => {
-    const { deviceId, severity, q, limit } = req.query as any;
+    const { deviceId, siteId, severity, q, limit } = req.query as any;
     const conds: string[] = [];
     const params: unknown[] = [];
     if (deviceId) { params.push(deviceId); conds.push(`l.device_id = $${params.length}`); }
+    const sf = siteFilter(siteId, 'd', params.length + 1);
+    if (sf.cond) { conds.push(sf.cond); params.push(...sf.params); }
     if (severity !== undefined) { params.push(severity); conds.push(`(l.severity IS NULL OR l.severity <= $${params.length})`); }
     if (q) { params.push(`%${q}%`); conds.push(`l.message ILIKE $${params.length}`); }
     params.push(limit ?? 200);

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { useSiteScope } from '../context/SiteContext';
 import { PageHeader, Card } from '../components/ui';
 
 export default function Clients() {
@@ -9,12 +10,14 @@ export default function Clients() {
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { siteId } = useSiteScope();
 
   function search(q: string, active: boolean) {
     setLoading(true);
     const params = new URLSearchParams({ limit: '500' });
     if (q.trim()) params.set('q', q.trim());
     if (active) params.set('active', 'true');
+    if (siteId) params.set('siteId', siteId);
     api(`/api/clients?${params}`)
       .then(setResults)
       .catch(() => setResults([]))
@@ -25,7 +28,7 @@ export default function Clients() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => search(query, activeOnly), 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query, activeOnly]);
+  }, [query, activeOnly, siteId]);
 
   const isRecent = (ts: string) =>
     Date.now() - new Date(ts).getTime() < 24 * 3600 * 1000;

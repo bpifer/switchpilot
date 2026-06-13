@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
+import { useSiteScope, scoped } from '../context/SiteContext';
 
 interface RuleRollup {
   id: string;
@@ -49,7 +50,7 @@ export default function Compliance({ me }: { me: Me }) {
   const canEdit = me.role === 'superadmin' || me.role === 'netadmin';
 
   const { data: summary = null, isLoading: loading, refetch: load } =
-    useApiQuery<Summary>('/api/compliance/summary', { refetchInterval: 60000 });
+    useApiQuery<Summary>(scoped('/api/compliance/summary', useSiteScope().siteId), { refetchInterval: 60000 });
 
   async function evaluate() {
     setEvaluating(true);

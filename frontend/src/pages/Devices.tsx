@@ -5,6 +5,7 @@ import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, StatusBadge, Modal, Field, inputCls, fmtUptime } from '../components/ui';
 import OnboardWizard from '../components/OnboardWizard';
+import { useSiteScope, scoped } from '../context/SiteContext';
 
 
 export default function Devices({ me }: { me: Me }) {
@@ -13,7 +14,8 @@ export default function Devices({ me }: { me: Me }) {
   const [showSites, setShowSites] = useState(false);
   const canEdit = me.role === 'superadmin' || me.role === 'netadmin';
 
-  const { data: devices = [], refetch: load } = useApiQuery<any[]>('/api/devices', { refetchInterval: 30000 });
+  const { siteId } = useSiteScope();
+  const { data: devices = [], refetch: load } = useApiQuery<any[]>(scoped('/api/devices', siteId), { refetchInterval: 30000 });
   const { data: sites = [], refetch: reloadSites } = useApiQuery<any[]>('/api/sites');
   const { data: credentials = [], refetch: reloadCreds } = useApiQuery<any[]>('/api/credentials', { enabled: canEdit });
 

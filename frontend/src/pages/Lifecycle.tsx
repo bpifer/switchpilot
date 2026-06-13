@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
+import { useSiteScope, scoped } from '../context/SiteContext';
 
 interface LifecycleDevice {
   id: string;
@@ -52,7 +53,7 @@ export default function Lifecycle({ me }: { me: Me }) {
   const canEdit = me.role === 'superadmin';
 
   const { data: devices = [], isLoading: loading } =
-    useApiQuery<LifecycleDevice[]>('/api/devices/lifecycle');
+    useApiQuery<LifecycleDevice[]>(scoped('/api/devices/lifecycle', useSiteScope().siteId));
 
   const filtered = devices.filter(d => {
     const eolDays = daysBetween(d.eol_date);

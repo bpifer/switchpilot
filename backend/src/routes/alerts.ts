@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
+import { siteFilter } from './util.js';
 
 export default async function alertRoutes(app: FastifyInstance) {
   app.get('/api/alerts', {
@@ -12,17 +13,24 @@ export default async function alertRoutes(app: FastifyInstance) {
         type: 'object',
         properties: {
           open: { type: 'boolean', default: true },
-          limit: { type: 'integer', default: 200 }
+          limit: { type: 'integer', default: 200 },
+          siteId: { type: 'string' }
         }
       }
     }
   }, async (req) => {
     const q = req.query as any;
+    const conds: string[] = [];
+    const params: unknown[] = [];
+    if (q.open !== false) conds.push('a.resolved_at IS NULL');
+    const sf = siteFilter(q.siteId, 'd', params.length + 1);
+    if (sf.cond) { conds.push(sf.cond); params.push(...sf.params); }
+    params.push(Math.min(q.limit ?? 200, 1000));
     const { rows } = await query(
       `SELECT a.*, d.hostname, d.mgmt_ip FROM alerts a
        LEFT JOIN devices d ON d.id=a.device_id
-       ${q.open !== false ? 'WHERE a.resolved_at IS NULL' : ''}
-       ORDER BY a.created_at DESC LIMIT $1`, [Math.min(q.limit ?? 200, 1000)]);
+       ${conds.length ? 'WHERE ' + conds.join(' AND ') : ''}
+       ORDER BY a.created_at DESC LIMIT $${params.length}`, params);
     return rows;
   });
 

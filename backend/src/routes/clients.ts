@@ -1,14 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
+import { siteFilter } from './util.js';
 
 export default async function clientRoutes(app: FastifyInstance) {
   // Search clients by MAC (partial match), or list recent clients globally
-  app.get<{ Querystring: { q?: string; limit?: string; active?: string } }>(
+  app.get<{ Querystring: { q?: string; limit?: string; active?: string; siteId?: string } }>(
     '/api/clients',
     { schema: { tags: ['clients'] } },
     async (req, reply) => {
       try { await req.jwtVerify(); } catch { return reply.code(401).send({ error: 'Authentication required' }); }
-      const { q, limit = '100', active } = req.query;
+      const { q, limit = '100', active, siteId } = req.query;
       const lim = Math.min(parseInt(limit, 10) || 100, 500);
       const activeFilter = active === 'true'
         ? `AND ct.last_seen > now() - interval '24 hours'` : '';
@@ -16,6 +17,9 @@ export default async function clientRoutes(app: FastifyInstance) {
         ? `AND ct.mac ILIKE $2` : '';
       const params: unknown[] = [lim];
       if (q) params.push(`%${q.replace(/[%_]/g, '\\$&')}%`);
+      const sf = siteFilter(siteId, 'd', params.length + 1);
+      params.push(...sf.params);
+      const siteCond = sf.cond ? `AND ${sf.cond}` : '';
 
       const { rows } = await query(
         `SELECT ct.id, ct.mac, ct.ip_address, ct.port_name, ct.vlan,
@@ -25,7 +29,7 @@ export default async function clientRoutes(app: FastifyInstance) {
          FROM client_tracking ct
          JOIN devices d ON d.id = ct.device_id
          LEFT JOIN ports p ON p.device_id = ct.device_id AND p.name = ct.port_name
-         WHERE 1=1 ${activeFilter} ${macFilter}
+         WHERE 1=1 ${activeFilter} ${macFilter} ${siteCond}
          ORDER BY ct.last_seen DESC
          LIMIT $1`,
         params

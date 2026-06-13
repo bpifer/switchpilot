@@ -83,6 +83,7 @@ Communicates directly over **SSH and SNMP** - no Cisco DNA Center, no Meraki lic
 - **Forced security gate** - users with a pending password change or MFA enrollment cannot use the app until they complete it
 - **Credential vault** - AES-256-GCM encrypted SSH and SNMP credentials
 - **Tamper-evident audit log** - every write action recorded with username and IP, and each entry is **hash-chained** to the previous one; a one-click integrity check detects any edit, deletion, or reordering
+- **Site scoping** - a Meraki-style site selector in the sidebar scopes devices, topology, alerts, logs, clients, PoE, lifecycle, and compliance to one site (jobs, templates, and firmware stay fleet-wide; the alert bell always shows all sites)
 - **Full REST API** - OpenAPI/Swagger docs at `/docs`
 
 ---

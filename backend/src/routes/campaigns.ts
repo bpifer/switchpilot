@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
 import { createJob } from '../services/jobService.js';
+import { siteFilter } from './util.js';
 
 export default async function campaignRoutes(app: FastifyInstance) {
   // List all campaigns
@@ -193,16 +194,21 @@ export default async function campaignRoutes(app: FastifyInstance) {
   });
 
   // Lifecycle summary for all devices
-  app.get('/api/devices/lifecycle', { preHandler: requireRole('readonly') }, async () => {
+  app.get('/api/devices/lifecycle', {
+    preHandler: requireRole('readonly'),
+    schema: { querystring: { type: 'object', properties: { siteId: { type: 'string' } } } }
+  }, async (req) => {
+    const sf = siteFilter((req.query as any).siteId, 'd');
     const { rows } = await query(`
       SELECT d.id, d.hostname, d.mgmt_ip::text AS mgmt_ip, d.model, d.ios_version,
              d.eos_date::text, d.eol_date::text, d.recommended_release, d.status,
              COALESCE(s.name, 'Unassigned') AS site_name
       FROM devices d
       LEFT JOIN sites s ON s.id = d.site_id
-      WHERE d.eos_date IS NOT NULL OR d.eol_date IS NOT NULL OR d.recommended_release != ''
+      WHERE (d.eos_date IS NOT NULL OR d.eol_date IS NOT NULL OR d.recommended_release != '')
+        ${sf.cond ? 'AND ' + sf.cond : ''}
       ORDER BY d.eol_date ASC NULLS LAST, d.eos_date ASC NULLS LAST, d.hostname
-    `);
+    `, sf.params);
     return rows;
   });
 }

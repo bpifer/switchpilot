@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import { useSiteScope } from '../context/SiteContext';
 import { Modal, Button, Field, inputCls } from './ui';
 
 interface Analysis {
@@ -24,7 +25,13 @@ interface OnboardResult {
 
 export default function OnboardWizard({ sites, onClose }: { sites: any[]; onClose: () => void }) {
   const [step, setStep] = useState<'creds' | 'review' | 'done'>('creds');
-  const [form, setForm] = useState({ mgmtIp: '', username: '', password: '', enablePassword: '', siteId: '', location: '' });
+  const { siteId: scopeSite } = useSiteScope();
+  const [form, setForm] = useState({
+    mgmtIp: '', username: '', password: '', enablePassword: '',
+    // default the site to the currently selected scope (when it's a real site)
+    siteId: scopeSite !== 'unassigned' ? scopeSite : '',
+    location: ''
+  });
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [createAccount, setCreateAccount] = useState(true);
   const [applyBaseline, setApplyBaseline] = useState(true);

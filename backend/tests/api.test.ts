@@ -270,3 +270,36 @@ describe('firmware upload', () => {
     expect(dl.body).toBe(content);
   });
 });
+
+describe('site scoping', () => {
+  itDb('GET /api/devices honors siteId including the unassigned sentinel', async () => {
+    const { query } = await import('../src/db.js');
+    const site = (await query(`INSERT INTO sites (name) VALUES ('scope-test-site') RETURNING id`)).rows[0];
+    await query(`INSERT INTO devices (hostname, mgmt_ip, site_id) VALUES ('scope-in-site', '10.99.0.1', $1)`, [site.id]);
+    await query(`INSERT INTO devices (hostname, mgmt_ip) VALUES ('scope-no-site', '10.99.0.2')`);
+
+    const get = (qs: string) => app.inject({
+      method: 'GET', url: `/api/devices${qs}`, headers: { authorization: `Bearer ${adminToken}` }
+    });
+
+    const all = (await get('')).json();
+    expect(all.some((d: any) => d.hostname === 'scope-in-site')).toBe(true);
+    expect(all.some((d: any) => d.hostname === 'scope-no-site')).toBe(true);
+
+    const scoped = (await get(`?siteId=${site.id}`)).json();
+    expect(scoped.every((d: any) => d.site_name === 'scope-test-site')).toBe(true);
+    expect(scoped.some((d: any) => d.hostname === 'scope-in-site')).toBe(true);
+
+    const unassigned = (await get('?siteId=unassigned')).json();
+    expect(unassigned.some((d: any) => d.hostname === 'scope-no-site')).toBe(true);
+    expect(unassigned.some((d: any) => d.hostname === 'scope-in-site')).toBe(false);
+
+    // scoped alerts and summary endpoints accept the param without error
+    expect((await app.inject({ method: 'GET', url: `/api/alerts?siteId=${site.id}`, headers: { authorization: `Bearer ${adminToken}` } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: `/api/summary?siteId=${site.id}`, headers: { authorization: `Bearer ${adminToken}` } })).statusCode).toBe(200);
+
+    // cleanup so re-runs stay deterministic
+    await query(`DELETE FROM devices WHERE hostname IN ('scope-in-site','scope-no-site')`);
+    await query(`DELETE FROM sites WHERE id=$1`, [site.id]);
+  });
+});

@@ -116,7 +116,8 @@ export default async function deviceRoutes(app: FastifyInstance) {
     const q = req.query as any;
     const conds: string[] = [];
     const params: unknown[] = [];
-    if (q.siteId) { params.push(q.siteId); conds.push(`d.site_id=$${params.length}`); }
+    if (q.siteId === 'unassigned') conds.push('d.site_id IS NULL');
+    else if (q.siteId) { params.push(q.siteId); conds.push(`d.site_id=$${params.length}`); }
     if (q.status) { params.push(q.status); conds.push(`d.status=$${params.length}`); }
     if (q.after) { params.push(q.after); conds.push(`d.hostname > $${params.length}`); }
     let limitClause = '';

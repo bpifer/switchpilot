@@ -3,6 +3,7 @@ import { api } from '../api';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, StatusBadge, Modal, Field, inputCls } from '../components/ui';
+import { useSiteScope, scoped } from '../context/SiteContext';
 
 export default function Alerts({ me }: { me: Me }) {
   const [showAll, setShowAll] = useState(false);
@@ -10,7 +11,8 @@ export default function Alerts({ me }: { me: Me }) {
   const canAck = me.role !== 'readonly';
   const canRules = me.role === 'superadmin' || me.role === 'netadmin';
 
-  const { data: alerts = [], refetch: refetchAlerts } = useApiQuery<any[]>(`/api/alerts?open=${!showAll}`, { refetchInterval: 20000 });
+  const { siteId } = useSiteScope();
+  const { data: alerts = [], refetch: refetchAlerts } = useApiQuery<any[]>(scoped(`/api/alerts?open=${!showAll}`, siteId), { refetchInterval: 20000 });
   const { data: rules = [], refetch: refetchRules } = useApiQuery<any[]>('/api/automation/rules');
   const load = () => { refetchAlerts(); refetchRules(); };
 

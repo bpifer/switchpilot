@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
 import { requireRole } from '../auth/rbac.js';
+import { siteFilter } from './util.js';
 
 export default async function topologyRoutes(app: FastifyInstance) {
   /**
@@ -8,13 +9,21 @@ export default async function topologyRoutes(app: FastifyInstance) {
    * Nodes are managed devices plus discovered-but-unmanaged neighbors;
    * edges deduplicate the two directions of a link.
    */
-  app.get('/api/topology', { preHandler: requireRole('readonly'), schema: { tags: ['topology'] } },
-    async () => {
+  app.get('/api/topology', {
+    preHandler: requireRole('readonly'),
+    schema: { tags: ['topology'], querystring: { type: 'object', properties: { siteId: { type: 'string' } } } }
+  },
+    async (req) => {
+      const { siteId } = req.query as any;
+      const sf = siteFilter(siteId, 'd');
       const devices = (await query(
-        'SELECT id, hostname, model, family, status, mgmt_ip, stack_members FROM devices')).rows;
+        `SELECT d.id, d.hostname, d.model, d.family, d.status, d.mgmt_ip, d.stack_members
+         FROM devices d ${sf.cond ? 'WHERE ' + sf.cond : ''}`, sf.params)).rows;
+      // links only from in-scope devices, so unmanaged neighbors of other sites don't leak in
+      const lf = siteFilter(siteId, 'd');
       const links = (await query(
         `SELECT t.*, d.hostname AS local_hostname FROM topology_links t
-         JOIN devices d ON d.id=t.device_id`)).rows;
+         JOIN devices d ON d.id=t.device_id ${lf.cond ? 'WHERE ' + lf.cond : ''}`, lf.params)).rows;
 
       const byHostname = new Map(devices.map(d => [d.hostname.toLowerCase(), d]));
       const nodes: any[] = devices.map(d => ({

@@ -4,6 +4,7 @@ import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
 import { evaluateAllCompliance, evaluateDevice, remediate } from '../services/complianceService.js';
 import { backupDevice } from '../services/configService.js';
+import { siteFilter } from './util.js';
 
 export default async function complianceRoutes(app: FastifyInstance) {
   // ----- Rules CRUD -----
@@ -99,18 +100,25 @@ export default async function complianceRoutes(app: FastifyInstance) {
   });
 
   // ----- Fleet summary: overall score, per-rule rollup, per-device rollup -----
-  app.get('/api/compliance/summary', { preHandler: requireRole('readonly'), schema: { tags: ['compliance'] } },
-    async () => {
+  app.get('/api/compliance/summary', {
+    preHandler: requireRole('readonly'),
+    schema: { tags: ['compliance'], querystring: { type: 'object', properties: { siteId: { type: 'string' } } } }
+  },
+    async (req) => {
+      const sf = siteFilter((req.query as any).siteId, 'd');
       const overall = await query(
-        `SELECT count(*) FILTER (WHERE passed)::int AS passed, count(*)::int AS total FROM compliance_results`);
+        `SELECT count(*) FILTER (WHERE res.passed)::int AS passed, count(*)::int AS total
+         FROM compliance_results res JOIN devices d ON d.id = res.device_id
+         ${sf.cond ? 'WHERE ' + sf.cond : ''}`, sf.params);
       const perRule = await query(
         `SELECT cr.id, cr.name, cr.severity, cr.match_type, cr.pattern,
                 count(r.*) FILTER (WHERE r.passed)::int AS passed,
                 count(r.*)::int AS total
          FROM compliance_rules cr
          LEFT JOIN compliance_results r ON r.rule_id=cr.id
-         WHERE cr.enabled
-         GROUP BY cr.id ORDER BY (count(r.*) FILTER (WHERE NOT r.passed)) DESC, cr.severity DESC, cr.name`);
+         LEFT JOIN devices d ON d.id=r.device_id
+         WHERE cr.enabled ${sf.cond ? `AND (r.device_id IS NULL OR ${sf.cond})` : ''}
+         GROUP BY cr.id ORDER BY (count(r.*) FILTER (WHERE NOT r.passed)) DESC, cr.severity DESC, cr.name`, sf.params);
       const perDevice = await query(
         `SELECT d.id, d.hostname, d.mgmt_ip, s.name AS site_name,
                 count(r.*) FILTER (WHERE r.passed)::int AS passed,
@@ -120,9 +128,10 @@ export default async function complianceRoutes(app: FastifyInstance) {
          LEFT JOIN compliance_results r ON r.device_id=d.id
          LEFT JOIN compliance_rules cr ON cr.id=r.rule_id
          LEFT JOIN sites s ON s.id=d.site_id
+         ${sf.cond ? 'WHERE ' + sf.cond : ''}
          GROUP BY d.id, s.name
          HAVING count(r.*) > 0
-         ORDER BY critical_fails DESC, (count(r.*) FILTER (WHERE NOT r.passed)) DESC`);
+         ORDER BY critical_fails DESC, (count(r.*) FILTER (WHERE NOT r.passed)) DESC`, sf.params);
       const o = overall.rows[0];
       return {
         score: o.total ? Math.round(o.passed / o.total * 100) : null,

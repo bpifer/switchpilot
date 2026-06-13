@@ -1,5 +1,6 @@
 import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card } from '../components/ui';
+import { useSiteScope, scoped } from '../context/SiteContext';
 
 interface PoEDevice {
   device_id: string;
@@ -58,7 +59,7 @@ function PoEBar({ pct }: { pct: number | null }) {
 
 export default function PoE() {
   const { data = null, isLoading: loading } =
-    useApiQuery<{ devices: PoEDevice[]; sites: PoESite[] }>('/api/poe/summary', { refetchInterval: 60000 });
+    useApiQuery<{ devices: PoEDevice[]; sites: PoESite[] }>(scoped('/api/poe/summary', useSiteScope().siteId), { refetchInterval: 60000 });
 
   if (loading) return <div className="p-8 text-slate-400 text-sm">Loading PoE data…</div>;
 

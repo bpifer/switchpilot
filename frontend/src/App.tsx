@@ -8,6 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApiQuery } from './hooks/useApiQuery';
 import { useWebSocket } from './hooks/useWebSocket';
+import { SiteScopeProvider, useSiteScope } from './context/SiteContext';
 
 // Route-level code splitting: each page loads on first visit, keeping the
 // initial bundle small (recharts alone is several hundred KB in Analytics).
@@ -110,12 +111,13 @@ function Initials({ name }: { name: string }) {
 
 function AlertsBell() {
   const navigate = useNavigate();
+  // Deliberately unscoped: a critical alert on another site must still light the bell
   const { data: summary } = useApiQuery<{ openAlerts: Record<string, number> }>('/api/summary', { refetchInterval: 30000 });
   const open = summary ? Object.values(summary.openAlerts).reduce((a, b) => a + b, 0) : 0;
   const critical = (summary?.openAlerts?.critical ?? 0) > 0;
   return (
     <button
-      title={open > 0 ? `${open} open alert${open !== 1 ? 's' : ''}` : 'No open alerts'}
+      title={open > 0 ? `${open} open alert${open !== 1 ? 's' : ''} (all sites)` : 'No open alerts (all sites)'}
       onClick={() => navigate('/alerts')}
       className="relative rounded-lg p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-white"
     >
@@ -126,6 +128,34 @@ function AlertsBell() {
         </span>
       )}
     </button>
+  );
+}
+
+function SiteSelector() {
+  const { siteId, setSiteId } = useSiteScope();
+  const { data: sites = [] } = useApiQuery<{ id: string; name: string }[]>('/api/sites');
+
+  // Persisted site was deleted - fall back to all sites
+  useEffect(() => {
+    if (siteId && siteId !== 'unassigned' && sites.length > 0 && !sites.some(s => s.id === siteId)) {
+      setSiteId('');
+    }
+  }, [sites, siteId]);
+
+  return (
+    <div className="border-b border-slate-800 px-3 py-2.5">
+      <select
+        value={siteId}
+        onChange={e => setSiteId(e.target.value)}
+        title="Scope pages to one site"
+        className="w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-sm text-slate-200
+                   focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500/40"
+      >
+        <option value="">All sites</option>
+        {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        <option value="unassigned">Unassigned</option>
+      </select>
+    </div>
   );
 }
 
@@ -187,6 +217,7 @@ export default function App() {
   }
 
   return (
+    <SiteScopeProvider>
     <div className="flex h-screen bg-slate-50">
       <aside className="flex w-60 shrink-0 flex-col bg-slate-900 text-white">
         {/* Logo */}
@@ -200,6 +231,9 @@ export default function App() {
           </div>
           <AlertsBell />
         </div>
+
+        {/* Site scope */}
+        <SiteSelector />
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-2">
@@ -293,5 +327,6 @@ export default function App() {
         </ErrorBoundary>
       </main>
     </div>
+    </SiteScopeProvider>
   );
 }

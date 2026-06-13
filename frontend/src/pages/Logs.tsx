@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApiQuery } from '../hooks/useApiQuery';
+import { useSiteScope } from '../context/SiteContext';
 import { PageHeader, Card, inputCls } from '../components/ui';
 
 const SEV: { name: string; cls: string }[] = [
@@ -19,14 +20,16 @@ export default function Logs() {
   const [severity, setSeverity] = useState('7');
   const [q, setQ] = useState('');
 
+  const { siteId } = useSiteScope();
   const params = new URLSearchParams();
   if (deviceId) params.set('deviceId', deviceId);
+  if (siteId) params.set('siteId', siteId);
   if (severity !== '7') params.set('severity', severity);
   if (q.trim()) params.set('q', q.trim());
   params.set('limit', '300');
 
   const { data: logs = [], isLoading } = useApiQuery<any[]>(`/api/logs?${params}`, { refetchInterval: 10000 });
-  const { data: devices = [] } = useApiQuery<any[]>('/api/devices');
+  const { data: devices = [] } = useApiQuery<any[]>(siteId ? `/api/devices?siteId=${siteId}` : '/api/devices');
 
   return (
     <div>

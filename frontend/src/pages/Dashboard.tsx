@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card, StatusBadge, Icon } from '../components/ui';
+import { useSiteScope, scoped } from '../context/SiteContext';
 
 const STAT_ICONS = {
   online:   { d: 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z', bg: 'bg-green-50',  icon: 'text-green-600' },
@@ -10,8 +11,9 @@ const STAT_ICONS = {
 };
 
 export default function Dashboard() {
-  const { data: summary } = useApiQuery<any>('/api/summary', { refetchInterval: 30000 });
-  const { data: alerts = [] } = useApiQuery<any[]>('/api/alerts?limit=10', { refetchInterval: 30000 });
+  const { siteId } = useSiteScope();
+  const { data: summary } = useApiQuery<any>(scoped('/api/summary', siteId), { refetchInterval: 30000 });
+  const { data: alerts = [] } = useApiQuery<any[]>(scoped('/api/alerts?limit=10', siteId), { refetchInterval: 30000 });
 
   const dev = summary?.devices ?? {};
   const al  = summary?.openAlerts ?? {};
