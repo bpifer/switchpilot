@@ -87,7 +87,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
                     className={`px-4 py-2 text-sm capitalize transition-colors ${tab === t
                       ? 'border-b-2 border-brand-600 font-medium text-brand-700'
                       : 'text-gray-500 hover:text-gray-700'}`}>
-              {t}
+              {t === 'vlans' ? <span className="normal-case">VLANs</span> : t}
             </button>
           ))}
         </div>

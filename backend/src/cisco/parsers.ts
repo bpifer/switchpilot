@@ -303,17 +303,26 @@ export function parsePowerInlineTotals(output: string): PoeTotals | null {
   return null;
 }
 
-/** Parse `show vlan brief` → [{id, name}]. */
+/** Parse `show vlan brief` → [{id, name, ports}]. */
 export function parseVlanBrief(output: string): { id: number; name: string; ports: string[] }[] {
   const vlans: { id: number; name: string; ports: string[] }[] = [];
-  for (const line of output.split('\n')) {
-    const m = line.match(/^(\d+)\s+(\S+)\s+(?:active|act\/unsup|suspended)\s*(.*)$/);
+  let last: { id: number; name: string; ports: string[] } | null = null;
+  // Strip \r so \r\n SSH output doesn't leave a trailing char on the last port.
+  for (const line of output.replace(/\r/g, '').split('\n')) {
+    // A VLAN row: <id> <name> <status> [ports]. Status is matched loosely
+    // (active, act/unsup, suspended, act/lshut, sus/lshut, ...) so an
+    // unexpected state doesn't drop the whole VLAN.
+    const m = line.match(/^\s*(\d+)\s+(\S+)\s+((?:act|sus|suspend)\S*)\s*(.*)$/i);
     if (m) {
-      vlans.push({
+      last = {
         id: parseInt(m[1], 10),
         name: m[2],
-        ports: m[3] ? m[3].split(',').map(p => p.trim()).filter(Boolean) : []
-      });
+        ports: m[4] ? m[4].split(',').map(p => p.trim()).filter(Boolean) : []
+      };
+      vlans.push(last);
+    } else if (last && /^\s+\S/.test(line) && /\b(Gi|Fa|Te|Tw|Fo|Hu|Eth|Po)\d/.test(line)) {
+      // Continuation line: a long port list wrapped onto the next row.
+      last.ports.push(...line.split(',').map(p => p.trim()).filter(Boolean));
     }
   }
   return vlans;

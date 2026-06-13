@@ -191,6 +191,21 @@ VLAN Name                             Status    Ports
     expect(vlans).toHaveLength(3);
     expect(vlans[1]).toMatchObject({ id: 20, name: 'USERS' });
   });
+
+  it('keeps every VLAN with \\r\\n output, wrapped port lists, and varied states', () => {
+    const vlans = parseVlanBrief(
+      'VLAN Name                             Status    Ports\r\n' +
+      '---- -------------------------------- --------- ------\r\n' +
+      '1    default                          active    Gi1/0/10, Gi1/0/11, Gi1/0/12,\r\n' +
+      '                                                Gi1/0/13, Gi1/0/14\r\n' +
+      '10   DATA                             active    Gi1/0/1, Gi1/0/2\r\n' +
+      '20   VOICE                            active\r\n' +
+      '30   MGMT                             act/lshut\r\n');
+    expect(vlans.map(v => v.id)).toEqual([1, 10, 20, 30]);   // all four kept
+    expect(vlans[0].ports).toContain('Gi1/0/14');             // wrapped port captured
+    expect(vlans[0].ports.every(p => !p.includes('\r'))).toBe(true);
+    expect(vlans[3]).toMatchObject({ id: 30, name: 'MGMT' }); // act/lshut state kept
+  });
 });
 
 describe('expandInterfaceName', () => {
