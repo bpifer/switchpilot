@@ -93,7 +93,7 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
                     onClick={() => action('tdr', () => api(`/api/devices/${deviceId}/ports/${portPath}/cable-test`, { method: 'POST' }))}>
               {busy === 'tdr' ? 'Testing…' : 'Cable test'}
             </Button>
-            <Button onClick={() => setEditVlan(true)}>Edit VLAN / description</Button>
+            <Button onClick={() => setEditVlan(true)}>Configure</Button>
           </div>
         )}
       </div>
