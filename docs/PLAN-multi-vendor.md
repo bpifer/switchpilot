@@ -68,7 +68,35 @@ driver abstraction (not "IOS dialect") is the right level.
 5. Onboarding/detection already branches on detected OS - extend `detector.ts`
    to recognize RouterOS rather than assuming Cisco.
 
-## First concrete steps when MikroTik work begins
+## Ranked backlog
+
+Lift: S ~= half-day, M ~= 1-2 days, L ~= multi-day. Order is the critical path;
+earlier items gate later ones.
+
+| # | Item | Lift | Status | Notes / depends on |
+|---|---|---|---|---|
+| 0 | `devices.vendor` column (default 'cisco'), surfaced in UI | S | DONE (migration 016) | Foundation - every vendor branch needs it |
+| 1 | Extract `DeviceDriver` seam; wrap Cisco as `ciscoDriver` | L | todo | The gate. Behavior-preserving refactor of monitorService / deviceComms / firmwareService / provisionService / ports to call `driverFor(device)`. Needs full test coverage. Everything RouterOS plugs in here. Worth doing even before owning a MikroTik. |
+| 2 | RouterOS SSH session | M | todo | No enable mode, different prompt, `/command/print`, different paging. Depends on #1. |
+| 3 | RouterOS detection at onboarding | S-M | todo | `/system/resource/print` -> "RouterOS"; set vendor=mikrotik, os=routeros. Depends on #2. |
+| 4 | RouterOS read parsers | M-L | todo | `/system/resource`, `/interface/print detail`, `/interface/bridge/vlan`, `/ip/neighbor`, switch/MAC tables. Key-value output, unlike IOS columns - the bulk of the work. Depends on #1-2. |
+| 5 | RouterOS capability model | S-M | todo | Model entries for CRS3xx/CSS/hEX etc., port counts, PoE flags. |
+| 6 | RouterOS port/VLAN config (write) | M | todo | Bridge-VLAN-filtering model differs from Cisco switchport. Depends on #1-4. |
+| 7 | RouterOS provisioning baseline | S-M | todo | Map lldp/syslog/snmp to `/ip/neighbor/discovery`, `/system/logging`, `/snmp`. |
+| 8 | RouterOS syslog patterns | S | todo | RFC PRI/storage already works; add RouterOS event-topic alert rules. |
+| 9 | RouterOS firmware | M | todo | Package .npk upload + `/system/reboot`, not `copy http` + `verify /md5`. |
+| 10 | Vendor-tagged compliance + RouterOS rule pack | M | todo | Add `compliance_rules.vendor`; best folded into the CIS-pack work to avoid a second migration. |
+| 11 | Onboarding UX for vendor | S | todo | Vendor selector in the wizard; RouterOS admin account via `/user add` replaces the SPAdmin/`username` flow. |
+
+Milestones:
+- **Read-only MikroTik** = #1 + #2 + #3 + #4 + #5 (onboard and monitor a MikroTik).
+- **Manage MikroTik** = #6 + #7 + #8 + #11.
+- **Polish** = #10 + MikroTik lifecycle data.
+
+OUI lookup is already vendor-neutral. Lifecycle data is Cisco-model-prefix
+based; MikroTik lifecycle is optional/separate.
+
+## Original first concrete steps (kept for reference)
 
 1. Add `devices.vendor` (default 'cisco') + set `capabilities.os='routeros'`.
 2. Extract the `DeviceDriver` interface; wrap current Cisco code as `ciscoDriver`.
