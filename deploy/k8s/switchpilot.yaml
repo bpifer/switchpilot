@@ -154,6 +154,10 @@ metadata:
   name: switchpilot
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: 2g
+    # Keep WebSocket (/ws) connections alive; default 60s read timeout would
+    # drop idle realtime sockets every minute.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
   rules:
     - host: switchpilot.example.com
