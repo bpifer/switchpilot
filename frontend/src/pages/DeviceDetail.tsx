@@ -70,6 +70,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
         <div className="rounded-xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200/60">
           <div className="flex flex-wrap items-center gap-x-7 gap-y-2.5">
             <StatusBadge status={device.status} />
+            <Meta label="Vendor" value={device.vendor ? device.vendor[0].toUpperCase() + device.vendor.slice(1) : null} />
             <Meta label="Model" value={device.model} mono />
             <Meta label="Serial" value={device.serial_number} mono />
             <Meta label="IOS" value={device.ios_version} mono />
