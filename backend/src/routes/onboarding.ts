@@ -157,13 +157,20 @@ export default async function onboardingRoutes(app: FastifyInstance) {
       warnings.push(`${PLATFORM_ACCOUNT} is the only privilege-15 account on this switch - create a break-glass admin account so you are not locked out if the platform credential is lost.`);
     }
 
-    // Store the working credentials as a device-specific profile
+    // Store the working credentials as a device-specific profile. credentials.name
+    // is UNIQUE and is NOT removed when a device is deleted, so re-onboarding the
+    // same switch must update the existing profile rather than fail on conflict.
     const hostLabel = inspection.identity.hostname || b.mgmtIp;
     const cred = await query(
       `INSERT INTO credentials (name, ssh_username, ssh_password_enc, enable_password_enc,
          snmp_version, snmp_community_enc, snmpv3_user, snmpv3_auth_proto, snmpv3_auth_key_enc,
          snmpv3_priv_proto, snmpv3_priv_key_enc)
-       VALUES ($1,$2,$3,$4,'2c',$5,'','sha',$6,'aes',$6) RETURNING id`,
+       VALUES ($1,$2,$3,$4,'2c',$5,'','sha',$6,'aes',$6)
+       ON CONFLICT (name) DO UPDATE SET
+         ssh_username=EXCLUDED.ssh_username,
+         ssh_password_enc=EXCLUDED.ssh_password_enc,
+         enable_password_enc=EXCLUDED.enable_password_enc
+       RETURNING id`,
       [`${finalUser} (${hostLabel})`, finalUser, encryptSecret(finalPass),
        encryptSecret(b.enablePassword ?? ''), encryptSecret(''), encryptSecret('')]);
 
