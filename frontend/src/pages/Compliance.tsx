@@ -188,7 +188,7 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
   const [checks, setChecks] = useState<DeviceCheck[]>([]);
   const [busy, setBusy] = useState('');
   const [checking, setChecking] = useState(false);
-  const [preview, setPreview] = useState<{ rule: DeviceCheck; lines: any[]; summary: any } | null>(null);
+  const [preview, setPreview] = useState<{ rule: DeviceCheck; lines: any[]; summary: any; warnings: string[] } | null>(null);
   const [secretPw, setSecretPw] = useState('');
 
   const load = () => api<DeviceCheck[]>(`/api/compliance/device/${deviceId}`).then(setChecks).catch(() => setChecks([]));
@@ -220,7 +220,7 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
     try {
       const lines = c.remediation.split('\n').map(l => l.trim()).filter(Boolean);
       const r = await api(`/api/devices/${deviceId}/config/preview`, { method: 'POST', body: { lines } });
-      setPreview({ rule: c, lines: r.lines, summary: r.summary });
+      setPreview({ rule: c, lines: r.lines, summary: r.summary, warnings: r.warnings ?? [] });
     } catch (err: any) { alert(err.message); }
     finally { setBusy(''); }
   }
@@ -309,6 +309,14 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
 
       {preview && (
         <Modal title={`Preview: ${preview.rule.name}`} onClose={() => setPreview(null)}>
+          {preview.warnings.length > 0 && (
+            <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
+              <div className="text-sm font-medium text-amber-800">⚠ Review before applying</div>
+              <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-amber-700">
+                {preview.warnings.map((w, i) => <li key={i}>{w}</li>)}
+              </ul>
+            </div>
+          )}
           <p className="mb-3 text-sm text-slate-500">
             Comparing the remediation against the live running config. Nothing has been changed yet.
             <span className="ml-1 font-medium text-slate-700">

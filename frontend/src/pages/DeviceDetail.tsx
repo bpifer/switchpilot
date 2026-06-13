@@ -126,6 +126,7 @@ function DeviceSettingsModal({ deviceId, sites, current, onClose, onSaved }: {
 }) {
   const [siteId, setSiteId] = useState(current.siteId);
   const [location, setLocation] = useState(current.location);
+  const [logLevel, setLogLevel] = useState('');   // '' = leave unchanged
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -137,6 +138,10 @@ function DeviceSettingsModal({ deviceId, sites, current, onClose, onSaved }: {
         // siteId '' clears the assignment (nullable on the backend)
         body: { siteId: siteId || null, location }
       });
+      // Syslog level is a config push, only sent when explicitly chosen
+      if (logLevel) {
+        await api(`/api/devices/${deviceId}/logging-level`, { method: 'POST', body: { level: logLevel } });
+      }
       onSaved();
     } catch (err: any) { setError(err.message); }
     finally { setBusy(false); }
@@ -153,6 +158,19 @@ function DeviceSettingsModal({ deviceId, sites, current, onClose, onSaved }: {
       <Field label="Location">
         <input className={inputCls} value={location} onChange={e => setLocation(e.target.value)}
                placeholder="e.g. IDF-2, rack 4" />
+      </Field>
+      <Field label="Syslog level (pushed to the switch)">
+        <select className={inputCls} value={logLevel} onChange={e => setLogLevel(e.target.value)}>
+          <option value="">Leave unchanged</option>
+          <option value="emergencies">0 - emergencies</option>
+          <option value="alerts">1 - alerts</option>
+          <option value="critical">2 - critical</option>
+          <option value="errors">3 - errors</option>
+          <option value="warnings">4 - warnings</option>
+          <option value="notifications">5 - notifications</option>
+          <option value="informational">6 - informational (default)</option>
+          <option value="debugging">7 - debugging</option>
+        </select>
       </Field>
       {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
       <div className="flex justify-end gap-2">
