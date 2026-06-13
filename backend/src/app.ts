@@ -125,7 +125,7 @@ export async function buildApp(): Promise<FastifyInstance> {
              ${sf.cond ? 'WHERE ' + sf.cond : ''} GROUP BY d.status`, sf.params),
       query(`SELECT a.severity, count(*)::int AS n FROM alerts a
              LEFT JOIN devices d ON d.id = a.device_id
-             WHERE a.resolved_at IS NULL ${sf.cond ? 'AND ' + sf.cond : ''}
+             WHERE a.resolved_at IS NULL AND a.acknowledged = false ${sf.cond ? 'AND ' + sf.cond : ''}
              GROUP BY a.severity`, sf.params),
       // jobs are fleet-level objects - never site-scoped
       query(`SELECT status, count(*)::int AS n FROM jobs WHERE created_at > now() - interval '7 days' GROUP BY status`)

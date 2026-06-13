@@ -6,6 +6,12 @@ import { commandsForFamily } from '../cisco/capabilities.js';
 import { parseShowVersion } from '../cisco/parsers.js';
 import { raiseAlert } from './alertService.js';
 
+/** Compare IOS versions ignoring punctuation: "15.2(7)E14" == "15.2.7E14". */
+export function sameVersion(a: string, b: string): boolean {
+  const norm = (s: string) => (s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return norm(a) === norm(b);
+}
+
 /** Poll until the device accepts SSH again. Returns the running version, or null on timeout. */
 async function waitForReboot(target: SshTarget, timeoutMs: number): Promise<string | null> {
   const deadline = Date.now() + timeoutMs;
@@ -139,7 +145,7 @@ export async function upgradeFirmware(
       log.push(`device back online running ${runningVersion}`);
       await query(`UPDATE devices SET ios_version=$1, status='online', last_seen_at=now() WHERE id=$2`,
         [runningVersion, deviceId]).catch(() => {});
-      if (runningVersion === image.version) {
+      if (sameVersion(runningVersion, image.version)) {
         await raiseAlert(deviceId, 'firmware_upgrade_done', 'info',
           `${device.hostname} upgraded to ${image.version} and is back online`).catch(() => {});
       } else {
@@ -159,7 +165,9 @@ export async function complianceReport(): Promise<any[]> {
   const { rows } = await query(
     `SELECT d.id, d.hostname, d.family, d.model, d.ios_version,
             fc.target_version,
-            (fc.target_version IS NOT NULL AND d.ios_version = fc.target_version) AS compliant
+            (fc.target_version IS NOT NULL AND
+             lower(regexp_replace(d.ios_version, '[^a-zA-Z0-9]', '', 'g')) =
+             lower(regexp_replace(fc.target_version, '[^a-zA-Z0-9]', '', 'g'))) AS compliant
      FROM devices d LEFT JOIN firmware_compliance fc ON fc.family = d.family
      ORDER BY d.hostname`);
   return rows;

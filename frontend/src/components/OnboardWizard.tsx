@@ -171,18 +171,17 @@ export default function OnboardWizard({ sites, onClose }: { sites: any[]; onClos
                 ' Warning: no other privilege-15 account exists. Create a break-glass admin so you cannot be locked out.'}
             </div>
           ) : analysis.spAdminExists ? (
-            <label className="mb-3 flex cursor-pointer items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3">
-              <input type="checkbox" className="mt-0.5 rounded border-amber-300"
-                     checked={createAccount} onChange={e => setCreateAccount(e.target.checked)} />
+            <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <input type="checkbox" className="mt-0.5 rounded border-amber-300" checked={false} disabled />
               <span className="text-sm">
                 <span className="font-medium text-amber-800">SPAdmin already exists on this switch</span>
                 <span className="mt-0.5 block text-xs text-amber-700">
-                  Best option: go back and onboard with the SPAdmin credentials directly. Checking this
-                  box instead RESETS its password to a new random one (the old password stops working)
-                  and uses that. Leaving it unchecked onboards with the "{form.username}" account.
+                  Account creation is disabled so its password isn't reset out from under you.
+                  Onboard with the "{form.username}" account (used as-is), or go back and enter the
+                  existing SPAdmin credentials directly to manage as SPAdmin.
                 </span>
               </span>
-            </label>
+            </div>
           ) : (
             <label className="mb-3 flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
               <input type="checkbox" className="mt-0.5 rounded border-slate-300"

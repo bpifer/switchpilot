@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { useApiQuery } from '../hooks/useApiQuery';
+import { useSiteScope, scoped } from '../context/SiteContext';
 import { PageHeader, Card, Button } from '../components/ui';
 
 interface Suggestion { neighbor_name: string; neighbor_ip: string; neighbor_platform: string; protocol: string; seen_by_hostname: string; seen_by_ip: string; }
@@ -18,8 +19,9 @@ export default function Discovery() {
   const [importing, setImporting] = useState(false);
   const [importResults, setImportResults] = useState<ImportResult[] | null>(null);
 
+  const { siteId } = useSiteScope();
   const { data: suggestions = [], isLoading: loadingSugg, refetch: loadSuggestions } =
-    useApiQuery<Suggestion[]>('/api/discovery/suggest', { enabled: tab === 'suggest' });
+    useApiQuery<Suggestion[]>(scoped('/api/discovery/suggest', siteId), { enabled: tab === 'suggest' });
 
   async function runImport() {
     setImporting(true); setImportResults(null);

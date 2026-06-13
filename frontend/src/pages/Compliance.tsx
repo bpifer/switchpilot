@@ -189,6 +189,7 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
   const [busy, setBusy] = useState('');
   const [checking, setChecking] = useState(false);
   const [preview, setPreview] = useState<{ rule: DeviceCheck; lines: any[]; summary: any } | null>(null);
+  const [secretPw, setSecretPw] = useState('');
 
   const load = () => api<DeviceCheck[]>(`/api/compliance/device/${deviceId}`).then(setChecks).catch(() => setChecks([]));
   useEffect(() => { load(); }, []);
@@ -197,6 +198,19 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
     setBusy(ruleId);
     try { await api('/api/compliance/remediate', { method: 'POST', body: { deviceId, ruleId } }); await load(); onChanged(); setPreview(null); }
     catch (err: any) { alert(err.message); }
+    finally { setBusy(''); }
+  }
+
+  // Special remediation: generate + push an enable secret, store it on the
+  // device credential, and reveal the generated value once.
+  async function setEnableSecret() {
+    if (!confirm('Generate a strong enable secret, push it to the switch, and store it in this device\'s credential profile?')) return;
+    setBusy('enable-secret');
+    try {
+      const r = await api(`/api/devices/${deviceId}/remediate/enable-secret`, { method: 'POST' });
+      if (r.password) setSecretPw(r.password);
+      await load(); onChanged();
+    } catch (err: any) { alert(err.message); }
     finally { setBusy(''); }
   }
 
@@ -233,6 +247,19 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
           {checking ? 'Checking…' : 'Check now'}
         </Button>
       </div>
+
+      {secretPw && (
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <div className="text-sm font-medium text-amber-800">Enable secret set (shown once)</div>
+          <div className="mt-1 text-xs text-amber-700">Saved to this switch's credential profile. Keep a copy as backup.</div>
+          <div className="mt-2 flex items-center gap-2">
+            <code className="flex-1 rounded bg-white px-3 py-2 font-mono text-sm ring-1 ring-amber-200">{secretPw}</code>
+            <Button variant="secondary" onClick={() => navigator.clipboard.writeText(secretPw)}>Copy</Button>
+            <Button variant="secondary" onClick={() => setSecretPw('')}>Dismiss</Button>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-2">
         {checks.map(c => (
           <div key={c.rule_id} className={`rounded-lg border p-2.5 ${
@@ -265,6 +292,13 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
                 </Button>
                 <Button variant="secondary" onClick={() => remediate(c.rule_id)} disabled={busy === c.rule_id}>
                   {busy === c.rule_id ? 'Remediating…' : 'Remediate'}
+                </Button>
+              </div>
+            )}
+            {canEdit && c.passed === false && /enable secret/i.test(c.name) && (
+              <div className="mt-2 flex justify-end">
+                <Button variant="secondary" onClick={setEnableSecret} disabled={busy === 'enable-secret'}>
+                  {busy === 'enable-secret' ? 'Setting…' : 'Set enable secret'}
                 </Button>
               </div>
             )}

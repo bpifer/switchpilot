@@ -4,6 +4,9 @@ import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
 import { evaluateAllCompliance, evaluateDevice, remediate } from '../services/complianceService.js';
 import { backupDevice } from '../services/configService.js';
+import { devicePushConfig } from '../services/deviceComms.js';
+import { encryptSecret } from '../crypto/secrets.js';
+import { randomBytes } from 'node:crypto';
 import { siteFilter } from './util.js';
 
 export default async function complianceRoutes(app: FastifyInstance) {
@@ -170,6 +173,47 @@ export default async function complianceRoutes(app: FastifyInstance) {
       const output = await remediate(deviceId, ruleId, me.username);
       await audit(me.username, 'compliance.remediate', deviceId, { ruleId }, req.ip);
       return { ok: true, output };
+    } catch (err: any) {
+      return reply.code(400).send({ error: err.message });
+    }
+  });
+
+  // ----- Set the enable secret and store it on the device's credential -----
+  // The "Enable secret" rule has no generic remediation because it needs a
+  // password and must be saved into the stored credential so future SSH
+  // enable() steps still work. Generates a strong secret unless one is given.
+  app.post('/api/devices/:id/remediate/enable-secret', {
+    preHandler: requireRole('netadmin'),
+    schema: {
+      tags: ['compliance'],
+      body: { type: 'object', properties: { password: { type: 'string', minLength: 4, maxLength: 64 } } }
+    }
+  }, async (req, reply) => {
+    const { id } = req.params as any;
+    const me = req.user as any;
+    const provided = (req.body as any)?.password as string | undefined;
+    const password = provided || randomBytes(12).toString('base64url'); // ~16 url-safe chars
+    // restrict to characters that are safe in an IOS config line
+    if (!/^[\w.@!%*+=:-]{4,64}$/.test(password)) {
+      return reply.code(400).send({ error: 'Password may only contain letters, digits, and . @ ! % * + = : - _' });
+    }
+    const dev = await query('SELECT credential_id FROM devices WHERE id=$1', [id]);
+    if (!dev.rows[0]) return reply.code(404).send({ error: 'Device not found' });
+
+    try {
+      await backupDevice(id, me.username, { reason: 'pre-remediation: enable secret' });
+      const output = await devicePushConfig(id, [`enable secret ${password}`], true);
+      // Store so future connections can still enter privileged mode
+      if (dev.rows[0].credential_id) {
+        await query('UPDATE credentials SET enable_password_enc=$1 WHERE id=$2',
+          [encryptSecret(password), dev.rows[0].credential_id]);
+      }
+      await backupDevice(id, me.username, { reason: 'post-remediation: enable secret' });
+      await evaluateDevice(id);
+      await audit(me.username, 'device.enable_secret.set', id, { generated: !provided }, req.ip);
+      // Return the generated secret once so the operator can record it; never
+      // echo back a password the operator supplied themselves.
+      return { ok: true, password: provided ? null : password, output };
     } catch (err: any) {
       return reply.code(400).send({ error: err.message });
     }

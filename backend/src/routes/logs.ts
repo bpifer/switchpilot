@@ -24,17 +24,22 @@ export default async function logRoutes(app: FastifyInstance) {
     const { deviceId, siteId, severity, q, limit } = req.query as any;
     const conds: string[] = [];
     const params: unknown[] = [];
-    if (deviceId) { params.push(deviceId); conds.push(`l.device_id = $${params.length}`); }
+    // Resolve the device by the stored device_id when present, otherwise by
+    // matching the syslog source IP to a device mgmt_ip. This attributes (and
+    // makes filterable) messages whose device_id wasn't captured at ingest.
+    if (deviceId) { params.push(deviceId); conds.push(`d.id = $${params.length}`); }
     const sf = siteFilter(siteId, 'd', params.length + 1);
     if (sf.cond) { conds.push(sf.cond); params.push(...sf.params); }
     if (severity !== undefined) { params.push(severity); conds.push(`(l.severity IS NULL OR l.severity <= $${params.length})`); }
     if (q) { params.push(`%${q}%`); conds.push(`l.message ILIKE $${params.length}`); }
     params.push(limit ?? 200);
     const { rows } = await query(
-      `SELECT l.id, l.device_id, d.hostname, l.source_ip, l.facility, l.severity,
+      `SELECT l.id, d.id AS device_id, d.hostname, l.source_ip, l.facility, l.severity,
               l.message, l.received_at
        FROM syslog_messages l
-       LEFT JOIN devices d ON d.id = l.device_id
+       LEFT JOIN devices d ON (CASE WHEN l.device_id IS NOT NULL
+                                    THEN d.id = l.device_id
+                                    ELSE d.mgmt_ip::text = l.source_ip END)
        ${conds.length ? 'WHERE ' + conds.join(' AND ') : ''}
        ORDER BY l.received_at DESC
        LIMIT $${params.length}`, params);

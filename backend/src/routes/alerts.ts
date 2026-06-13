@@ -22,7 +22,9 @@ export default async function alertRoutes(app: FastifyInstance) {
     const q = req.query as any;
     const conds: string[] = [];
     const params: unknown[] = [];
-    if (q.open !== false) conds.push('a.resolved_at IS NULL');
+    // "open" = needs attention: unresolved AND not yet acknowledged. Acking an
+    // alert clears it from this view (and the bell); it remains under history.
+    if (q.open !== false) conds.push('a.resolved_at IS NULL AND a.acknowledged = false');
     const sf = siteFilter(q.siteId, 'd', params.length + 1);
     if (sf.cond) { conds.push(sf.cond); params.push(...sf.params); }
     params.push(Math.min(q.limit ?? 200, 1000));

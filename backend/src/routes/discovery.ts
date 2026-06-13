@@ -2,16 +2,19 @@ import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
+import { siteFilter } from './util.js';
 
 export default async function discoveryRoutes(app: FastifyInstance) {
   /**
    * Suggest new devices from CDP/LLDP neighbor data already collected from managed devices.
-   * Returns neighbors whose IPs are not yet in the devices table.
+   * Returns neighbors whose IPs are not yet in the devices table. Scoped to the
+   * observing device's site when a site is selected.
    */
   app.get('/api/discovery/suggest', {
     preHandler: requireRole('netadmin'),
-    schema: { tags: ['discovery'] }
-  }, async () => {
+    schema: { tags: ['discovery'], querystring: { type: 'object', properties: { siteId: { type: 'string' } } } }
+  }, async (req) => {
+    const sf = siteFilter((req.query as any).siteId, 'd');
     const { rows } = await query(
       `SELECT DISTINCT
          tl.neighbor_name, tl.neighbor_ip, tl.neighbor_platform, tl.protocol,
@@ -19,10 +22,11 @@ export default async function discoveryRoutes(app: FastifyInstance) {
        FROM topology_links tl
        JOIN devices d ON d.id = tl.device_id
        WHERE tl.neighbor_ip != ''
+         ${sf.cond ? 'AND ' + sf.cond : ''}
          AND NOT EXISTS (
            SELECT 1 FROM devices x WHERE x.mgmt_ip::text = tl.neighbor_ip
          )
-       ORDER BY tl.neighbor_ip`);
+       ORDER BY tl.neighbor_ip`, sf.params);
     return rows;
   });
 
