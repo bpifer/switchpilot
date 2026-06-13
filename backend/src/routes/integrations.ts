@@ -4,7 +4,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
-import { fireWebhooks } from '../services/alertService.js';
+import { fireWebhooks, invalidateWebhookCache } from '../services/alertService.js';
 
 export default async function integrationRoutes(app: FastifyInstance) {
   // ----- Webhook subscriptions -----
@@ -35,6 +35,7 @@ export default async function integrationRoutes(app: FastifyInstance) {
       `INSERT INTO webhook_subscriptions (name, url, secret, min_severity, created_by)
        VALUES ($1,$2,$3,$4,$5) RETURNING id, name, url, min_severity, enabled`,
       [b.name, b.url, b.secret ?? '', b.minSeverity ?? 'warning', me.username]);
+    invalidateWebhookCache();
     await audit(me.username, 'webhook.create', b.name, { url: b.url }, req.ip);
     return reply.code(201).send(rows[0]);
   });
@@ -67,6 +68,7 @@ export default async function integrationRoutes(app: FastifyInstance) {
     const { rows } = await query(
       `UPDATE webhook_subscriptions SET ${sets.join(', ')} WHERE id=$${params.length} RETURNING id`, params);
     if (!rows[0]) return reply.code(404).send({ error: 'Webhook not found' });
+    invalidateWebhookCache();
     return { ok: true };
   });
 
@@ -74,6 +76,7 @@ export default async function integrationRoutes(app: FastifyInstance) {
     async (req) => {
       const me = req.user as any;
       await query('DELETE FROM webhook_subscriptions WHERE id=$1', [(req.params as any).id]);
+      invalidateWebhookCache();
       await audit(me.username, 'webhook.delete', (req.params as any).id, {}, req.ip);
       return { ok: true };
     });

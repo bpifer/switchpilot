@@ -4,6 +4,7 @@ import {
   Legend, ResponsiveContainer
 } from 'recharts';
 import { useApiQuery } from '../hooks/useApiQuery';
+import { useSiteScope, scoped } from '../context/SiteContext';
 import { PageHeader, Card } from '../components/ui';
 
 type Range = '7d' | '30d' | '90d' | '1y';
@@ -47,8 +48,13 @@ export default function Analytics() {
   const [range, setRange] = useState<Range>('7d');
   const [portName, setPortName] = useState('');
 
-  const { data: devices = [] } = useApiQuery<any[]>('/api/devices');
-  useEffect(() => { if (!deviceId && devices.length > 0) setDeviceId(devices[0].id); }, [devices, deviceId]);
+  const { siteId } = useSiteScope();
+  const { data: devices = [] } = useApiQuery<any[]>(scoped('/api/devices', siteId));
+  // If the selected device falls out of scope, snap back to the first in-scope one
+  useEffect(() => {
+    if (devices.length === 0) return;
+    if (!deviceId || !devices.some(d => d.id === deviceId)) setDeviceId(devices[0].id);
+  }, [devices, deviceId]);
 
   const metric = (m: string) =>
     useApiQuery<any[]>(`/api/analytics/device/${deviceId}?metric=${m}&range=${range}`, { enabled: !!deviceId });

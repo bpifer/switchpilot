@@ -1,5 +1,22 @@
 import { describe, it, expect } from 'vitest';
 import { createHmac } from 'node:crypto';
+import { webhookMatchesSeverity } from '../src/services/alertService.js';
+
+// The min_severity gate is the core behavioral contract of the webhook system.
+describe('webhook severity filtering', () => {
+  it('fires when the alert meets or exceeds the subscription floor', () => {
+    expect(webhookMatchesSeverity('critical', 'warning')).toBe(true);
+    expect(webhookMatchesSeverity('warning', 'warning')).toBe(true);
+    expect(webhookMatchesSeverity('info', 'info')).toBe(true);
+    expect(webhookMatchesSeverity('critical', 'critical')).toBe(true);
+  });
+
+  it('does NOT fire when the alert is below the floor', () => {
+    expect(webhookMatchesSeverity('warning', 'critical')).toBe(false);
+    expect(webhookMatchesSeverity('info', 'warning')).toBe(false);
+    expect(webhookMatchesSeverity('info', 'critical')).toBe(false);
+  });
+});
 
 // The webhook signature scheme is part of the public contract (receivers verify
 // it), so pin it down: sha256 HMAC of the exact JSON body, hex, "sha256=" prefix.

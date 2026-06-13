@@ -7,6 +7,11 @@ import { publishEvent } from '../redis.js';
 export type Severity = 'info' | 'warning' | 'critical';
 const SEV_RANK: Record<Severity, number> = { info: 1, warning: 2, critical: 3 };
 
+/** A subscription fires only when the alert is at least as severe as its floor. */
+export function webhookMatchesSeverity(alert: Severity, min: Severity): boolean {
+  return SEV_RANK[alert] >= SEV_RANK[min];
+}
+
 // Email throttle: at most one email per (device, kind) per hour, so a flapping
 // link doesn't fill an inbox. Per-replica state is fine - alerts dedupe in the
 // DB first, so only the replica that raised the alert sends anything.
@@ -60,12 +65,35 @@ export async function raiseAlert(
     Date.now() - (lastEmail.get(emailKey) ?? 0) > EMAIL_THROTTLE_MS;
   if (shouldEmail) lastEmail.set(emailKey, Date.now());
 
+  // Built-in Teams/Slack senders await (bounded by their own fetch); webhooks
+  // are fire-and-forget so a hung target can't back up the alert pipeline
+  // during a flap storm. Per-webhook errors are handled inside fireWebhooks.
+  fireWebhooks({ event: 'alert', deviceId, hostname, kind, severity, message, ts: new Date().toISOString() })
+    .catch(() => {});
+
   await Promise.allSettled([
     shouldEmail ? sendEmail(title, message) : Promise.resolve(),
     sendTeams(title, message, severity),
-    sendSlack(title, message),
-    fireWebhooks({ event: 'alert', deviceId, hostname, kind, severity, message, ts: new Date().toISOString() })
+    sendSlack(title, message)
   ]);
+}
+
+// 30s cache of the enabled subscription list so a busy alert path (or a system
+// with no webhooks at all) doesn't hit the DB on every single alert.
+let subCache: { rows: any[]; ts: number } | null = null;
+const SUB_CACHE_TTL = 30_000;
+
+/** Drop the subscription cache after any webhook create/update/delete. */
+export function invalidateWebhookCache(): void {
+  subCache = null;
+}
+
+async function getEnabledSubs(): Promise<any[]> {
+  if (subCache && Date.now() - subCache.ts < SUB_CACHE_TTL) return subCache.rows;
+  const { rows } = await query('SELECT * FROM webhook_subscriptions WHERE enabled')
+    .catch(() => ({ rows: [] as any[] }));
+  subCache = { rows, ts: Date.now() };
+  return rows;
 }
 
 /**
@@ -77,11 +105,10 @@ export async function fireWebhooks(payload: {
   event: string; deviceId: string | null; hostname: string;
   kind: string; severity: Severity; message: string; ts: string;
 }): Promise<void> {
-  const { rows: subs } = await query(
-    'SELECT * FROM webhook_subscriptions WHERE enabled').catch(() => ({ rows: [] as any[] }));
+  const subs = await getEnabledSubs();
   const body = JSON.stringify(payload);
   await Promise.allSettled(subs
-    .filter(s => SEV_RANK[payload.severity] >= SEV_RANK[s.min_severity as Severity])
+    .filter(s => webhookMatchesSeverity(payload.severity, s.min_severity as Severity))
     .map(async s => {
       let status: string;
       try {
