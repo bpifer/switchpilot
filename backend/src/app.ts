@@ -45,10 +45,20 @@ import searchRoutes from './routes/search.js';
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true, bodyLimit: 10 * 1024 * 1024 });
 
-  // Refuse to run in production with the built-in development secrets.
+  // Built-in development secrets are fatal in production and a loud warning
+  // everywhere else, so a non-production deployment can't silently ship with
+  // dev-only-secret / the all-zero credential key.
+  const usingDevJwt = config.jwtSecret === 'dev-only-secret';
+  const usingDevKey = config.credentialKey === '00'.repeat(32);
   if (config.nodeEnv === 'production') {
-    if (config.jwtSecret === 'dev-only-secret') throw new Error('JWT_SECRET must be set in production');
-    if (config.credentialKey === '00'.repeat(32)) throw new Error('CREDENTIAL_KEY must be set in production');
+    if (usingDevJwt) throw new Error('JWT_SECRET must be set in production');
+    if (usingDevKey) throw new Error('CREDENTIAL_KEY must be set in production');
+  } else if (usingDevJwt || usingDevKey) {
+    app.log.warn(
+      `INSECURE DEFAULTS IN USE (NODE_ENV=${config.nodeEnv}): ` +
+      `${usingDevJwt ? 'JWT_SECRET=dev-only-secret ' : ''}${usingDevKey ? 'CREDENTIAL_KEY=all-zero ' : ''}` +
+      `- set these before exposing this instance to a real network. ` +
+      `Stored device credentials encrypted with the all-zero key are NOT protected.`);
   }
 
   // Security headers. CSP is disabled here because the API serves JSON + the
