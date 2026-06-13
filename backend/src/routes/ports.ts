@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
-import { devicePushConfig, deviceExec, bouncePort, cableTest } from '../services/deviceComms.js';
+import { devicePushConfig, deviceExec, bouncePort, cableTest, setPortAdmin, pushPortConfig } from '../services/deviceComms.js';
 import { expandInterfaceName, parseMacTable, parseVlanBrief } from '../cisco/parsers.js';
 
 export default async function portRoutes(app: FastifyInstance) {
@@ -57,8 +57,7 @@ export default async function portRoutes(app: FastifyInstance) {
     const { id, port } = req.params as any;
     const { enabled } = req.body as any;
     const me = req.user as any;
-    const iface = expandInterfaceName(port);
-    await devicePushConfig(id, [`interface ${iface}`, enabled ? 'no shutdown' : 'shutdown']);
+    await setPortAdmin(id, port, enabled);
     await query('UPDATE ports SET admin_up=$1 WHERE device_id=$2 AND name=$3', [enabled, id, port]);
     await audit(me.username, enabled ? 'port.enable' : 'port.disable', `${id}/${port}`, {}, req.ip);
     return { ok: true };
@@ -90,26 +89,7 @@ export default async function portRoutes(app: FastifyInstance) {
     const { id, port } = req.params as any;
     const b = req.body as any;
     const me = req.user as any;
-    const iface = expandInterfaceName(port);
-    const lines = [`interface ${iface}`];
-    if (b.description !== undefined) lines.push(b.description ? `description ${b.description}` : 'no description');
-    if (b.mode === 'access') {
-      lines.push('switchport mode access');
-      if (b.vlan) lines.push(`switchport access vlan ${b.vlan}`);
-    } else if (b.mode === 'trunk') {
-      lines.push('switchport mode trunk');
-      if (b.trunkNativeVlan) lines.push(`switchport trunk native vlan ${b.trunkNativeVlan}`);
-      if (b.trunkAllowedVlans) lines.push(`switchport trunk allowed vlan ${b.trunkAllowedVlans}`);
-    } else if (b.vlan) {
-      lines.push(`switchport access vlan ${b.vlan}`);
-    }
-    if (b.voiceVlan !== undefined) lines.push(`switchport voice vlan ${b.voiceVlan}`);
-    if (b.speed) lines.push(`speed ${b.speed}`);
-    if (b.duplex) lines.push(`duplex ${b.duplex}`);
-    if (b.portfast !== undefined) lines.push(b.portfast ? 'spanning-tree portfast' : 'no spanning-tree portfast');
-    if (b.bpduGuard !== undefined) lines.push(b.bpduGuard ? 'spanning-tree bpduguard enable' : 'spanning-tree bpduguard disable');
-    if (b.poeEnabled !== undefined) lines.push(b.poeEnabled ? 'power inline auto' : 'power inline never');
-    const output = await devicePushConfig(id, lines);
+    const output = await pushPortConfig(id, port, b);
     // Mirror the change into the ports table so the UI is correct immediately
     // (the next full refresh re-syncs from the device anyway)
     const sets: string[] = [];

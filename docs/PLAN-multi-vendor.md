@@ -76,7 +76,7 @@ earlier items gate later ones.
 | # | Item | Lift | Status | Notes / depends on |
 |---|---|---|---|---|
 | 0 | `devices.vendor` column (default 'cisco'), surfaced in UI | S | DONE (migration 016) | Foundation - every vendor branch needs it |
-| 1 | Extract `DeviceDriver` seam; wrap Cisco as `ciscoDriver` | L | todo | The gate. Behavior-preserving refactor of monitorService / deviceComms / firmwareService / provisionService / ports to call `driverFor(device)`. Needs full test coverage. Everything RouterOS plugs in here. Worth doing even before owning a MikroTik. |
+| 1 | Extract `DeviceDriver` seam; wrap Cisco as `ciscoDriver` | L | WRITE SURFACE DONE | `backend/src/drivers/` (types/cisco/index) now owns: skipEnable, saveCommand, port admin/config, bounce, cable test, logging trap. deviceComms + ports + configs route through `driverFor(device)`; firmware inherits skipEnable via the target. Remaining: baseline generation (provisionService still pure) and the read-command orchestration in monitorService.refreshDevice (that's #4). |
 | 2 | RouterOS SSH session | M | todo | No enable mode, different prompt, `/command/print`, different paging. Depends on #1. |
 | 3 | RouterOS detection at onboarding | S-M | todo | `/system/resource/print` -> "RouterOS"; set vendor=mikrotik, os=routeros. Depends on #2. |
 | 4 | RouterOS read parsers | M-L | todo | `/system/resource`, `/interface/print detail`, `/interface/bridge/vlan`, `/ip/neighbor`, switch/MAC tables. Key-value output, unlike IOS columns - the bulk of the work. Depends on #1-2. |

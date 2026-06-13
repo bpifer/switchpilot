@@ -4,7 +4,7 @@ import { createTwoFilesPatch } from 'diff';
 import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
-import { deviceExec, devicePushConfig } from '../services/deviceComms.js';
+import { deviceExec, devicePushConfig, setLoggingLevel } from '../services/deviceComms.js';
 import { backupDevice } from '../services/configService.js';
 import { gitLog, gitShow, gitDiff } from '../services/configVersioning.js';
 import { expandInterfaceName } from '../cisco/parsers.js';
@@ -127,7 +127,7 @@ export default async function configRoutes(app: FastifyInstance) {
     const { id } = req.params as any;
     const { level } = req.body as any;
     const me = req.user as any;
-    const output = await devicePushConfig(id, [`logging trap ${level}`], true);
+    const output = await setLoggingLevel(id, level);
     await audit(me.username, 'device.logging_level', id, { level }, req.ip);
     return { ok: true, output };
   });

@@ -6,7 +6,7 @@ import { decryptSecret } from '../crypto/secrets.js';
 import { type SshTarget } from '../cisco/sshClient.js';
 import { withDeviceSession } from '../cisco/sshPool.js';
 import type { SnmpTarget } from '../cisco/snmpClient.js';
-import { expandInterfaceName } from '../cisco/parsers.js';
+import { driverFor, type PortConfigOpts } from '../drivers/index.js';
 
 export interface DeviceRow {
   id: string;
@@ -35,7 +35,7 @@ export async function sshTargetFor(device: DeviceRow): Promise<SshTarget> {
     username: c.ssh_username,
     password: decryptSecret(c.ssh_password_enc),
     enablePassword: decryptSecret(c.enable_password_enc) || undefined,
-    skipEnable: (device.capabilities as any)?.os === 'nxos'
+    skipEnable: driverFor(device).skipEnable
   };
 }
 
@@ -74,45 +74,59 @@ export async function deviceExec(deviceId: string, commands: string[]): Promise<
   });
 }
 
-/** Push configuration lines to a device, optionally saving to startup config. */
-export async function devicePushConfig(
-  deviceId: string,
-  lines: string[],
-  save = true
-): Promise<string> {
-  const device = await getDevice(deviceId);
+/** Push config lines to an already-fetched device, optionally saving. */
+async function pushLines(device: DeviceRow, lines: string[], save: boolean): Promise<string> {
   const target = await sshTargetFor(device);
   return withDeviceSession(target, async session => {
     const output = await session.configure(lines);
-    if (save) {
-      const saveCmd = (device.capabilities as any)?.os === 'nxos'
-        ? 'copy running-config startup-config' : 'write memory';
-      await session.saveConfig(saveCmd);
-    }
+    if (save) await session.saveConfig(driverFor(device).saveCommand);
     return output;
   });
 }
 
+/** Push configuration lines to a device, optionally saving to startup config. */
+export async function devicePushConfig(deviceId: string, lines: string[], save = true): Promise<string> {
+  return pushLines(await getDevice(deviceId), lines, save);
+}
+
+/** Enable or disable a port (driver-generated config). */
+export async function setPortAdmin(deviceId: string, portName: string, enabled: boolean): Promise<string> {
+  const device = await getDevice(deviceId);
+  return pushLines(device, driverFor(device).setPortAdmin(portName, enabled), false);
+}
+
+/** Apply a full port configuration (driver-generated config). */
+export async function pushPortConfig(deviceId: string, portName: string, opts: PortConfigOpts): Promise<string> {
+  const device = await getDevice(deviceId);
+  return pushLines(device, driverFor(device).portConfig(portName, opts), true);
+}
+
+/** Set the syslog trap level (driver-generated config). */
+export async function setLoggingLevel(deviceId: string, level: string): Promise<string> {
+  const device = await getDevice(deviceId);
+  return pushLines(device, driverFor(device).loggingTrap(level), true);
+}
+
 /** Administratively bounce a port (shutdown / no shutdown). */
 export async function bouncePort(deviceId: string, portName: string): Promise<string> {
-  const iface = expandInterfaceName(portName);
   const device = await getDevice(deviceId);
+  const { down, up } = driverFor(device).bounceLines(portName);
   const target = await sshTargetFor(device);
   return withDeviceSession(target, async session => {
-    await session.configure([`interface ${iface}`, 'shutdown']);
+    await session.configure(down);
     await new Promise(r => setTimeout(r, 3000));
-    return session.configure([`interface ${iface}`, 'no shutdown']);
+    return session.configure(up);
   });
 }
 
 /** Run a TDR cable test on a copper port and return results. */
 export async function cableTest(deviceId: string, portName: string): Promise<string> {
-  const iface = expandInterfaceName(portName);
   const device = await getDevice(deviceId);
+  const { run, show } = driverFor(device).cableTest(portName);
   const target = await sshTargetFor(device);
   return withDeviceSession(target, async session => {
-    await session.exec(`test cable-diagnostics tdr interface ${iface}`);
+    await session.exec(run);
     await new Promise(r => setTimeout(r, 7000)); // TDR takes a few seconds
-    return session.exec(`show cable-diagnostics tdr interface ${iface}`);
+    return session.exec(show);
   });
 }
