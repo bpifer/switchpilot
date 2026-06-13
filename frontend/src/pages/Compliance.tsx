@@ -178,6 +178,7 @@ interface DeviceCheck {
   description: string;
   severity: 'info' | 'warning' | 'critical';
   remediation: string;
+  benchmark: string;
   passed: boolean | null;
   detail: string | null;
   checked_at: string | null;
@@ -192,6 +193,7 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
   const [preview, setPreview] = useState<{ rule: DeviceCheck; lines: any[]; summary: any; warnings: string[] } | null>(null);
   const [secretPw, setSecretPw] = useState('');
   const [enableModal, setEnableModal] = useState(false);
+  const [cisOnly, setCisOnly] = useState(false);
 
   const load = () => api<DeviceCheck[]>(`/api/compliance/device/${deviceId}`).then(setChecks).catch(() => setChecks([]));
   useEffect(() => { load(); }, []);
@@ -238,18 +240,28 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
     finally { setChecking(false); }
   }
 
-  const passedCount = checks.filter(c => c.passed === true).length;
+  const hasCis = checks.some(c => c.benchmark === 'CIS');
+  const shown = cisOnly ? checks.filter(c => c.benchmark === 'CIS') : checks;
+  const passedCount = shown.filter(c => c.passed === true).length;
 
   return (
     <Modal title="Compliance checks" onClose={onClose}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-xs text-slate-500">
-          Checks run against the most recent config backup ({passedCount}/{checks.length} passed).
+          Checks run against the most recent config backup ({passedCount}/{shown.length} passed).
           "Check now" pulls the running config first.
         </p>
-        <Button variant="secondary" onClick={checkNow} disabled={checking}>
-          {checking ? 'Checking…' : 'Check now'}
-        </Button>
+        <div className="flex items-center gap-3">
+          {hasCis && (
+            <label className="flex items-center gap-1.5 text-xs text-slate-600">
+              <input type="checkbox" checked={cisOnly} onChange={e => setCisOnly(e.target.checked)} />
+              CIS only
+            </label>
+          )}
+          <Button variant="secondary" onClick={checkNow} disabled={checking}>
+            {checking ? 'Checking…' : 'Check now'}
+          </Button>
+        </div>
       </div>
 
       {secretPw && (
@@ -265,11 +277,14 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
       )}
 
       <div className="space-y-2">
-        {checks.map(c => (
+        {shown.map(c => (
           <div key={c.rule_id} className={`rounded-lg border p-2.5 ${
             c.passed === false ? 'border-red-200 bg-red-50/50' : c.passed ? 'border-green-200 bg-green-50/30' : 'border-slate-200'}`}>
             <div className="flex items-center gap-2">
               <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${SEV_COLOR[c.severity]}`}>{c.severity}</span>
+              {c.benchmark && (
+                <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 ring-1 ring-indigo-200">{c.benchmark}</span>
+              )}
               <span className="text-sm font-medium text-slate-800">{c.name}</span>
               <span className="ml-auto">
                 {c.passed === null ? (

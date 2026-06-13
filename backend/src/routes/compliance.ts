@@ -114,7 +114,7 @@ export default async function complianceRoutes(app: FastifyInstance) {
          FROM compliance_results res JOIN devices d ON d.id = res.device_id
          ${sf.cond ? 'WHERE ' + sf.cond : ''}`, sf.params);
       const perRule = await query(
-        `SELECT cr.id, cr.name, cr.severity, cr.match_type, cr.pattern,
+        `SELECT cr.id, cr.name, cr.severity, cr.match_type, cr.pattern, cr.benchmark,
                 count(r.*) FILTER (WHERE r.passed)::int AS passed,
                 count(r.*)::int AS total
          FROM compliance_rules cr
@@ -149,7 +149,7 @@ export default async function complianceRoutes(app: FastifyInstance) {
       const { id } = req.params as any;
       const { rows } = await query(
         `SELECT cr.id AS rule_id, cr.name, cr.description, cr.severity, cr.remediation,
-                r.passed, r.detail, r.checked_at
+                cr.benchmark, r.passed, r.detail, r.checked_at
          FROM compliance_rules cr
          LEFT JOIN compliance_results r ON r.rule_id=cr.id AND r.device_id=$1
          WHERE cr.enabled ORDER BY r.passed NULLS FIRST, cr.severity DESC, cr.name`, [id]);

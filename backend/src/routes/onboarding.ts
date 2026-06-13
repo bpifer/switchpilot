@@ -188,7 +188,12 @@ export default async function onboardingRoutes(app: FastifyInstance) {
     await audit(me.username, 'device.onboard', b.mgmtIp,
       { model, account: finalUser, accountCreated: !!generatedPassword, baseline: !!b.applyBaseline }, req.ip);
 
-    refreshDevice(device.id).catch(err => app.log.warn(`initial refresh failed: ${err.message}`));
+    // Run the initial full scan inline so the device page already has ports,
+    // VLANs, neighbors, etc. when the operator opens it. Non-fatal on failure.
+    await refreshDevice(device.id).catch(err => {
+      app.log.warn(`initial refresh failed: ${err.message}`);
+      warnings.push(`initial scan did not complete: ${err.message} - use "Refresh now" on the device.`);
+    });
     if (b.applyBaseline) {
       await provisionDevice(device.id, me.username)
         .catch(err => { warnings.push(`baseline job failed to queue: ${err.message}`); });

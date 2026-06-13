@@ -59,14 +59,14 @@ describe('OnboardWizard', () => {
     expect(screen.getByLabelText(/management ip/i)).toBeInTheDocument();   // still step 1
   });
 
-  it('existing SPAdmin defaults the create-account option OFF with a warning', async () => {
+  it('existing SPAdmin removes the create-account option and confirms it is present', async () => {
     apiMock.mockResolvedValueOnce({ ...ANALYSIS, spAdminExists: true });
     wizard();
     await fillAndAnalyze();
 
-    expect(await screen.findByText(/SPAdmin already exists/i)).toBeInTheDocument();
-    const checkbox = screen.getAllByRole('checkbox')[0];
-    expect(checkbox).not.toBeChecked();
+    expect(await screen.findByText(/SPAdmin account already present/i)).toBeInTheDocument();
+    // the "create dedicated SPAdmin account" option is no longer offered
+    expect(screen.queryByText(/Create dedicated SPAdmin account/i)).not.toBeInTheDocument();
   });
 
   it('completes onboarding and shows the generated password exactly once', async () => {

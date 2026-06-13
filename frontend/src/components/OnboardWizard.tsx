@@ -44,6 +44,10 @@ export default function OnboardWizard({ sites, onClose }: { sites: any[]; onClos
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
 
+  const baselineComplete = !!analysis && analysis.checklist.every(c => c.present);
+  const hasPlatformAccount = !!analysis && (analysis.spAdminExists || analysis.usingPlatformAccount);
+  const requirementsMet = baselineComplete && hasPlatformAccount;
+
   async function analyze() {
     setBusy(true); setError('');
     try {
@@ -69,7 +73,8 @@ export default function OnboardWizard({ sites, onClose }: { sites: any[]; onClos
           mgmtIp: form.mgmtIp.trim(), username: form.username.trim(), password: form.password,
           enablePassword: form.enablePassword || undefined,
           siteId: form.siteId || undefined, location: form.location || undefined,
-          createAccount, applyBaseline
+          createAccount,
+          applyBaseline: baselineComplete ? false : applyBaseline
         }
       });
       setResult(r);
@@ -133,6 +138,13 @@ export default function OnboardWizard({ sites, onClose }: { sites: any[]; onClos
             </div>
           </div>
 
+          {requirementsMet && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-3 py-2.5 text-sm font-medium text-green-800">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-200 text-xs font-bold text-green-800">✓</span>
+              This switch already meets the onboarding requirements.
+            </div>
+          )}
+
           <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Config review</div>
           <div className="mb-4 space-y-1.5">
             {analysis.checklist.map(c => (
@@ -171,11 +183,11 @@ export default function OnboardWizard({ sites, onClose }: { sites: any[]; onClos
                 ' Warning: no other privilege-15 account exists. Create a break-glass admin so you cannot be locked out.'}
             </div>
           ) : analysis.spAdminExists ? (
-            <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3">
-              <input type="checkbox" className="mt-0.5 rounded border-amber-300" checked={false} disabled />
+            <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-green-200 bg-green-50 p-3">
+              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-green-200 text-[10px] font-bold text-green-800">✓</span>
               <span className="text-sm">
-                <span className="font-medium text-amber-800">SPAdmin already exists on this switch</span>
-                <span className="mt-0.5 block text-xs text-amber-700">
+                <span className="font-medium text-green-800">SPAdmin account already present</span>
+                <span className="mt-0.5 block text-xs text-green-700">
                   Account creation is disabled so its password isn't reset out from under you.
                   Onboard with the "{form.username}" account (used as-is), or go back and enter the
                   existing SPAdmin credentials directly to manage as SPAdmin.
@@ -198,22 +210,34 @@ export default function OnboardWizard({ sites, onClose }: { sites: any[]; onClos
             </label>
           )}
 
-          <label className="mb-4 flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-            <input type="checkbox" className="mt-0.5 rounded border-slate-300"
-                   checked={applyBaseline} onChange={e => setApplyBaseline(e.target.checked)} />
-            <span className="text-sm">
-              <span className="font-medium text-slate-700">Apply missing baseline config</span>
-              <span className="mt-0.5 block text-xs text-slate-500">
-                Pushes the items marked missing above as a job (with a pre-change backup).
+          {baselineComplete ? (
+            <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-green-200 bg-green-50 p-3">
+              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-green-200 text-[10px] font-bold text-green-800">✓</span>
+              <span className="text-sm">
+                <span className="font-medium text-green-800">Baseline already applied</span>
+                <span className="mt-0.5 block text-xs text-green-700">
+                  All baseline items are present - nothing to push.
+                </span>
               </span>
-            </span>
-          </label>
+            </div>
+          ) : (
+            <label className="mb-4 flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+              <input type="checkbox" className="mt-0.5 rounded border-slate-300"
+                     checked={applyBaseline} onChange={e => setApplyBaseline(e.target.checked)} />
+              <span className="text-sm">
+                <span className="font-medium text-slate-700">Apply missing baseline config</span>
+                <span className="mt-0.5 block text-xs text-slate-500">
+                  Pushes the items marked missing above as a job (with a pre-change backup).
+                </span>
+              </span>
+            </label>
+          )}
 
           <div className="flex justify-between gap-2">
             <Button variant="secondary" onClick={() => setStep('creds')}>Back</Button>
             <div className="flex gap-2">
               <Button variant="secondary" onClick={onClose}>Cancel</Button>
-              <Button onClick={onboard} disabled={busy}>{busy ? 'Onboarding…' : 'Onboard switch'}</Button>
+              <Button onClick={onboard} disabled={busy}>{busy ? 'Onboarding & scanning…' : 'Onboard switch'}</Button>
             </div>
           </div>
         </>
