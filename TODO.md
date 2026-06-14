@@ -5,11 +5,14 @@ items lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.md).
 
 ## Do next (MikroTik bring-up)
 
-- [ ] **Deploy + onboard the CRS326 and validate end-to-end.** On the LXC:
-      `cd /opt/switchpilot && git pull && docker compose up -d --build`, then
-      onboard `192.168.10.41` (user `admin`, no enable password) via the UI.
-      Confirm: identity (CRS326-24G-2S+, RouterOS 7.12.1), all 26 ports, the
-      MAC-table endpoints, and CPU/temp populate. Paste any error to debug live.
+- [x] **Deploy + onboard the CRS326 and validate end-to-end.** DONE 2026-06-14.
+      Deployed to the LXC (migrations 020/021 applied), onboarded 192.168.10.41
+      via the real API: vendor=mikrotik, 26 ports, 14 clients (OUI-resolved),
+      cpu/mem/temp populated, on-demand refresh 200. Vendor-aware `/export
+      hide-sensitive` backup + compliance both work (MikroTik 5/6, Cisco 15/15).
+      Caught + fixed a cross-vendor leak in the per-device compliance view.
+      Still untested: the baseline provisioning JOB path (onboarded with
+      applyBaseline=false since the baseline was already applied directly).
 - [x] **#6 RouterOS port/VLAN write config.** DONE - `drivers/routeros.ts`
       `portConfig` emits idempotent bridge-VLAN scripts (access + trunk, pvid +
       tagged/untagged membership, derives the bridge from the port). Validated
