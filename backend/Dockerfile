@@ -9,6 +9,8 @@ RUN npm run build && npm prune --omit=dev
 FROM node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
+# git is required for config version history/diff/rollback (alpine has none by default)
+RUN apk add --no-cache git
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY migrations ./migrations
