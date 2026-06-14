@@ -2,10 +2,9 @@
 // "if config drifts, restore baseline", "if CPU > 90%, alert", etc.
 import { query } from '../db.js';
 import { raiseAlert } from './alertService.js';
-import { devicePushConfig } from './deviceComms.js';
+import { devicePushConfig, setPortAdmin } from './deviceComms.js';
 import { checkDrift } from './configService.js';
 import { renderTemplate } from './templateService.js';
-import { expandInterfaceName } from '../cisco/parsers.js';
 
 export interface TriggerContext {
   deviceId: string;
@@ -62,7 +61,8 @@ async function executeRule(rule: any, ctx: TriggerContext): Promise<void> {
 
     case 'disable_port':
       if (!ctx.port) return;
-      await devicePushConfig(ctx.deviceId, [`interface ${expandInterfaceName(ctx.port)}`, 'shutdown'], true);
+      // Vendor-aware: Cisco shutdown vs RouterOS disabled=yes via the driver.
+      await setPortAdmin(ctx.deviceId, ctx.port, false);
       await raiseAlert(ctx.deviceId, `rule:${rule.name}`, 'warning',
         `Automation rule "${rule.name}" disabled port ${ctx.port} on ${hostname}`);
       break;

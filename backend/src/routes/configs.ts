@@ -4,7 +4,8 @@ import { createTwoFilesPatch } from 'diff';
 import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
-import { deviceExec, devicePushConfig, setLoggingLevel } from '../services/deviceComms.js';
+import { deviceExec, devicePushConfig, setLoggingLevel, getDevice } from '../services/deviceComms.js';
+import { driverFor } from '../drivers/index.js';
 import { backupDevice } from '../services/configService.js';
 import { gitLog, gitShow, gitDiff } from '../services/configVersioning.js';
 import { expandInterfaceName } from '../cisco/parsers.js';
@@ -36,7 +37,7 @@ export default async function configRoutes(app: FastifyInstance) {
   }, async (req) => {
     const { id } = req.params as any;
     const { lines } = req.body as { lines: string[] };
-    const out = await deviceExec(id, ['show running-config']);
+    const out = await deviceExec(id, [driverFor(await getDevice(id)).configCommand]);
     const runningLines = (Object.values(out)[0] ?? '').replace(/\r/g, '').split('\n');
     const running = new Set(runningLines.map(l => l.trim()).filter(Boolean));
 
@@ -144,7 +145,9 @@ export default async function configRoutes(app: FastifyInstance) {
     }
   }, async (req) => {
     const { id, kind } = req.params as any;
-    const cmd = kind === 'startup' ? 'show startup-config' : 'show running-config';
+    const drv = driverFor(await getDevice(id));
+    // RouterOS has no separate startup config; its export is the live config.
+    const cmd = (kind === 'startup' && drv.os !== 'routeros') ? 'show startup-config' : drv.configCommand;
     const out = await deviceExec(id, [cmd]);
     return { kind, content: Object.values(out)[0] ?? '' };
   });
@@ -207,7 +210,7 @@ export default async function configRoutes(app: FastifyInstance) {
 
     let bContent: string, bLabel: string;
     if (!to || to === 'live') {
-      const out = await deviceExec(id, ['show running-config']);
+      const out = await deviceExec(id, [driverFor(await getDevice(id)).configCommand]);
       bContent = Object.values(out)[0] ?? '';
       bLabel = 'live running-config';
     } else {
