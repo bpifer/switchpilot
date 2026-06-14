@@ -16,14 +16,32 @@ export interface PortConfigOpts {
   poeEnabled?: boolean;
 }
 
+/** Inputs for the baseline SwitchPilot wants on every managed device. */
+export interface BaselineOpts {
+  snmpVersion?: string | null;
+  snmpCommunity?: string | null;
+  /** Resolved syslog destination host (no port), or null to skip forwarding. */
+  platformHost?: string | null;
+}
+
+export interface BaselinePlan {
+  lines: string[];
+  notes: string[];
+}
+
 export interface DeviceDriver {
   readonly vendor: string;        // 'cisco'
   readonly os: string;            // ios | iosxe | nxos | routeros
 
   /** SSH user already lands at privilege level; skip the enable step. */
   readonly skipEnable: boolean;
-  /** Persist running config to startup. */
+  /** Persist running config to startup. Empty when the OS auto-persists
+   *  (e.g. RouterOS), so callers skip the save step entirely. */
   readonly saveCommand: string;
+
+  /** Config lines (and human notes) for SwitchPilot's baseline: neighbor
+   *  discovery, syslog forwarding, and optional SNMP read community. */
+  baseline(opts: BaselineOpts): BaselinePlan;
 
   /** Config lines to enable/disable a port. */
   setPortAdmin(port: string, enabled: boolean): string[];

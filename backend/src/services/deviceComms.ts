@@ -79,7 +79,9 @@ async function pushLines(device: DeviceRow, lines: string[], save: boolean): Pro
   const target = await sshTargetFor(device);
   return withDeviceSession(target, async session => {
     const output = await session.configure(lines);
-    if (save) await session.saveConfig(driverFor(device).saveCommand);
+    // saveCommand is empty when the OS auto-persists (RouterOS) - skip the step.
+    const saveCommand = driverFor(device).saveCommand;
+    if (save && saveCommand) await session.saveConfig(saveCommand);
     return output;
   });
 }
