@@ -13,11 +13,11 @@ UPDATE compliance_rules
 INSERT INTO compliance_rules (name, description, severity, match_type, pattern, remediation, benchmark, vendor)
 SELECT * FROM (VALUES
   ('SSH idle timeout',
-   'An SSH session idle timeout is configured (CIS 1.5.x).',
+   'An explicit SSH session idle timeout is configured (CIS 1.5.x). The IOS default (120s) is not written to config, so this nudges an explicit value.',
    'info', 'regex_present', '^ip ssh time-out', 'ip ssh time-out 60', 'CIS', 'cisco'),
-  ('SSH auth retries limited',
-   'SSH authentication retries are limited (CIS 1.5.x).',
-   'info', 'regex_present', '^ip ssh authentication-retries', 'ip ssh authentication-retries 3', 'CIS', 'cisco'),
+  -- NOTE: deliberately no "SSH auth-retries" rule. The CIS-recommended value (3)
+  -- is the IOS default and is never written to running-config, so a presence
+  -- check could never pass - it would only generate noise.
   ('Login brute-force protection',
    'Repeated failed logins are throttled (login block-for) (CIS 1.x).',
    'warning', 'regex_present', '^login block-for', 'login block-for 120 attempts 3 within 60', 'CIS', 'cisco'),

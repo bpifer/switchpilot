@@ -19,8 +19,8 @@ SELECT * FROM (VALUES
    'The cleartext HTTP service is disabled; prefer HTTPS (www-ssl) or WinBox.',
    'info', 'regex_present', '^set www .*disabled=yes', '/ip service disable www', 'RouterOS', 'mikrotik'),
   ('Login banner (system note)',
-   'A login banner is shown (system note at login).',
-   'info', 'regex_present', '^set show-at-login=yes',
+   'A login banner note is configured. (show-at-login defaults to yes and is not exported, so the rule checks the note text, which is.)',
+   'info', 'regex_present', '^set note="',
    '/system note set show-at-login=yes note="Authorized access only. Disconnect if you are not authorized."',
    'RouterOS', 'mikrotik')
 ) AS v(name, description, severity, match_type, pattern, remediation, benchmark, vendor)
