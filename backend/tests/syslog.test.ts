@@ -1,5 +1,28 @@
 import { describe, it, expect } from 'vitest';
-import { withinRate } from '../src/services/syslogService.js';
+import { withinRate, PATTERNS } from '../src/services/syslogService.js';
+
+const firstMatch = (text: string) => {
+  for (const p of PATTERNS) { const m = text.match(p.re); if (m) return m; }
+  return null;
+};
+
+describe('syslog pattern matching', () => {
+  it('matches a RouterOS link-down message and extracts the interface', () => {
+    const m = firstMatch('Jun 14 18:00:00 ether5 link down');
+    expect(m?.[1]).toBe('ether5');
+  });
+
+  it('still matches the Cisco LINEPROTO down event', () => {
+    expect(firstMatch('%LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet1/0/1, changed state to down')?.[1])
+      .toBe('GigabitEthernet1/0/1');
+  });
+
+  it('does not raise link-down on a link-up message', () => {
+    // the RouterOS rule is "link down" only; an up message should not match it
+    const m = firstMatch('ether5 link up');
+    expect(m).toBeNull();
+  });
+});
 
 describe('syslog per-source flood guard', () => {
   it('allows up to the cap per source per second, then drops', () => {

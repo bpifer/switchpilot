@@ -4,8 +4,10 @@ import { raiseAlert } from './alertService.js';
 import { runAutomationTrigger } from './automationService.js';
 import { config } from '../config.js';
 
-// IOS/IOS-XE/NX-OS syslog patterns and their platform events
-const PATTERNS: { re: RegExp; handler: (m: RegExpMatchArray, deviceId: string, hostname: string, raw: string) => Promise<void> }[] = [
+// IOS/IOS-XE/NX-OS (and RouterOS) syslog patterns and their platform events.
+// Exported for tests. vendor-neutral: distinct wording keeps vendors from
+// cross-matching.
+export const PATTERNS: { re: RegExp; handler: (m: RegExpMatchArray, deviceId: string, hostname: string, raw: string) => Promise<void> }[] = [
   {
     // Port went down: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet1/0/1, changed state to down
     re: /LINEPROTO-\d+-UPDOWN.*Interface (\S+?),\s*changed state to down/i,
@@ -43,6 +45,14 @@ const PATTERNS: { re: RegExp; handler: (m: RegExpMatchArray, deviceId: string, h
     handler: async (_m, deviceId, hostname, raw) => {
       await raiseAlert(deviceId, 'poe_fault', 'warning',
         `PoE fault on ${hostname}: ${raw.slice(0, 200)}`);
+    }
+  },
+  {
+    // RouterOS interface link down: "ether5 link down" (topic interface,info).
+    // Distinct wording from IOS so it can't match a Cisco message. vendor: mikrotik
+    re: /\b([\w-]+) link down\b/i,
+    handler: async (m, deviceId) => {
+      await runAutomationTrigger('port_down', { deviceId, port: m[1], source: 'syslog' });
     }
   },
 ];
