@@ -84,18 +84,19 @@ earlier items gate later ones.
 | 5 | RouterOS capability model | S-M | DONE | `routeros/capabilities.ts`: board-name -> port counts + PoE/SFP flags. CRS3xx/CSS seeded; data-driven for more. |
 | 6 | RouterOS port/VLAN config (write) | M | DONE (live) | `drivers/routeros.ts` portConfig emits idempotent bridge-VLAN scripts (access/trunk: pvid + tagged/untagged membership, strips the port from other VLANs, derives the bridge from the port) plus comment/speed/duplex/edge/bpdu. Validated on the CRS326 and reverted. Caveat: only enforced once the bridge has vlan-filtering=yes, which is intentionally not auto-toggled (mgmt-lockout risk) - surfacing that warning in the UI is the remaining follow-up. |
 | 7 | RouterOS provisioning baseline | S-M | DONE (driver) | driver.baseline() emits `/ip neighbor discovery-settings`, `/system logging`, `/snmp`; provisionService routes RouterOS through it. Live apply still to confirm end-to-end. |
-| 8 | RouterOS syslog patterns | S | todo | RFC PRI/storage already works; add RouterOS event-topic alert rules. |
-| 9 | RouterOS firmware | M | todo | Package .npk upload + `/system/reboot`, not `copy http` + `verify /md5`. |
-| 10 | Vendor-tagged compliance + RouterOS rule pack | M | todo | Add `compliance_rules.vendor`; best folded into the CIS-pack work to avoid a second migration. |
-| 11 | Onboarding UX for vendor | S | todo | Vendor selector in the wizard; RouterOS admin account via `/user add` replaces the SPAdmin/`username` flow. |
+| 8 | RouterOS syslog patterns | S | DONE | "etherN link down" fires port_down automation (parity with %LINEPROTO-UPDOWN). PATTERNS exported + tested. More RouterOS event topics can be added as observed. |
+| 9 | RouterOS firmware | M | todo | Package .npk upload + `/system/reboot`, not `copy http` + `verify /md5`. Higher risk (reboot) - build/unit-test, do not auto-reboot. |
+| 10 | Vendor-tagged compliance + RouterOS rule pack | M | DONE (live) | complianceService filters rules by device vendor; migration 020 seeds a RouterOS hardening pack; DeviceDriver.configCommand makes backup vendor-aware (`/export hide-sensitive`) and normalizeConfig strips the RouterOS `#` header. Validated against the CRS326. |
+| 11 | Onboarding UX for vendor | S | DONE | OnboardWizard adapts to the analyze `vendor`: RouterOS drops the SPAdmin/account-creation flow and admin-account list, treats the platform-account requirement as N/A. Detection/onboard is automatic (no manual vendor selector needed). |
 
 Milestones:
 - **Read-only MikroTik** = #1 + #2 + #3 + #4 + #5 -> DONE. Onboard + monitor a
   MikroTik (identity, ports, MAC-table clients, neighbors, cpu/mem/temp).
-  Validated against a CRS326-24G-2S+ on RouterOS 7.12.1.
-- **Manage MikroTik** = #6 (port/VLAN write) + #8 + #11. #7 baseline done at the
-  driver level.
-- **Polish** = #10 + MikroTik lifecycle data.
+- **Manage MikroTik** = #6 + #7 + #8 + #11 -> DONE. Port/VLAN write, baseline,
+  link-down alerts, vendor-aware onboarding. Plus #10 compliance.
+  All validated against a CRS326-24G-2S+ on RouterOS 7.12.1.
+- **Remaining** = #9 firmware (.npk), end-to-end baseline-apply confirmation,
+  and MikroTik lifecycle data.
 
 Test box: CRS326-24G-2S+ at 192.168.10.41 (RouterOS 7.12.1), reachable from the
 dev machine via plink/ssh2.
