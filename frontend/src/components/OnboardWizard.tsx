@@ -14,6 +14,7 @@ interface Analysis {
   usingPlatformAccount: boolean;
   spAdminExists: boolean;
   otherAdmins: string[];
+  vendor?: string;   // 'cisco' | 'mikrotik'
 }
 
 interface OnboardResult {
@@ -44,8 +45,11 @@ export default function OnboardWizard({ sites, onClose }: { sites: any[]; onClos
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
 
+  const isMikrotik = analysis?.vendor === 'mikrotik';
   const baselineComplete = !!analysis && analysis.checklist.every(c => c.present);
-  const hasPlatformAccount = !!analysis && (analysis.spAdminExists || analysis.usingPlatformAccount);
+  // RouterOS has no SPAdmin/privilege-15 account concept; onboarding uses the
+  // supplied admin account as-is, so the account requirement is N/A.
+  const hasPlatformAccount = !!analysis && (isMikrotik || analysis.spAdminExists || analysis.usingPlatformAccount);
   const requirementsMet = baselineComplete && hasPlatformAccount;
 
   async function analyze() {
@@ -58,7 +62,8 @@ export default function OnboardWizard({ sites, onClose }: { sites: any[]; onClos
       setAnalysis(a);
       // Don't offer to (re)create SPAdmin when it already exists - creating it
       // again would overwrite its password out from under whoever holds it.
-      if (a.usingPlatformAccount || a.spAdminExists) setCreateAccount(false);
+      // RouterOS has no such account flow, so never offer it there.
+      if (a.vendor === 'mikrotik' || a.usingPlatformAccount || a.spAdminExists) setCreateAccount(false);
       setStep('review');
     } catch (err: any) { setError(err.message); }
     finally { setBusy(false); }
@@ -165,6 +170,13 @@ export default function OnboardWizard({ sites, onClose }: { sites: any[]; onClos
             ))}
           </div>
 
+          {isMikrotik ? (
+            <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+              RouterOS device - SwitchPilot will manage it with the "{form.username}" account you provided.
+              There is no separate platform account to create.
+            </div>
+          ) : (
+          <>
           <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Admin accounts</div>
           <div className="mb-4 flex flex-wrap gap-1.5">
             {analysis.users.map(u => (
@@ -208,6 +220,8 @@ export default function OnboardWizard({ sites, onClose }: { sites: any[]; onClos
                 </span>
               </span>
             </label>
+          )}
+          </>
           )}
 
           {baselineComplete ? (
