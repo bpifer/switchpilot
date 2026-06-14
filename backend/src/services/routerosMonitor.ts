@@ -135,3 +135,21 @@ export async function refreshRouterOsDevice(deviceId: string): Promise<void> {
 export function isMikrotik(device: Pick<DeviceRow, 'capabilities'> & { vendor?: string }): boolean {
   return device.vendor === 'mikrotik' || (device.capabilities as any)?.os === 'routeros';
 }
+
+/**
+ * Whether the port's bridge enforces VLANs. RouterOS VLAN assignments are inert
+ * until the bridge has vlan-filtering=yes, so the UI warns when it is off.
+ * Returns true/false for MikroTik devices, or null when not applicable.
+ */
+export async function bridgeVlanFiltering(deviceId: string, port: string): Promise<boolean | null> {
+  const device = await getDevice(deviceId);
+  if (!isMikrotik(device)) return null;
+  const safe = port.replace(/[^\w+\-]/g, '');
+  if (!safe) return null;
+  const target = await sshTargetFor(device);
+  return withDeviceSession(target, async session => {
+    const out = await session.exec(
+      `:local br [/interface bridge port get [find interface=${safe}] bridge]; :put [/interface bridge get $br vlan-filtering]`);
+    return /true/i.test(out);
+  });
+}

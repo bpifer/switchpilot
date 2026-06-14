@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
 import { devicePushConfig, deviceExec, bouncePort, cableTest, setPortAdmin, pushPortConfig } from '../services/deviceComms.js';
+import { bridgeVlanFiltering } from '../services/routerosMonitor.js';
 import { expandInterfaceName, parseMacTable, parseVlanBrief } from '../cisco/parsers.js';
 
 export default async function portRoutes(app: FastifyInstance) {
@@ -102,8 +103,17 @@ export default async function portRoutes(app: FastifyInstance) {
       await query(`UPDATE ports SET ${sets.join(', ')}, updated_at=now()
                    WHERE device_id=$${params.length - 1} AND name=$${params.length}`, params);
     }
+    // RouterOS: a VLAN assignment is inert until the bridge enforces VLANs.
+    let warning: string | undefined;
+    if (b.mode === 'trunk' || b.vlan !== undefined) {
+      const filtering = await bridgeVlanFiltering(id, port).catch(() => null);
+      if (filtering === false) {
+        warning = 'VLAN saved, but this bridge has vlan-filtering disabled, so the VLAN is not enforced yet. ' +
+          'Enable bridge vlan-filtering to activate it - do this carefully, as it can interrupt management on a live bridge.';
+      }
+    }
     await audit(me.username, 'port.config', `${id}/${port}`, b, req.ip);
-    return { ok: true, output };
+    return { ok: true, output, warning };
   });
 
   // Bounce (shutdown / no shutdown)

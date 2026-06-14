@@ -138,8 +138,10 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
           busy={busy === 'cfg'}
           onClose={() => setEditVlan(false)}
           onApply={body => action('cfg', async () => {
-            await api(`/api/devices/${deviceId}/ports/${portPath}/config`, { method: 'POST', body });
+            const r = await api<{ warning?: string }>(`/api/devices/${deviceId}/ports/${portPath}/config`, { method: 'POST', body });
             setEditVlan(false);
+            // Surface the RouterOS vlan-filtering caveat (staged-but-not-enforced).
+            return r?.warning ? { result: `Note: ${r.warning}` } : undefined;
           })}
         />
       )}

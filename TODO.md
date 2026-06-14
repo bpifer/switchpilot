@@ -14,30 +14,27 @@ items lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.md).
       `portConfig` emits idempotent bridge-VLAN scripts (access + trunk, pvid +
       tagged/untagged membership, derives the bridge from the port). Validated
       end-to-end on the CRS326 (ether1) and reverted. Caveat below.
-- [ ] **Surface the vlan-filtering caveat in the UI.** RouterOS VLAN assignments
-      only take effect once the bridge has `vlan-filtering=yes`, which the driver
-      intentionally does NOT toggle (it can cut management). When a user sets a
-      VLAN on a RouterOS device whose bridge has filtering off, the port-config
-      flow should warn that it is staged-but-not-enforced. Needs reading bridge
-      state in `deviceComms`/`ports` route for MikroTik devices.
-- [ ] **#11 Onboarding wizard wording is Cisco-centric.** For a RouterOS device
-      the wizard still references the SPAdmin/privilege-15 account and enable
-      password. Functionally safe (backend ignores account creation for
-      MikroTik), but the copy should adapt to vendor. `frontend/.../OnboardWizard.tsx`.
+- [x] **Surface the vlan-filtering caveat in the UI.** DONE - the port-config
+      response carries a `warning` when a VLAN is set on a RouterOS port whose
+      bridge has `vlan-filtering=off`; PortsTab shows it. (`bridgeVlanFiltering`
+      in routerosMonitor, wired through routes/ports.ts.)
+- [x] **#11 Onboarding wizard wording.** DONE - OnboardWizard adapts to the
+      analyze `vendor`: RouterOS drops the SPAdmin/account flow and account list.
 
 ## MikroTik backlog (later)
 
-- [ ] **#8 RouterOS syslog alert rules.** RFC syslog ingest already works; add
-      RouterOS event-topic patterns so its log lines raise the right alerts.
+- [x] **#8 RouterOS syslog alert rules.** DONE - "etherN link down" fires the
+      port_down automation (parity with Cisco %LINEPROTO-UPDOWN). More RouterOS
+      event patterns can be added as observed.
 - [ ] **#9 RouterOS firmware.** Package `.npk` upload + `/system/reboot`, not
-      `copy http` + `verify /md5`. Driver firmware methods + UI.
-- [ ] **#10 Vendor-tagged compliance + RouterOS rule pack.** `compliance_rules`
-      already has a `vendor` column; add a RouterOS rule pack.
+      `copy http` + `verify /md5`. Driver firmware methods + UI. (Higher risk -
+      reboots the switch; build + unit-test, do not auto-reboot.)
+- [x] **#10 Vendor-tagged compliance + RouterOS rule pack.** DONE - compliance
+      filters by vendor; migration 020 adds a RouterOS hardening pack; config
+      backup uses `/export hide-sensitive`. Validated on the CRS326.
 - [ ] Confirm the RouterOS **baseline apply** end-to-end (driver emits the
       commands; not yet run against the live box through a provisioning job).
 
 ## Smaller follow-ups
 
 - [ ] PoE drill-down is in; consider a reverse link (device metrics -> PoE).
-- [ ] `ICONS.poe` / `ICONS.locate` in `App.tsx` are now unused after the PoE
-      merge and Locate fold-in; remove if tidying.
