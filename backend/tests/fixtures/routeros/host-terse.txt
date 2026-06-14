@@ -1,0 +1,12 @@
+ 0 D E mac-address=00:11:32:33:73:F5 interface=ether24 bridge=bridgeLocal on-interface=ether24
+ 1 D E mac-address=00:11:32:33:73:F8 interface=ether24 bridge=bridgeLocal on-interface=ether24
+ 2 D E mac-address=10:70:FD:96:0B:E4 interface=ether24 bridge=bridgeLocal on-interface=ether24
+ 3 DL  mac-address=18:FD:74:6D:40:76 interface=bridgeLocal bridge=bridgeLocal on-interface=bridgeLocal
+ 4 DL  mac-address=18:FD:74:6D:40:8D interface=ether24 bridge=bridgeLocal on-interface=ether24
+ 5 D E mac-address=78:45:58:86:68:7E interface=ether24 bridge=bridgeLocal on-interface=ether24
+ 6 D E mac-address=AC:8B:A9:BC:5E:15 interface=ether24 bridge=bridgeLocal on-interface=ether24
+ 7 D E mac-address=BC:24:11:00:24:61 interface=ether24 bridge=bridgeLocal on-interface=ether24
+ 8 D E mac-address=BC:24:11:0C:DA:77 interface=ether24 bridge=bridgeLocal on-interface=ether24
+ 9 D E mac-address=BC:24:11:8B:C2:6C interface=ether24 bridge=bridgeLocal on-interface=ether24
+10 D E mac-address=D0:21:F9:44:92:67 interface=ether24 bridge=bridgeLocal on-interface=ether24
+11 D E mac-address=D4:A2:CD:40:1D:64 interface=ether24 bridge=bridgeLocal on-interface=ether24

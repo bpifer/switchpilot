@@ -1,0 +1,6 @@
+ 0  S name=ether1 default-name=ether1 type=ether mtu=1500 actual-mtu=1500 l2mtu=1592 max-l2mtu=10218 mac-address=18:FD:74:6D:40:76 ifname=eth0 ifindex=7 id=1 link-downs=0
+ 1  S name=ether2 default-name=ether2 type=ether mtu=1500 actual-mtu=1500 l2mtu=1592 max-l2mtu=10218 mac-address=18:FD:74:6D:40:77 ifname=eth1 ifindex=8 id=2 link-downs=0
+23 RS name=ether24 default-name=ether24 type=ether mtu=1500 actual-mtu=1500 l2mtu=1592 max-l2mtu=10218 mac-address=18:FD:74:6D:40:8D ifname=eth23 ifindex=30 id=24 last-link-up-time=2026-06-14 08:38:41 link-downs=0
+24  S name=sfp-sfpplus1 default-name=sfp-sfpplus1 type=ether mtu=1500 actual-mtu=1500 l2mtu=1592 max-l2mtu=10218 mac-address=18:FD:74:6D:40:8E ifname=eth24 ifindex=31 id=25 link-downs=0
+25  S name=sfp-sfpplus2 default-name=sfp-sfpplus2 type=ether mtu=1500 actual-mtu=1500 l2mtu=1592 max-l2mtu=10218 mac-address=18:FD:74:6D:40:8F ifname=eth25 ifindex=32 id=26 link-downs=0
+26 R  comment=defconf name=bridgeLocal type=bridge mtu=auto actual-mtu=1500 l2mtu=1592 mac-address=18:FD:74:6D:40:76 ifname=br0 ifindex=33 id=27 last-link-up-time=2026-06-14 08:38:43 link-downs=0

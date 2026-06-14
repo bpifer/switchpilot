@@ -1,0 +1,3 @@
+Columns: NAME, VALUE, TYPE
+#  NAME             VALUE  TYPE
+0  cpu-temperature     56  C

@@ -1,0 +1,8 @@
+       routerboard: yes
+             model: CRS326-24G-2S+
+          revision: r2
+     serial-number: HCX08CX227Y
+     firmware-type: dx3230L
+  factory-firmware: 6.48.6
+  current-firmware: 6.48.6
+  upgrade-firmware: 7.12.1
