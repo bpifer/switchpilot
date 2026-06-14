@@ -35,11 +35,21 @@ items lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.md).
 - [x] **#10 Vendor-tagged compliance + RouterOS rule pack.** DONE - compliance
       filters by vendor; migration 020 adds a RouterOS hardening pack; config
       backup uses `/export hide-sensitive`. Validated on the CRS326.
-- [~] Confirm the RouterOS **baseline apply** end-to-end. Commands validated
-      live against the CRS326 (discovery-settings=all + remote logging action
-      created, applied via the driver + RouterOS session). Still untested is the
-      full provisioning-JOB path (queue -> worker -> push); confirm on deploy.
+- [x] Confirm the RouterOS **baseline apply** end-to-end. DONE - ran
+      `POST /api/devices/:id/provision` on the deployed platform; the config_push
+      job completed (queue -> worker -> push) and applied discovery + per-topic
+      logging rules. Syslog now flows: info + warning messages arrive and are
+      attributed to the device on the Logs page.
 
 ## Smaller follow-ups
 
+- [ ] **RouterOS syslog severity is null.** The platform's `<PRI>` parser does
+      not extract severity from RouterOS's remote-log format (action has
+      bsd-syslog=no). Cosmetic (messages still show; link-down alerting matches
+      on text), but consider bsd-syslog=yes in the baseline action so the
+      RFC3164 PRI parses, or teach syslogService to read RouterOS topic tags.
+- [ ] **RouterOS per-port live MAC + bridge-VLAN list are Cisco-only.**
+      GET /api/devices/:id/ports/:port/macs and /vlans run `show ...` and return
+      [] for RouterOS (graceful, no crash). Make them vendor-aware (bridge host
+      table per interface; `/interface bridge vlan`) for parity.
 - [ ] PoE drill-down is in; consider a reverse link (device metrics -> PoE).
