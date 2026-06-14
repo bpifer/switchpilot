@@ -147,12 +147,15 @@ export default async function complianceRoutes(app: FastifyInstance) {
   app.get('/api/compliance/device/:id', { preHandler: requireRole('readonly'), schema: { tags: ['compliance'] } },
     async (req) => {
       const { id } = req.params as any;
+      // Only this device's vendor's rules apply; otherwise other-vendor rules
+      // come back unevaluated (passed NULL) and render as failures.
       const { rows } = await query(
         `SELECT cr.id AS rule_id, cr.name, cr.description, cr.severity, cr.remediation,
                 cr.benchmark, r.passed, r.detail, r.checked_at
          FROM compliance_rules cr
          LEFT JOIN compliance_results r ON r.rule_id=cr.id AND r.device_id=$1
-         WHERE cr.enabled ORDER BY r.passed NULLS FIRST, cr.severity DESC, cr.name`, [id]);
+         WHERE cr.enabled AND cr.vendor = COALESCE((SELECT vendor FROM devices WHERE id=$1), 'cisco')
+         ORDER BY r.passed NULLS FIRST, cr.severity DESC, cr.name`, [id]);
       return rows;
     });
 
