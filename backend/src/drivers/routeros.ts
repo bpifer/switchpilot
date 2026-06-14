@@ -122,8 +122,9 @@ export function routerosDriver(): DeviceDriver {
       if (o.platformHost) {
         lines.push(
           // Create-or-update the remote action idempotently (re-applying baseline
-          // must not fail on a duplicate name).
-          `:local a [/system/logging/action/find name=switchpilot]; :if ([:len $a]=0) do={/system/logging/action/add name=switchpilot target=remote remote=${o.platformHost} remote-port=514} else={/system/logging/action/set $a remote=${o.platformHost} remote-port=514}`,
+          // must not fail on a duplicate name). bsd-syslog=yes sends an RFC3164
+          // <PRI> so the platform can parse severity/facility.
+          `:local a [/system/logging/action/find name=switchpilot]; :if ([:len $a]=0) do={/system/logging/action/add name=switchpilot target=remote remote=${o.platformHost} remote-port=514 bsd-syslog=yes} else={/system/logging/action/set $a remote=${o.platformHost} remote-port=514 bsd-syslog=yes}`,
           ...loggingRules(TOPICS_FOR_LEVEL.informational)
         );
         notes.push(`syslog forwarding to ${o.platformHost} (UDP 514): real-time link/config alerts`);

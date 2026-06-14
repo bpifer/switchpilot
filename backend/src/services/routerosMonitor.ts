@@ -9,7 +9,7 @@ import { withDeviceSession } from '../cisco/sshPool.js';
 import { lookupVendor } from '../cisco/oui.js';
 import {
   parseResource, parseCpuLoad, parseHealth, parseInterfaces, parseBridgeHosts,
-  parseNeighbors, parseEthernetMonitor,
+  parseNeighbors, parseEthernetMonitor, parseTerse,
 } from '../routeros/parsers.js';
 import { detectRouterOs } from '../routeros/detector.js';
 import { resolveRosCapabilities } from '../routeros/capabilities.js';
@@ -134,6 +134,46 @@ export async function refreshRouterOsDevice(deviceId: string): Promise<void> {
 /** True when a device should use the RouterOS refresh path. */
 export function isMikrotik(device: Pick<DeviceRow, 'capabilities'> & { vendor?: string }): boolean {
   return device.vendor === 'mikrotik' || (device.capabilities as any)?.os === 'routeros';
+}
+
+const safePort = (port: string) => port.replace(/[^\w+\-]/g, '');
+
+/** Live MAC table for one RouterOS port (bridge host entries on that interface). */
+export async function routerOsPortMacs(deviceId: string, port: string): Promise<{ mac: string; vlan: number; port: string; type: string }[]> {
+  const p = safePort(port);
+  if (!p) return [];
+  const target = await sshTargetFor(await getDevice(deviceId));
+  return withDeviceSession(target, async session => {
+    const out = await session.exec(`/interface bridge host print terse where on-interface=${p}`);
+    return parseBridgeHosts(out)
+      .filter(h => !h.local)
+      .map(h => ({ mac: h.mac.toLowerCase(), vlan: 1, port, type: h.dynamic ? 'dynamic' : 'static' }));
+  });
+}
+
+/** "10", "10,20", "10-12" -> [10], [10,20], [10,11,12]. */
+function expandVlanIds(spec: string): number[] {
+  const out: number[] = [];
+  for (const part of spec.split(',')) {
+    const r = part.trim().match(/^(\d+)-(\d+)$/);
+    if (r) { for (let i = +r[1]; i <= +r[2]; i++) out.push(i); }
+    else if (/^\d+$/.test(part.trim())) out.push(+part.trim());
+  }
+  return out;
+}
+
+/** Bridge VLANs for a RouterOS device, shaped like the Cisco VLAN list. */
+export async function routerOsVlans(deviceId: string): Promise<{ id: number; name: string; ports: string[] }[]> {
+  const target = await sshTargetFor(await getDevice(deviceId));
+  return withDeviceSession(target, async session => {
+    const out = await session.exec('/interface bridge vlan print terse');
+    const result: { id: number; name: string; ports: string[] }[] = [];
+    for (const r of parseTerse(out)) {
+      const ports = [...String(r['untagged'] ?? '').split(','), ...String(r['tagged'] ?? '').split(',')].filter(Boolean);
+      for (const id of expandVlanIds(String(r['vlan-ids'] ?? ''))) result.push({ id, name: '', ports });
+    }
+    return result;
+  });
 }
 
 /**

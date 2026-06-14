@@ -1,4 +1,6 @@
-// Cisco switch front panel — copper ports in staggered 2-row layout, uplinks in a separate row.
+// Switch front panel. Handles Cisco naming (Gi1/0/1, Te1/1/1) and MikroTik
+// RouterOS naming (ether1, sfp-sfpplus1). Connected ports are colored by link
+// speed: 10G blue, 1G green, 10/100 orange. vendor-neutral.
 export interface Port {
   name: string;
   description: string;
@@ -15,24 +17,44 @@ export interface Port {
   flap_count_1h: number;
 }
 
+/** Normalize a speed string ("1000", "a-1000", "10G", "10Gbps", "100") to Mbps. */
+function speedMbps(speed: string): number | null {
+  const s = (speed || '').toLowerCase().replace(/[^0-9gm.]/g, '');
+  const g = s.match(/([\d.]+)g/);            // "10g" -> 10000, "1g" -> 1000
+  if (g) return Math.round(parseFloat(g[1]) * 1000);
+  const m = s.match(/(\d+)/);
+  return m ? Number(m[1]) : null;            // assume Mbps
+}
+
 function portColor(p: Port): string {
   if (!p.admin_up || p.oper_status === 'disabled') return 'bg-gray-300 border-gray-400';
   if (p.oper_status === 'err-disabled') return 'bg-red-500 border-red-700';
   if (p.oper_status === 'connected') {
     if ((p.input_errors ?? 0) > 0 || (p.output_errors ?? 0) > 0) return 'bg-yellow-400 border-yellow-600';
-    return 'bg-green-500 border-green-700';
+    const mbps = speedMbps(p.speed);
+    if (mbps !== null && mbps >= 10000) return 'bg-blue-500 border-blue-700';   // 10G+
+    if (mbps !== null && mbps < 1000)   return 'bg-orange-500 border-orange-600'; // 10/100
+    return 'bg-green-500 border-green-700';                                       // 1G (or unknown)
   }
   return 'bg-white border-gray-300';
 }
 
+/** Trailing port number: Gi1/0/24 -> 24, ether24 -> 24, sfp-sfpplus2 -> 2. */
 function portNum(name: string): number {
   const slash = name.lastIndexOf('/');
   const seg = slash >= 0 ? name.slice(slash + 1) : name.replace(/^\D+/, '');
   return parseInt(seg, 10) || 0;
 }
 
+/** Group key: Cisco module (Gi1/0) or RouterOS interface family (ether, sfp). */
+function modKey(name: string): string {
+  const slash = name.lastIndexOf('/');
+  return slash >= 0 ? name.slice(0, slash) : name.replace(/\d+$/, '');
+}
+
+/** 10G+ copper uplinks (Cisco) and all SFP/SFP+ cages (Cisco + RouterOS). */
 function isUplink(name: string): boolean {
-  return /^(Te|Tw|Fo|Hu)/i.test(name);
+  return /^(Te|Tw|Fo|Hu)/i.test(name) || /^(sfp|qsfp)/i.test(name);
 }
 
 export default function PortGrid({ ports, selected, onSelect }: {
@@ -40,22 +62,21 @@ export default function PortGrid({ ports, selected, onSelect }: {
   selected: string | null;
   onSelect: (name: string) => void;
 }) {
-  // Skip port-channels, AP manager, and management ports without a slash (e.g. Fa0, Mgmt0)
-  const physical = ports.filter(p =>
-    !p.name.startsWith('Po') &&
-    !p.name.startsWith('Ap') &&
-    !p.name.startsWith('Mg') &&
-    p.name.includes('/')
-  );
+  // Real switchports only: Cisco slash names or RouterOS ether/sfp/combo, never
+  // logical interfaces (port-channels, bridges, VLANs, management).
+  const physical = ports.filter(p => {
+    const n = p.name;
+    if (/^(Po|Ap|Mg|bridge|vlan|lo|wlan|bond|pppoe|lag)/i.test(n)) return false;
+    return n.includes('/') || /^(ether|sfp|qsfp|combo)/i.test(n);
+  });
 
-  // Separate uplinks (Te/Fo/Hu) from copper/SFP access ports (Gi/Fa)
   const copper = physical.filter(p => !isUplink(p.name));
   const uplinks = physical.filter(p => isUplink(p.name));
 
-  // Group copper by module (everything before last slash): Gi0, Fa0, Gi1/0, etc.
+  // Group access ports by module/family: Gi1/0, Fa0, ether, ...
   const groups = new Map<string, Port[]>();
   for (const p of copper) {
-    const key = p.name.slice(0, p.name.lastIndexOf('/'));
+    const key = modKey(p.name);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(p);
   }
@@ -68,6 +89,9 @@ export default function PortGrid({ ports, selected, onSelect }: {
     );
   }
 
+  const rangeLabel = (module: string, n: number) =>
+    module.includes('/') ? `${module}/1–${n}` : `${module}1–${n}`;
+
   return (
     <div className="space-y-5">
       {[...groups.entries()].map(([module, list]) => {
@@ -77,7 +101,7 @@ export default function PortGrid({ ports, selected, onSelect }: {
         return (
           <div key={module}>
             <div className="mb-1 flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-500">{module}/1–{sorted.length}</span>
+              <span className="text-xs font-medium text-gray-500">{rangeLabel(module, sorted.length)}</span>
               <span className="text-xs text-gray-400">({sorted.filter(p => p.oper_status === 'connected').length} connected)</span>
             </div>
             <div className="inline-block rounded-lg border-2 border-gray-700 bg-gray-800 p-2.5">
@@ -96,14 +120,14 @@ export default function PortGrid({ ports, selected, onSelect }: {
       {uplinks.length > 0 && (
         <div>
           <div className="mb-1 flex items-center gap-2">
-            <span className="text-xs font-medium text-gray-500">Uplinks</span>
+            <span className="text-xs font-medium text-gray-500">Uplinks / SFP</span>
             <span className="text-xs text-gray-400">({uplinks.filter(p => p.oper_status === 'connected').length}/{uplinks.length} connected)</span>
           </div>
           <div className="inline-block rounded-lg border-2 border-gray-700 bg-gray-800 p-2.5">
             <div className="flex gap-1.5">
               {uplinks.sort((a, b) => portNum(a.name) - portNum(b.name)).map(p => (
                 <PortButton key={p.name} p={p} selected={selected} onSelect={onSelect}
-                  label={p.name.replace(/^.*\//, '')} wide />
+                  label={p.name.includes('/') ? p.name.replace(/^.*\//, '') : String(portNum(p.name))} wide />
               ))}
             </div>
           </div>
@@ -111,7 +135,9 @@ export default function PortGrid({ ports, selected, onSelect }: {
       )}
 
       <div className="flex flex-wrap gap-4 text-xs text-gray-500">
-        <Legend cls="bg-green-500" label="Connected" />
+        <Legend cls="bg-blue-500" label="10G+" />
+        <Legend cls="bg-green-500" label="1 Gbps" />
+        <Legend cls="bg-orange-500" label="10/100" />
         <Legend cls="bg-white border border-gray-300" label="Not connected" />
         <Legend cls="bg-gray-300" label="Disabled" />
         <Legend cls="bg-red-500" label="Err-disabled" />

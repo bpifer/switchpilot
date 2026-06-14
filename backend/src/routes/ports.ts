@@ -2,8 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
-import { devicePushConfig, deviceExec, bouncePort, cableTest, setPortAdmin, pushPortConfig } from '../services/deviceComms.js';
-import { bridgeVlanFiltering } from '../services/routerosMonitor.js';
+import { devicePushConfig, deviceExec, bouncePort, cableTest, setPortAdmin, pushPortConfig, getDevice } from '../services/deviceComms.js';
+import { bridgeVlanFiltering, isMikrotik, routerOsPortMacs, routerOsVlans } from '../services/routerosMonitor.js';
 import { expandInterfaceName, parseMacTable, parseVlanBrief } from '../cisco/parsers.js';
 
 export default async function portRoutes(app: FastifyInstance) {
@@ -43,6 +43,7 @@ export default async function portRoutes(app: FastifyInstance) {
   app.get('/api/devices/:id/ports/:port/macs', { preHandler: requireRole('readonly'), schema: { tags: ['ports'] } },
     async (req) => {
       const { id, port } = req.params as any;
+      if (isMikrotik(await getDevice(id))) return routerOsPortMacs(id, port);
       const out = await deviceExec(id, [`show mac address-table interface ${expandInterfaceName(port)}`]);
       return parseMacTable(Object.values(out)[0] ?? '');
     });
@@ -139,7 +140,9 @@ export default async function portRoutes(app: FastifyInstance) {
   // ----- VLANs -----
   app.get('/api/devices/:id/vlans', { preHandler: requireRole('readonly'), schema: { tags: ['vlans'] } },
     async (req) => {
-      const out = await deviceExec((req.params as any).id, ['show vlan brief']);
+      const { id } = req.params as any;
+      if (isMikrotik(await getDevice(id))) return routerOsVlans(id);
+      const out = await deviceExec(id, ['show vlan brief']);
       return parseVlanBrief(Object.values(out)[0] ?? '');
     });
 
