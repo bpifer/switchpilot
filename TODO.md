@@ -53,4 +53,17 @@ items lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.md).
       only Cisco slash names (MikroTik panel was empty); now renders ether*/sfp*
       and colors connected ports by link speed: 10G+ blue, 1G green, 10/100
       orange. (User-requested.)
+- [ ] **RouterOS config restore/rollback via `/import`.** Currently blocked
+      (a /export is not replayable line-by-line). Proper support = upload the
+      backup to the device + `/import`, or `/system reset` + paste. Backups/diff/
+      git history already work for RouterOS; only restore is blocked.
 - [ ] PoE drill-down is in; consider a reverse link (device metrics -> PoE).
+
+## Cisco-coupling audited (done this session)
+
+Hunted hardcoded `show`/IOS paths that would break RouterOS; all now
+vendor-aware via the driver seam: config view/diff/preview (`configCommand`),
+automation `disable_port` (`setPortAdmin`), per-port MACs + VLAN list, syslog
+baseline (per-topic rules + bsd-syslog), and the mgmt_ip `host()` fixes.
+Remaining Cisco-only spots are intentionally guarded (restore/rollback) or
+vendor-tagged (enable-secret remediation is a cisco-only rule).
