@@ -58,7 +58,7 @@ export default async function locateRoutes(app: FastifyInstance) {
           `SELECT d.id AS device_id, d.hostname AS switch_hostname, d.mgmt_ip AS switch_ip,
                   d.model, d.status, s.name AS site_name
            FROM devices d LEFT JOIN sites s ON s.id = d.site_id
-           WHERE d.mgmt_ip::text = $1`,
+           WHERE host(d.mgmt_ip) = $1`,
           [term]);
         results.push(...dRows.map(r => ({ ...r, match_type: 'device_ip' })));
       }

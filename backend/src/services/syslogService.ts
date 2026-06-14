@@ -63,7 +63,9 @@ async function resolveDevice(ip: string): Promise<{ deviceId: string; hostname: 
   let deviceId = '', hostname = ip;
   try {
     const { rows } = await query(
-      'SELECT id, hostname FROM devices WHERE mgmt_ip::text = $1 LIMIT 1', [ip]);
+      // host() strips any CIDR prefix so a device stored as 192.168.10.100/24
+      // still matches a syslog source IP of 192.168.10.100.
+      'SELECT id, hostname FROM devices WHERE host(mgmt_ip) = $1 LIMIT 1', [ip]);
     if (rows[0]) { deviceId = rows[0].id; hostname = rows[0].hostname || ip; }
   } catch { /* db unavailable - treat as unknown */ }
   deviceCache.set(ip, { deviceId, hostname, ts: Date.now() });

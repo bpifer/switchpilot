@@ -37,9 +37,8 @@ export default async function logRoutes(app: FastifyInstance) {
       `SELECT l.id, d.id AS device_id, d.hostname, l.source_ip, l.facility, l.severity,
               l.message, l.received_at
        FROM syslog_messages l
-       LEFT JOIN devices d ON (CASE WHEN l.device_id IS NOT NULL
-                                    THEN d.id = l.device_id
-                                    ELSE d.mgmt_ip::text = l.source_ip END)
+       LEFT JOIN devices d ON (d.id = l.device_id
+                               OR host(d.mgmt_ip) = l.source_ip)
        ${conds.length ? 'WHERE ' + conds.join(' AND ') : ''}
        ORDER BY l.received_at DESC
        LIMIT $${params.length}`, params);

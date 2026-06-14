@@ -83,7 +83,7 @@ export default async function onboardingRoutes(app: FastifyInstance) {
   }, async (req, reply) => {
     const { mgmtIp, username, password, enablePassword } = req.body as any;
 
-    const dup = await query('SELECT id, hostname FROM devices WHERE mgmt_ip::text = $1', [mgmtIp]);
+    const dup = await query('SELECT id, hostname FROM devices WHERE host(mgmt_ip) = $1', [mgmtIp]);
     if (dup.rows[0]) {
       return reply.code(409).send({ error: `${mgmtIp} is already onboarded as ${dup.rows[0].hostname}` });
     }
@@ -119,7 +119,7 @@ export default async function onboardingRoutes(app: FastifyInstance) {
     const b = req.body as any;
     const me = req.user as any;
 
-    const dup = await query('SELECT 1 FROM devices WHERE mgmt_ip::text = $1', [b.mgmtIp]);
+    const dup = await query('SELECT 1 FROM devices WHERE host(mgmt_ip) = $1', [b.mgmtIp]);
     if (dup.rows[0]) return reply.code(409).send({ error: `${b.mgmtIp} is already onboarded` });
 
     let finalUser = b.username;

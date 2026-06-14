@@ -24,7 +24,7 @@ export default async function discoveryRoutes(app: FastifyInstance) {
        WHERE tl.neighbor_ip != ''
          ${sf.cond ? 'AND ' + sf.cond : ''}
          AND NOT EXISTS (
-           SELECT 1 FROM devices x WHERE x.mgmt_ip::text = tl.neighbor_ip
+           SELECT 1 FROM devices x WHERE host(x.mgmt_ip) = tl.neighbor_ip
          )
        ORDER BY tl.neighbor_ip`, sf.params);
     return rows;
