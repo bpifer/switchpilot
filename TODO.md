@@ -43,13 +43,14 @@ items lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.md).
 
 ## Smaller follow-ups
 
-- [ ] **RouterOS syslog severity is null.** The platform's `<PRI>` parser does
-      not extract severity from RouterOS's remote-log format (action has
-      bsd-syslog=no). Cosmetic (messages still show; link-down alerting matches
-      on text), but consider bsd-syslog=yes in the baseline action so the
-      RFC3164 PRI parses, or teach syslogService to read RouterOS topic tags.
-- [ ] **RouterOS per-port live MAC + bridge-VLAN list are Cisco-only.**
-      GET /api/devices/:id/ports/:port/macs and /vlans run `show ...` and return
-      [] for RouterOS (graceful, no crash). Make them vendor-aware (bridge host
-      table per interface; `/interface bridge vlan`) for parity.
+- [x] **RouterOS syslog severity.** DONE - baseline action now sets
+      bsd-syslog=yes; RouterOS sends an RFC3164 <PRI> and the platform parses
+      severity/facility (verified: severity=4/warning on the CRS326).
+- [x] **RouterOS per-port live MAC + bridge-VLAN list.** DONE - GET
+      /ports/:port/macs and /devices/:id/vlans are vendor-aware (bridge host
+      table per interface; `/interface bridge vlan`). Verified on the CRS326.
+- [x] **Front panel renders RouterOS + speed colors.** DONE - PortGrid handled
+      only Cisco slash names (MikroTik panel was empty); now renders ether*/sfp*
+      and colors connected ports by link speed: 10G+ blue, 1G green, 10/100
+      orange. (User-requested.)
 - [ ] PoE drill-down is in; consider a reverse link (device metrics -> PoE).
