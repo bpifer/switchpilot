@@ -26,7 +26,6 @@ const Analytics = lazy(() => import('./pages/Analytics'));
 const Clients = lazy(() => import('./pages/Clients'));
 const Maintenance = lazy(() => import('./pages/Maintenance'));
 const Discovery = lazy(() => import('./pages/Discovery'));
-const Locate = lazy(() => import('./pages/Locate'));
 const Lifecycle = lazy(() => import('./pages/Lifecycle'));
 const Firmware = lazy(() => import('./pages/Firmware'));
 const Logs = lazy(() => import('./pages/Logs'));
@@ -83,7 +82,6 @@ const NAV: NavSection[] = [
     { to: '/devices',   label: 'Devices',   icon: ICONS.devices },
     { to: '/topology',  label: 'Topology',  icon: ICONS.topology },
     { to: '/clients',   label: 'Clients',   icon: ICONS.clients },
-    { to: '/locate',    label: 'Locate',    icon: ICONS.locate },
     { to: '/discovery', label: 'Discovery', icon: ICONS.discovery },
     { to: '/logs',      label: 'Logs',      icon: ICONS.logs },
   ]},
@@ -335,7 +333,8 @@ export default function App() {
           <Route path="/topology" element={<Topology />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/clients" element={<Clients />} />
-          <Route path="/locate" element={<Locate />} />
+          {/* Locate was folded into the Clients search; keep the old path working */}
+          <Route path="/locate" element={<Navigate to="/clients" replace />} />
           {/* PoE is now a tab inside Analytics; keep the old path working */}
           <Route path="/poe" element={<Navigate to="/analytics" replace />} />
           <Route path="/lifecycle" element={<Lifecycle me={me} />} />

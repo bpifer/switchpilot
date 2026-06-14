@@ -109,7 +109,7 @@ export default function Analytics() {
 
       {view === 'poe' && (
         <div className="px-6 py-5">
-          <PoePanel />
+          <PoePanel onSelectDevice={id => { setDeviceId(id); setView('metrics'); }} />
         </div>
       )}
 

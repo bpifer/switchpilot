@@ -60,7 +60,7 @@ function PoEBar({ pct }: { pct: number | null }) {
   );
 }
 
-export default function PoePanel() {
+export default function PoePanel({ onSelectDevice }: { onSelectDevice?: (id: string) => void }) {
   const { data = null, isLoading: loading } =
     useApiQuery<{ devices: PoEDevice[]; sites: PoESite[] }>(scoped('/api/poe/summary', useSiteScope().siteId), { refetchInterval: 60000 });
 
@@ -150,8 +150,21 @@ export default function PoePanel() {
                 {devices.map(d => (
                   <tr key={d.device_id} className="hover:bg-slate-50/80 transition">
                     <td className="py-3 pr-4">
-                      <div className="font-medium text-slate-800">{d.hostname || d.mgmt_ip}</div>
-                      <div className="text-xs text-slate-400 font-mono">{d.mgmt_ip}</div>
+                      {onSelectDevice ? (
+                        <button
+                          onClick={() => onSelectDevice(d.device_id)}
+                          title="View this switch's metrics"
+                          className="text-left"
+                        >
+                          <div className="font-medium text-brand-700 hover:underline">{d.hostname || d.mgmt_ip}</div>
+                          <div className="text-xs text-slate-400 font-mono">{d.mgmt_ip}</div>
+                        </button>
+                      ) : (
+                        <>
+                          <div className="font-medium text-slate-800">{d.hostname || d.mgmt_ip}</div>
+                          <div className="text-xs text-slate-400 font-mono">{d.mgmt_ip}</div>
+                        </>
+                      )}
                     </td>
                     <td className="py-3 pr-4 text-slate-600 text-xs">{d.site_name}</td>
                     <td className="py-3 pr-4 text-slate-700 tabular-nums">{watts(d.poe_watts_used)}</td>

@@ -30,7 +30,6 @@ import analyticsRoutes from './routes/analytics.js';
 import clientRoutes from './routes/clients.js';
 import maintenanceRoutes from './routes/maintenance.js';
 import discoveryRoutes from './routes/discovery.js';
-import locateRoutes from './routes/locate.js';
 import poeRoutes from './routes/poe.js';
 import campaignRoutes from './routes/campaigns.js';
 import lifecycleRoutes from './routes/lifecycle.js';
@@ -151,7 +150,6 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(clientRoutes);
   await app.register(maintenanceRoutes);
   await app.register(discoveryRoutes);
-  await app.register(locateRoutes);
   await app.register(poeRoutes);
   await app.register(campaignRoutes);
   await app.register(lifecycleRoutes);
