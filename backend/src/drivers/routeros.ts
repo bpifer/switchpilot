@@ -75,17 +75,26 @@ function trunkScript(port: string, native: number, allowed: number[]): string {
 const SPEED_MAP: Record<string, string> = { '10': '10Mbps', '100': '100Mbps', '1000': '1Gbps', '10000': '10Gbps' };
 
 /** RouterOS has no severity levels; it filters by log topic. Map a Cisco-style
- *  trap level onto the topic set the remote logging rule should carry. */
-const TOPICS_FOR_LEVEL: Record<string, string> = {
-  emergencies:    'critical,error',
-  alerts:         'critical,error',
-  critical:       'critical,error',
-  errors:         'error,critical',
-  warnings:       'warning,error,critical',
-  notifications:  'info,warning,error,critical',
-  informational:  'info,warning,error,critical',
-  debugging:      'debug,info,warning,error,critical',
+ *  trap level onto the set of topics to forward. IMPORTANT: RouterOS ANDs
+ *  multiple topics within a single rule (a rule with topics=info,warning only
+ *  matches a message tagged with BOTH), so each topic needs its OWN rule. */
+const TOPICS_FOR_LEVEL: Record<string, string[]> = {
+  emergencies:    ['critical'],
+  alerts:         ['critical'],
+  critical:       ['critical'],
+  errors:         ['error', 'critical'],
+  warnings:       ['warning', 'error', 'critical'],
+  notifications:  ['info', 'warning', 'error', 'critical'],
+  informational:  ['info', 'warning', 'error', 'critical'],
+  debugging:      ['debug', 'info', 'warning', 'error', 'critical'],
 };
+
+/** Reset and recreate the remote-logging rules for the switchpilot action,
+ *  one rule per topic (see the AND note above). */
+function loggingRules(topics: string[]): string[] {
+  return ['/system/logging/remove [find action=switchpilot]',
+          ...topics.map(t => `/system/logging/add action=switchpilot topics=${t}`)];
+}
 
 function unsupported(feature: string): never {
   throw Object.assign(
@@ -112,8 +121,10 @@ export function routerosDriver(): DeviceDriver {
 
       if (o.platformHost) {
         lines.push(
-          `/system/logging/action/add name=switchpilot target=remote remote=${o.platformHost} remote-port=514`,
-          '/system/logging/add action=switchpilot topics=info,warning,error,critical'
+          // Create-or-update the remote action idempotently (re-applying baseline
+          // must not fail on a duplicate name).
+          `:local a [/system/logging/action/find name=switchpilot]; :if ([:len $a]=0) do={/system/logging/action/add name=switchpilot target=remote remote=${o.platformHost} remote-port=514} else={/system/logging/action/set $a remote=${o.platformHost} remote-port=514}`,
+          ...loggingRules(TOPICS_FOR_LEVEL.informational)
         );
         notes.push(`syslog forwarding to ${o.platformHost} (UDP 514): real-time link/config alerts`);
       } else {
@@ -196,8 +207,7 @@ export function routerosDriver(): DeviceDriver {
     },
 
     loggingTrap(level) {
-      const topics = TOPICS_FOR_LEVEL[level] ?? 'info,warning,error,critical';
-      return [`/system/logging/set [find action=switchpilot] topics=${topics}`];
+      return loggingRules(TOPICS_FOR_LEVEL[level] ?? TOPICS_FOR_LEVEL.informational);
     },
   };
 }

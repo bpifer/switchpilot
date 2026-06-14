@@ -25,15 +25,26 @@ describe('routerosDriver', () => {
     });
   });
 
-  it('maps a Cisco trap level onto RouterOS log topics', () => {
-    expect(ros.loggingTrap('warnings')).toEqual(['/system/logging/set [find action=switchpilot] topics=warning,error,critical']);
-    expect(ros.loggingTrap('informational')).toEqual(['/system/logging/set [find action=switchpilot] topics=info,warning,error,critical']);
+  it('maps a trap level onto one rule per topic (RouterOS ANDs topics in a rule)', () => {
+    // a single multi-topic rule would match nothing, so each severity is its own rule
+    expect(ros.loggingTrap('warnings')).toEqual([
+      '/system/logging/remove [find action=switchpilot]',
+      '/system/logging/add action=switchpilot topics=warning',
+      '/system/logging/add action=switchpilot topics=error',
+      '/system/logging/add action=switchpilot topics=critical',
+    ]);
+    expect(ros.loggingTrap('critical')).toEqual([
+      '/system/logging/remove [find action=switchpilot]',
+      '/system/logging/add action=switchpilot topics=critical',
+    ]);
   });
 
-  it('builds a baseline with discovery, remote logging, and SNMP v2c', () => {
+  it('builds a baseline with discovery, remote logging (per-topic rules), and SNMP v2c', () => {
     const plan = ros.baseline({ snmpVersion: '2c', snmpCommunity: 'mon-RO_1', platformHost: '192.168.10.226' });
     expect(plan.lines).toContain('/ip/neighbor/discovery-settings/set discover-interface-list=all');
-    expect(plan.lines).toContain('/system/logging/action/add name=switchpilot target=remote remote=192.168.10.226 remote-port=514');
+    expect(plan.lines.some(l => l.includes('logging/action/find name=switchpilot') && l.includes('remote=192.168.10.226'))).toBe(true);
+    expect(plan.lines).toContain('/system/logging/add action=switchpilot topics=info');
+    expect(plan.lines).toContain('/system/logging/add action=switchpilot topics=critical');
     expect(plan.lines).toContain('/snmp/community/add name=mon-RO_1 addresses=0.0.0.0/0 read-access=yes');
     expect(plan.lines).toContain('/snmp/set enabled=yes');
   });
