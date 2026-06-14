@@ -50,9 +50,50 @@ describe('routerosDriver', () => {
     expect(plan.notes.some(n => n.includes('PLATFORM_URL not set'))).toBe(true);
   });
 
-  it('refuses VLAN/mode port config and cable test rather than emit unverified commands', () => {
-    expect(() => ros.portConfig('ether1', { mode: 'access', vlan: 20 })).toThrow(/not yet supported/i);
+  it('still refuses the cable test (per-model TDR) but no longer port config', () => {
     expect(() => ros.cableTest('ether1')).toThrow(/not yet supported/i);
+    expect(() => ros.portConfig('ether1', { mode: 'access', vlan: 20 })).not.toThrow();
+  });
+
+  it('rejects invalid port names', () => {
+    expect(() => ros.portConfig('ether1; /user add', { vlan: 20 })).toThrow(/invalid RouterOS port name/i);
+  });
+});
+
+describe('routerosDriver.portConfig (bridge VLAN)', () => {
+  const ros = routerosDriver();
+
+  it('access VLAN: sets pvid, strips the port from other VLANs, re-adds untagged', () => {
+    const [script] = ros.portConfig('ether5', { mode: 'access', vlan: 20 });
+    expect(script).toContain('pvid=20');
+    expect(script).toContain('frame-types=admit-only-untagged-and-priority-tagged');
+    expect(script).toContain('bridge vlan find where bridge=$br'); // strip loop
+    expect(script).toContain('vlan-ids=20 untagged=$p');           // ensure-add branch
+  });
+
+  it('access VLAN derives the bridge from the port (no hardcoded bridge name)', () => {
+    const [script] = ros.portConfig('ether5', { vlan: 30 });
+    expect(script).toContain(':local br [/interface bridge port get [find interface=$p] bridge]');
+  });
+
+  it('trunk: native untagged + each allowed VLAN tagged, native excluded from allowed', () => {
+    const [script] = ros.portConfig('sfp-sfpplus1', {
+      mode: 'trunk', trunkNativeVlan: 1, trunkAllowedVlans: '10,20,30-31',
+    });
+    expect(script).toContain('pvid=1 frame-types=admit-all');
+    expect(script).toContain(':foreach vv in={10;20;30;31}');
+    expect(script).toContain('tagged=$p');
+  });
+
+  it('description and forced speed/duplex emit ethernet set lines', () => {
+    const lines = ros.portConfig('ether2', { description: 'AP uplink', speed: '1000', duplex: 'full' });
+    expect(lines).toContain('/interface ethernet set [find default-name=ether2] comment="AP uplink"');
+    expect(lines.some(l => l.includes('auto-negotiation=no') && l.includes('speed=1Gbps') && l.includes('full-duplex=yes'))).toBe(true);
+  });
+
+  it('portfast/bpduGuard map to the bridge port', () => {
+    const lines = ros.portConfig('ether2', { portfast: true, bpduGuard: true });
+    expect(lines.some(l => l.includes('bridge port set [find interface=ether2]') && l.includes('edge=yes') && l.includes('bpdu-guard=yes'))).toBe(true);
   });
 });
 

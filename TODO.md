@@ -10,10 +10,16 @@ items lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.md).
       onboard `192.168.10.41` (user `admin`, no enable password) via the UI.
       Confirm: identity (CRS326-24G-2S+, RouterOS 7.12.1), all 26 ports, the
       MAC-table endpoints, and CPU/temp populate. Paste any error to debug live.
-- [ ] **#6 RouterOS port/VLAN write config.** `drivers/routeros.ts` `portConfig`
-      currently throws 501. Implement access/trunk via bridge-VLAN filtering
-      (bridge port `pvid`, tagged/untagged members, `vlan-filtering`). This is
-      the bridge model, not Cisco switchport - validate against the CRS326.
+- [x] **#6 RouterOS port/VLAN write config.** DONE - `drivers/routeros.ts`
+      `portConfig` emits idempotent bridge-VLAN scripts (access + trunk, pvid +
+      tagged/untagged membership, derives the bridge from the port). Validated
+      end-to-end on the CRS326 (ether1) and reverted. Caveat below.
+- [ ] **Surface the vlan-filtering caveat in the UI.** RouterOS VLAN assignments
+      only take effect once the bridge has `vlan-filtering=yes`, which the driver
+      intentionally does NOT toggle (it can cut management). When a user sets a
+      VLAN on a RouterOS device whose bridge has filtering off, the port-config
+      flow should warn that it is staged-but-not-enforced. Needs reading bridge
+      state in `deviceComms`/`ports` route for MikroTik devices.
 - [ ] **#11 Onboarding wizard wording is Cisco-centric.** For a RouterOS device
       the wizard still references the SPAdmin/privilege-15 account and enable
       password. Functionally safe (backend ignores account creation for
