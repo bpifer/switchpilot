@@ -99,6 +99,12 @@ export function parseResource(output: string): RosResource {
   };
 }
 
+/** CPU load percentage from `/system resource print` ("cpu-load: 15%"). */
+export function parseCpuLoad(resourceOutput: string): number {
+  const m = parseKeyValue(resourceOutput)['cpu-load']?.match(/(\d+)/);
+  return m ? Number(m[1]) : 0;
+}
+
 export interface RosRouterboard {
   model: string;
   serialNumber: string;

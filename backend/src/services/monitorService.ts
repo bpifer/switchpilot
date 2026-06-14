@@ -3,7 +3,9 @@ import dns from 'node:dns/promises';
 import { query } from '../db.js';
 import { redis } from '../redis.js';
 import { CiscoSshSession } from '../cisco/sshClient.js';
+import { RouterOsSshSession } from '../routeros/sshClient.js';
 import { withDeviceSession } from '../cisco/sshPool.js';
+import { refreshRouterOsDevice, isMikrotik } from './routerosMonitor.js';
 import { snmpProbe } from '../cisco/snmpClient.js';
 import {
   parseShowVersion, parseInterfacesStatus, parseMacTable, parseCdpNeighborsDetail,
@@ -29,9 +31,10 @@ export async function pollStatus(device: DeviceRow): Promise<void> {
     }
   }
   if (!reachable) {
-    // fall back to a quick SSH connect
+    // fall back to a quick SSH connect (vendor-specific session class)
     try {
-      const session = new CiscoSshSession({ ...(await sshTargetFor(device)), timeoutMs: 8000 });
+      const t = { ...(await sshTargetFor(device)), timeoutMs: 8000 };
+      const session = isMikrotik(device) ? new RouterOsSshSession(t) : new CiscoSshSession(t);
       await session.connect();
       session.close();
       reachable = true;
@@ -56,6 +59,8 @@ export async function pollStatus(device: DeviceRow): Promise<void> {
 /** Full refresh: identity, metrics, environment, ports, PoE, MACs, stack, neighbors. */
 export async function refreshDevice(deviceId: string): Promise<void> {
   const device = await getDevice(deviceId);
+  // MikroTik gear uses a wholly different CLI; hand off to the RouterOS sweep.
+  if (isMikrotik(device)) return refreshRouterOsDevice(deviceId);
   const target = await sshTargetFor(device);
   // Pooled session: repeated sweeps reuse the SSH handshake (enable mode is
   // handled by the pool via target.skipEnable for NX-OS).

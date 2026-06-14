@@ -8,12 +8,68 @@ import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
 import { encryptSecret } from '../crypto/secrets.js';
 import { CiscoSshSession } from '../cisco/sshClient.js';
+import { RouterOsSshSession, runRouterOsCommands } from '../routeros/sshClient.js';
 import { parseShowVersion } from '../cisco/parsers.js';
 import { familyForModel, resolveCapabilities } from '../cisco/capabilities.js';
+import { detectRouterOs, isRouterOs } from '../routeros/detector.js';
+import { resolveRosCapabilities } from '../routeros/capabilities.js';
 import { refreshDevice } from '../services/monitorService.js';
 import { provisionDevice } from '../services/provisionService.js';
 
 export const PLATFORM_ACCOUNT = 'SPAdmin';
+
+/** Probe a device's vendor with the bootstrap credentials. RouterOS answers
+ *  `/system resource print` with platform MikroTik; anything else is treated
+ *  as Cisco. Cheap and read-only. */
+async function probeVendor(mgmtIp: string, username: string, password: string): Promise<'mikrotik' | 'cisco'> {
+  try {
+    const out = await runRouterOsCommands(
+      { host: mgmtIp, username, password, timeoutMs: 12000 },
+      ['/system resource print']);
+    if (isRouterOs(out['/system resource print'] ?? '')) return 'mikrotik';
+  } catch { /* not RouterOS (or exec channel refused, as some IOS do) */ }
+  return 'cisco';
+}
+
+/** RouterOS analogue of inspectSwitch: identity + baseline checklist. */
+async function inspectRouterOs(mgmtIp: string, username: string, password: string): Promise<Inspection> {
+  const cmds = {
+    resource: '/system resource print',
+    routerboard: '/system routerboard print',
+    identity: '/system identity print',
+    discovery: '/ip neighbor discovery-settings print',
+    logging: '/system logging action print terse',
+    snmp: '/snmp print',
+  };
+  const out = await runRouterOsCommands({ host: mgmtIp, username, password, timeoutMs: 15000 }, Object.values(cmds));
+  const g = (k: keyof typeof cmds) => out[cmds[k]] ?? '';
+  const det = detectRouterOs({ resource: g('resource'), routerboard: g('routerboard'), identity: g('identity') });
+
+  const platformHost = (process.env.PLATFORM_URL ?? '').match(/^https?:\/\/([^:/]+)/)?.[1] ?? null;
+  const checklist = [
+    {
+      key: 'lldp', label: 'Neighbor discovery enabled',
+      present: !/discover-interface-list:\s*none/i.test(g('discovery')),
+      why: 'discovers MNDP/CDP/LLDP neighbors for Topology and Discovery'
+    },
+    {
+      key: 'syslog',
+      label: platformHost ? `Syslog forwarding to ${platformHost}` : 'Syslog forwarding (PLATFORM_URL not set)',
+      present: !!platformHost && new RegExp(`remote=${platformHost.replace(/\./g, '\\.')}`).test(g('logging')),
+      why: 'real-time alerts and the Logs page'
+    },
+    {
+      key: 'snmp', label: 'SNMP enabled',
+      present: /enabled:\s*yes/i.test(g('snmp')),
+      why: 'fast status polling without opening an SSH session each sweep'
+    },
+  ];
+  return {
+    identity: { hostname: det.hostname, model: det.model, serial: det.serial, iosVersion: det.version },
+    users: [],
+    checklist,
+  };
+}
 
 interface Inspection {
   identity: { hostname: string; model: string; serial: string; iosVersion: string };
@@ -88,10 +144,18 @@ export default async function onboardingRoutes(app: FastifyInstance) {
       return reply.code(409).send({ error: `${mgmtIp} is already onboarded as ${dup.rows[0].hostname}` });
     }
 
+    const vendor = await probeVendor(mgmtIp, username, password);
+    if (vendor === 'mikrotik') {
+      // RouterOS has no privilege-15/SPAdmin concept; onboard with the given user.
+      const inspection = await inspectRouterOs(mgmtIp, username, password);
+      return { ...inspection, vendor, usingPlatformAccount: false, spAdminExists: false, otherAdmins: [] };
+    }
+
     const inspection = await inspectSwitch(mgmtIp, username, password, enablePassword);
     const usingPlatformAccount = username === PLATFORM_ACCOUNT;
     return {
       ...inspection,
+      vendor,
       usingPlatformAccount,
       spAdminExists: inspection.users.some(u => u.name === PLATFORM_ACCOUNT),
       otherAdmins: inspection.users.filter(u => u.priv15 && u.name !== PLATFORM_ACCOUNT).map(u => u.name)
@@ -121,6 +185,51 @@ export default async function onboardingRoutes(app: FastifyInstance) {
 
     const dup = await query('SELECT 1 FROM devices WHERE host(mgmt_ip) = $1', [b.mgmtIp]);
     if (dup.rows[0]) return reply.code(409).send({ error: `${b.mgmtIp} is already onboarded` });
+
+    // --- RouterOS path: no SPAdmin/privilege-15 account; onboard as-is ---
+    if (await probeVendor(b.mgmtIp, b.username, b.password) === 'mikrotik') {
+      const inspection = await inspectRouterOs(b.mgmtIp, b.username, b.password);
+      const rosWarnings: string[] = [];
+      const hostLabel = inspection.identity.hostname || b.mgmtIp;
+      const caps = resolveRosCapabilities(inspection.identity.model);
+
+      const cred = await query(
+        `INSERT INTO credentials (name, ssh_username, ssh_password_enc, enable_password_enc,
+           snmp_version, snmp_community_enc, snmpv3_user, snmpv3_auth_proto, snmpv3_auth_key_enc,
+           snmpv3_priv_proto, snmpv3_priv_key_enc)
+         VALUES ($1,$2,$3,$4,'2c',$5,'','sha',$6,'aes',$6)
+         ON CONFLICT (name) DO UPDATE SET
+           ssh_username=EXCLUDED.ssh_username, ssh_password_enc=EXCLUDED.ssh_password_enc
+         RETURNING id`,
+        [`${b.username} (${hostLabel})`, b.username, encryptSecret(b.password),
+         encryptSecret(''), encryptSecret(''), encryptSecret('')]);
+
+      const { rows } = await query(
+        `INSERT INTO devices (hostname, mgmt_ip, model, family, serial_number, ios_version,
+           vendor, site_id, location, credential_id, capabilities, status, last_seen_at)
+         VALUES ($1,$2,$3,$4,$5,$6,'mikrotik',$7,$8,$9,$10,'online', now()) RETURNING *`,
+        [hostLabel, b.mgmtIp, inspection.identity.model, (caps.family as string) ?? '',
+         inspection.identity.serial, inspection.identity.iosVersion,
+         b.siteId || null, b.location ?? '', cred.rows[0].id, JSON.stringify(caps)]);
+      const device = rows[0];
+
+      await audit(me.username, 'device.onboard', b.mgmtIp,
+        { model: inspection.identity.model, vendor: 'mikrotik', account: b.username, baseline: !!b.applyBaseline }, req.ip);
+
+      await refreshDevice(device.id).catch(err => {
+        app.log.warn(`initial RouterOS refresh failed: ${err.message}`);
+        rosWarnings.push(`initial scan did not complete: ${err.message} - use "Refresh now" on the device.`);
+      });
+      if (b.applyBaseline) {
+        await provisionDevice(device.id, me.username)
+          .catch(err => { rosWarnings.push(`baseline job failed to queue: ${err.message}`); });
+      }
+
+      return reply.code(201).send({
+        device, account: b.username, generatedPassword: null,
+        checklist: inspection.checklist, warnings: rosWarnings
+      });
+    }
 
     let finalUser = b.username;
     let finalPass = b.password;
