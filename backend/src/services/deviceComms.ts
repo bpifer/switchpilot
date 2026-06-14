@@ -30,12 +30,14 @@ export async function sshTargetFor(device: DeviceRow): Promise<SshTarget> {
   const { rows } = await query('SELECT * FROM credentials WHERE id=$1', [device.credential_id]);
   const c = rows[0];
   if (!c) throw Object.assign(new Error('Credential profile not found'), { statusCode: 400 });
+  const driver = driverFor(device);
   return {
     host: device.mgmt_ip,
     username: c.ssh_username,
     password: decryptSecret(c.ssh_password_enc),
     enablePassword: decryptSecret(c.enable_password_enc) || undefined,
-    skipEnable: driverFor(device).skipEnable
+    skipEnable: driver.skipEnable,
+    os: driver.os
   };
 }
 

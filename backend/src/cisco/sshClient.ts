@@ -9,6 +9,18 @@ export interface SshTarget {
   timeoutMs?: number;
   /** Skip the enable step — NX-OS SSH sessions land directly at privilege level 15. */
   skipEnable?: boolean;
+  /** Device OS, so the pool opens the right session class ('routeros' -> MikroTik). */
+  os?: string;
+}
+
+/** The session surface the pool and deviceComms rely on; both the Cisco shell
+ *  session and the RouterOS exec session implement it. */
+export interface DeviceSession {
+  connect(): Promise<void>;
+  exec(command: string, timeoutMs?: number): Promise<string>;
+  configure(lines: string[], timeoutMs?: number): Promise<string>;
+  saveConfig(cmd?: string): Promise<string>;
+  close(): void;
 }
 
 const PROMPT = /[\w\-./:()]+[#>]\s?$/m;

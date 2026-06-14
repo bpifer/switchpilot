@@ -3,13 +3,14 @@
 // serialized on a promise chain rather than multiplexed. Sessions idle for 90s
 // are closed; any operation error evicts the session so the next call gets a
 // fresh connection instead of a wedged shell.
-import { CiscoSshSession, type SshTarget } from './sshClient.js';
+import { CiscoSshSession, type SshTarget, type DeviceSession } from './sshClient.js';
+import { RouterOsSshSession } from '../routeros/sshClient.js';
 
 const IDLE_TTL_MS = 90_000;
 const SWEEP_MS = 30_000;
 
 interface Entry {
-  sessionP: Promise<CiscoSshSession>;
+  sessionP: Promise<DeviceSession>;
   lastUsed: number;
   chain: Promise<unknown>;
 }
@@ -18,7 +19,13 @@ const pool = new Map<string, Entry>();
 
 const keyFor = (t: SshTarget) => `${t.host}:${t.port ?? 22}:${t.username}`;
 
-async function openSession(t: SshTarget): Promise<CiscoSshSession> {
+async function openSession(t: SshTarget): Promise<DeviceSession> {
+  // RouterOS uses stateless exec channels (no enable/shell); Cisco uses a shell.
+  if (t.os === 'routeros') {
+    const s = new RouterOsSshSession(t);
+    await s.connect();
+    return s;
+  }
   const s = new CiscoSshSession(t);
   await s.connect();
   if (!t.skipEnable) await s.enable();
@@ -34,7 +41,7 @@ async function openSession(t: SshTarget): Promise<CiscoSshSession> {
  */
 export async function withDeviceSession<T>(
   target: SshTarget,
-  fn: (session: CiscoSshSession) => Promise<T>
+  fn: (session: DeviceSession) => Promise<T>
 ): Promise<T> {
   const key = keyFor(target);
   let entry = pool.get(key);
