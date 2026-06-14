@@ -78,21 +78,27 @@ earlier items gate later ones.
 | 0 | `devices.vendor` column (default 'cisco'), surfaced in UI | S | DONE (migration 016) | Foundation - every vendor branch needs it |
 | 1 | Extract `DeviceDriver` seam; wrap Cisco as `ciscoDriver` | L | DONE (write surface) | `backend/src/drivers/` owns skipEnable, saveCommand, port admin/config, bounce, cable test, logging trap, and now `baseline()`. deviceComms + ports + configs + provisionService route through `driverFor(device)`. Read-command orchestration in monitorService.refreshDevice is tracked separately as #4. |
 | 1b | `routerosDriver` write surface | M | DONE (unverified vs hardware) | `drivers/routeros.ts` implements the interface in RouterOS syntax for the unambiguous ops (admin, bounce, logging, baseline: discovery/remote-logging/SNMP) and `driverFor` dispatches on vendor=mikrotik / os=routeros. portConfig + cableTest deliberately throw 501 (bridge-VLAN model + per-model TDR = #6) rather than emit unverified commands. Covered by `tests/driver.routeros.test.ts`. Needs a real box to confirm the strings land. |
-| 2 | RouterOS SSH session | M | todo | No enable mode, different prompt, `/command/print`, different paging. Depends on #1. Needs hardware to validate. |
-| 3 | RouterOS detection at onboarding | S-M | todo | `/system/resource/print` -> "RouterOS"; set vendor=mikrotik, os=routeros. Depends on #2. |
-| 4 | RouterOS read parsers | M-L | todo | `/system/resource`, `/interface/print detail`, `/interface/bridge/vlan`, `/ip/neighbor`, switch/MAC tables. Key-value output, unlike IOS columns - the bulk of the work. Depends on #1-2. |
-| 5 | RouterOS capability model | S-M | todo | Model entries for CRS3xx/CSS/hEX etc., port counts, PoE flags. |
-| 6 | RouterOS port/VLAN config (write) | M | todo | Bridge-VLAN-filtering model differs from Cisco switchport. Depends on #1-4. |
-| 7 | RouterOS provisioning baseline | S-M | todo | Map lldp/syslog/snmp to `/ip/neighbor/discovery`, `/system/logging`, `/snmp`. |
+| 2 | RouterOS SSH session | M | DONE (live) | `routeros/sshClient.ts`: per-command exec channels, no enable/shell, error-surfacing configure(), no-op save. Pool is vendor-aware (shared DeviceSession). Validated against CRS326. |
+| 3 | RouterOS detection at onboarding | S-M | DONE (live) | `routeros/detector.ts` + onboarding `probeVendor()`/`inspectRouterOs()`. platform=MikroTik -> vendor=mikrotik, os=routeros, model/serial/version. Checklist regexes verified on the box. |
+| 4 | RouterOS read parsers | M-L | DONE (live) | `routeros/parsers.ts` (terse/keyvalue/columnar). `services/routerosMonitor.ts` orchestrates the refresh and writes ports/clients/neighbors/metrics. 19 fixture-backed tests from the real box. |
+| 5 | RouterOS capability model | S-M | DONE | `routeros/capabilities.ts`: board-name -> port counts + PoE/SFP flags. CRS3xx/CSS seeded; data-driven for more. |
+| 6 | RouterOS port/VLAN config (write) | M | todo | Bridge-VLAN-filtering model differs from Cisco switchport. driver.portConfig currently throws 501. Depends on #1-4 (done). |
+| 7 | RouterOS provisioning baseline | S-M | DONE (driver) | driver.baseline() emits `/ip neighbor discovery-settings`, `/system logging`, `/snmp`; provisionService routes RouterOS through it. Live apply still to confirm end-to-end. |
 | 8 | RouterOS syslog patterns | S | todo | RFC PRI/storage already works; add RouterOS event-topic alert rules. |
 | 9 | RouterOS firmware | M | todo | Package .npk upload + `/system/reboot`, not `copy http` + `verify /md5`. |
 | 10 | Vendor-tagged compliance + RouterOS rule pack | M | todo | Add `compliance_rules.vendor`; best folded into the CIS-pack work to avoid a second migration. |
 | 11 | Onboarding UX for vendor | S | todo | Vendor selector in the wizard; RouterOS admin account via `/user add` replaces the SPAdmin/`username` flow. |
 
 Milestones:
-- **Read-only MikroTik** = #1 + #2 + #3 + #4 + #5 (onboard and monitor a MikroTik).
-- **Manage MikroTik** = #6 + #7 + #8 + #11.
+- **Read-only MikroTik** = #1 + #2 + #3 + #4 + #5 -> DONE. Onboard + monitor a
+  MikroTik (identity, ports, MAC-table clients, neighbors, cpu/mem/temp).
+  Validated against a CRS326-24G-2S+ on RouterOS 7.12.1.
+- **Manage MikroTik** = #6 (port/VLAN write) + #8 + #11. #7 baseline done at the
+  driver level.
 - **Polish** = #10 + MikroTik lifecycle data.
+
+Test box: CRS326-24G-2S+ at 192.168.10.41 (RouterOS 7.12.1), reachable from the
+dev machine via plink/ssh2.
 
 OUI lookup is already vendor-neutral. Lifecycle data is Cisco-model-prefix
 based; MikroTik lifecycle is optional/separate.
