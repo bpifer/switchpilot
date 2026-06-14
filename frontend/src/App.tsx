@@ -27,7 +27,6 @@ const Clients = lazy(() => import('./pages/Clients'));
 const Maintenance = lazy(() => import('./pages/Maintenance'));
 const Discovery = lazy(() => import('./pages/Discovery'));
 const Locate = lazy(() => import('./pages/Locate'));
-const PoE = lazy(() => import('./pages/PoE'));
 const Lifecycle = lazy(() => import('./pages/Lifecycle'));
 const Firmware = lazy(() => import('./pages/Firmware'));
 const Logs = lazy(() => import('./pages/Logs'));
@@ -96,7 +95,6 @@ const NAV: NavSection[] = [
   ]},
   { title: 'Insights', items: [
     { to: '/analytics', label: 'Analytics', icon: ICONS.analytics },
-    { to: '/poe',       label: 'PoE',       icon: ICONS.poe },
   ]},
   { title: 'Organization', items: [
     { to: '/sites',        label: 'Sites',        icon: ICONS.sites },
@@ -338,7 +336,8 @@ export default function App() {
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/clients" element={<Clients />} />
           <Route path="/locate" element={<Locate />} />
-          <Route path="/poe" element={<PoE />} />
+          {/* PoE is now a tab inside Analytics; keep the old path working */}
+          <Route path="/poe" element={<Navigate to="/analytics" replace />} />
           <Route path="/lifecycle" element={<Lifecycle me={me} />} />
           <Route path="/firmware" element={<Firmware me={me} />} />
           <Route path="/logs" element={<Logs />} />

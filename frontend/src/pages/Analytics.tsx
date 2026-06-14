@@ -6,6 +6,9 @@ import {
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useSiteScope, scoped } from '../context/SiteContext';
 import { PageHeader, Card } from '../components/ui';
+import PoePanel from '../components/PoePanel';
+
+type View = 'metrics' | 'poe';
 
 type Range = '7d' | '30d' | '90d' | '1y';
 
@@ -44,6 +47,7 @@ const CHART_COLORS = {
 };
 
 export default function Analytics() {
+  const [view, setView] = useState<View>('metrics');
   const [deviceId, setDeviceId] = useState('');
   const [range, setRange] = useState<Range>('7d');
   const [portName, setPortName] = useState('');
@@ -86,6 +90,31 @@ export default function Analytics() {
     <div>
       <PageHeader title="Analytics" />
 
+      {/* Sub-views: per-device time series, and the fleet PoE budget */}
+      <div className="flex gap-1 border-b border-slate-200 px-6">
+        {([['metrics', 'Device metrics'], ['poe', 'PoE budget']] as [View, string][]).map(([v, label]) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={`-mb-px border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
+              view === v
+                ? 'border-brand-600 text-brand-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'poe' && (
+        <div className="px-6 py-5">
+          <PoePanel />
+        </div>
+      )}
+
+      {view === 'metrics' && (
+      <>
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-4 px-6 py-4">
         <div className="flex items-center gap-2">
@@ -202,6 +231,8 @@ export default function Analytics() {
           )}
         </Card>
       </div>
+      </>
+      )}
     </div>
   );
 }
