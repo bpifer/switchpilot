@@ -32,8 +32,10 @@ items lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.md).
 - [x] **#10 Vendor-tagged compliance + RouterOS rule pack.** DONE - compliance
       filters by vendor; migration 020 adds a RouterOS hardening pack; config
       backup uses `/export hide-sensitive`. Validated on the CRS326.
-- [ ] Confirm the RouterOS **baseline apply** end-to-end (driver emits the
-      commands; not yet run against the live box through a provisioning job).
+- [~] Confirm the RouterOS **baseline apply** end-to-end. Commands validated
+      live against the CRS326 (discovery-settings=all + remote logging action
+      created, applied via the driver + RouterOS session). Still untested is the
+      full provisioning-JOB path (queue -> worker -> push); confirm on deploy.
 
 ## Smaller follow-ups
 
