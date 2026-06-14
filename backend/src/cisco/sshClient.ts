@@ -14,6 +14,17 @@ export interface SshTarget {
 const PROMPT = /[\w\-./:()]+[#>]\s?$/m;
 const MORE = /--More--/;
 
+// Older IOS only offers legacy kex/ciphers; allow them explicitly. Shared by
+// the command session and the interactive terminal shell.
+export const SSH_ALGORITHMS = {
+  kex: ['diffie-hellman-group14-sha1', 'diffie-hellman-group1-sha1',
+        'diffie-hellman-group-exchange-sha256', 'ecdh-sha2-nistp256',
+        'diffie-hellman-group14-sha256', 'curve25519-sha256'] as any,
+  cipher: ['aes128-cbc', 'aes256-cbc', '3des-cbc',
+           'aes128-ctr', 'aes192-ctr', 'aes256-ctr',
+           'aes128-gcm@openssh.com', 'aes256-gcm@openssh.com'] as any
+};
+
 /**
  * Interactive SSH session against a Cisco IOS/IOS-XE device.
  * Uses a shell channel (not exec) because many IOS images restrict exec channels,
@@ -38,15 +49,7 @@ export class CiscoSshSession {
           username: t.username,
           password: t.password,
           readyTimeout: t.timeoutMs ?? 15000,
-          // Older IOS only offers legacy kex/ciphers; allow them explicitly.
-          algorithms: {
-            kex: ['diffie-hellman-group14-sha1', 'diffie-hellman-group1-sha1',
-                  'diffie-hellman-group-exchange-sha256', 'ecdh-sha2-nistp256',
-                  'diffie-hellman-group14-sha256', 'curve25519-sha256'] as any,
-            cipher: ['aes128-cbc', 'aes256-cbc', '3des-cbc',
-                     'aes128-ctr', 'aes192-ctr', 'aes256-ctr',
-                     'aes128-gcm@openssh.com', 'aes256-gcm@openssh.com'] as any
-          }
+          algorithms: SSH_ALGORITHMS
         });
     });
     this.stream = await new Promise<ClientChannel>((resolve, reject) => {

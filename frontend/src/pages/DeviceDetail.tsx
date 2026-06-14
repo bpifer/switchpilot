@@ -5,6 +5,7 @@ import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Button, StatusBadge, fmtUptime, Modal, Field, inputCls } from '../components/ui';
 import type { Port } from '../components/PortGrid';
+import DeviceTerminal from '../components/DeviceTerminal';
 import PortsTab from './device/PortsTab';
 import ConfigTab from './device/ConfigTab';
 import BackupsTab from './device/BackupsTab';
@@ -26,6 +27,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
   const [busy, setBusy] = useState(false);
   const [showProvision, setShowProvision] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showTerminal, setShowTerminal] = useState(false);
   const canOperate = me.role !== 'readonly';
   const canConfig = me.role === 'superadmin' || me.role === 'netadmin';
 
@@ -50,10 +52,15 @@ export default function DeviceDetail({ me }: { me: Me }) {
   return (
     <div>
       <PageHeader title={device.hostname || device.mgmt_ip}>
+        {canConfig && <Button variant="secondary" onClick={() => setShowTerminal(true)}>Terminal</Button>}
         {canConfig && <Button variant="secondary" onClick={() => setShowSettings(true)}>Settings</Button>}
         {canConfig && <Button variant="secondary" onClick={() => setShowProvision(true)}>Baseline config</Button>}
         {canOperate && <Button variant="secondary" onClick={refresh} disabled={busy}>{busy ? 'Refreshing…' : '↻ Refresh now'}</Button>}
       </PageHeader>
+
+      {showTerminal && (
+        <DeviceTerminal deviceId={id!} hostname={device.hostname || device.mgmt_ip} onClose={() => setShowTerminal(false)} />
+      )}
 
       {showProvision && <ProvisionModal deviceId={id!} onClose={() => setShowProvision(false)} />}
       {showSettings && (
