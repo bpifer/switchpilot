@@ -6,6 +6,11 @@ import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
 import { deviceExec, devicePushConfig, setLoggingLevel, getDevice } from '../services/deviceComms.js';
 import { driverFor } from '../drivers/index.js';
+import { isMikrotik } from '../services/routerosMonitor.js';
+
+// A RouterOS /export is not replayable line-by-line (section headers + `add`
+// lines need /import), so block restore/rollback rather than half-apply it.
+const ROUTEROS_RESTORE_MSG = 'Config restore/rollback is not supported on RouterOS yet: a /export cannot be replayed line by line. Use /import on the device.';
 import { backupDevice } from '../services/configService.js';
 import { gitLog, gitShow, gitDiff } from '../services/configVersioning.js';
 import { expandInterfaceName } from '../cisco/parsers.js';
@@ -271,6 +276,7 @@ export default async function configRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { id, sha } = req.params as any;
       const me = req.user as any;
+      if (isMikrotik(await getDevice(id))) return reply.code(400).send({ error: ROUTEROS_RESTORE_MSG });
       const ctx = await deviceGitContext(id);
       if (!ctx) return reply.code(404).send({ error: 'Device not found' });
       const content = await gitShow(sha, ctx.hostname, ctx.site);
@@ -313,6 +319,7 @@ export default async function configRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { id, backupId } = req.params as any;
       const me = req.user as any;
+      if (isMikrotik(await getDevice(id))) return reply.code(400).send({ error: ROUTEROS_RESTORE_MSG });
       const { rows } = await query('SELECT content FROM config_backups WHERE id=$1 AND device_id=$2', [backupId, id]);
       if (!rows[0]) return reply.code(404).send({ error: 'Backup not found' });
       await backupDevice(id, `${me.username} (pre-restore)`);
