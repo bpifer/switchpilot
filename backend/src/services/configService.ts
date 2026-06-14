@@ -1,15 +1,18 @@
 import crypto from 'node:crypto';
 import { query } from '../db.js';
-import { deviceExec, devicePushConfig } from './deviceComms.js';
+import { deviceExec, devicePushConfig, getDevice } from './deviceComms.js';
+import { driverFor } from '../drivers/index.js';
 import { raiseAlert } from './alertService.js';
 import { commitConfig } from './configVersioning.js';
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
-/** Strip volatile lines so hash comparison ignores timestamps/ntp clock-period. */
+/** Strip volatile/comment lines so hash comparison ignores timestamps. Handles
+ *  Cisco (`!`, "Building configuration") and RouterOS (`#` export header, which
+ *  carries a timestamp and would otherwise make every backup look changed). */
 function normalizeConfig(content: string): string {
   return content.split('\n')
-    .filter(l => !/^(!|ntp clock-period|Building configuration|Current configuration|! Last configuration|! NVRAM config)/.test(l.trim()))
+    .filter(l => !/^(!|#|ntp clock-period|Building configuration|Current configuration|! Last configuration|! NVRAM config)/.test(l.trim()))
     .map(l => l.trimEnd())
     .join('\n')
     .trim();
@@ -26,7 +29,8 @@ export async function backupDevice(
   takenBy = 'scheduler',
   opts: BackupOptions = {}
 ): Promise<{ id: string; changed: boolean }> {
-  const out = await deviceExec(deviceId, ['show running-config']);
+  const cmd = driverFor(await getDevice(deviceId)).configCommand;
+  const out = await deviceExec(deviceId, [cmd]);
   const content = Object.values(out)[0] ?? '';
   if (!content || content.length < 50) throw new Error('Backup returned empty configuration — aborting');
   const hash = sha256(normalizeConfig(content));
@@ -68,7 +72,8 @@ export async function checkDrift(deviceId: string): Promise<boolean> {
   const baseline = rows[0];
   if (!baseline) return false;
 
-  const out = await deviceExec(deviceId, ['show running-config']);
+  const cmd = driverFor(await getDevice(deviceId)).configCommand;
+  const out = await deviceExec(deviceId, [cmd]);
   const current = Object.values(out)[0] ?? '';
   if (sha256(normalizeConfig(current)) === sha256(normalizeConfig(baseline.content))) return false;
 

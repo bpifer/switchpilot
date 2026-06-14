@@ -102,6 +102,8 @@ export function routerosDriver(): DeviceDriver {
     skipEnable: true,
     // Config is applied live and persisted automatically - nothing to save.
     saveCommand: '',
+    // hide-sensitive keeps passwords/keys out of stored backups.
+    configCommand: '/export hide-sensitive',
 
     baseline(o: BaselineOpts): BaselinePlan {
       // Neighbor discovery (MNDP/CDP/LLDP) feeds Topology and Discovery.

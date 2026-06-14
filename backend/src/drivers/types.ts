@@ -38,6 +38,8 @@ export interface DeviceDriver {
   /** Persist running config to startup. Empty when the OS auto-persists
    *  (e.g. RouterOS), so callers skip the save step entirely. */
   readonly saveCommand: string;
+  /** Command that dumps the full device configuration for backup/compliance. */
+  readonly configCommand: string;
 
   /** Config lines (and human notes) for SwitchPilot's baseline: neighbor
    *  discovery, syslog forwarding, and optional SNMP read community. */

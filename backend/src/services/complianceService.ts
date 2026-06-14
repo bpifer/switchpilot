@@ -74,12 +74,14 @@ export async function evaluateDevice(deviceId: string): Promise<{ evaluated: num
   const config = await latestConfig(deviceId);
   if (config === null) return { evaluated: 0, passed: 0 };
 
-  const dev = await query('SELECT site_id FROM devices WHERE id=$1', [deviceId]);
+  const dev = await query('SELECT site_id, vendor FROM devices WHERE id=$1', [deviceId]);
   const siteId = dev.rows[0]?.site_id ?? null;
+  const vendor = dev.rows[0]?.vendor ?? 'cisco';
 
-  // rules that apply to this device: global (site_id NULL) or matching its site
+  // rules that apply: enabled, this vendor, and global or matching the site
   const { rows: rules } = await query<ComplianceRule>(
-    `SELECT * FROM compliance_rules WHERE enabled AND (site_id IS NULL OR site_id=$1)`, [siteId]);
+    `SELECT * FROM compliance_rules WHERE enabled AND vendor=$2 AND (site_id IS NULL OR site_id=$1)`,
+    [siteId, vendor]);
 
   let passedCount = 0;
   for (const rule of rules) {
@@ -95,8 +97,8 @@ export async function evaluateDevice(deviceId: string): Promise<{ evaluated: num
   await query(
     `DELETE FROM compliance_results r WHERE r.device_id=$1
        AND NOT EXISTS (SELECT 1 FROM compliance_rules cr
-         WHERE cr.id=r.rule_id AND cr.enabled AND (cr.site_id IS NULL OR cr.site_id=$2))`,
-    [deviceId, siteId]);
+         WHERE cr.id=r.rule_id AND cr.enabled AND cr.vendor=$3 AND (cr.site_id IS NULL OR cr.site_id=$2))`,
+    [deviceId, siteId, vendor]);
 
   return { evaluated: rules.length, passed: passedCount };
 }

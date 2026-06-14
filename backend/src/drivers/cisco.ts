@@ -12,6 +12,7 @@ export function ciscoDriver(os: string): DeviceDriver {
     // NX-OS SSH lands at privilege 15; enable() would be a no-op or error.
     skipEnable: nxos,
     saveCommand: nxos ? 'copy running-config startup-config' : 'write memory',
+    configCommand: 'show running-config',
 
     baseline(o: BaselineOpts): BaselinePlan {
       // lldp run: discover non-Cisco neighbors (CDP only sees Cisco). Feeds
