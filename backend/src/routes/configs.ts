@@ -60,7 +60,7 @@ export default async function configRoutes(app: FastifyInstance) {
 
     // ----- Guardrails: flag lines that could cut connectivity or access -----
     // Learn which interfaces are trunks and which carries the management IP.
-    const devRow = await query<{ ip: string }>('SELECT mgmt_ip::text AS ip FROM devices WHERE id=$1', [id]);
+    const devRow = await query<{ ip: string }>('SELECT host(mgmt_ip) AS ip FROM devices WHERE id=$1', [id]);
     const mgmtIp = devRow.rows[0]?.ip ?? '';
     const trunkIfaces = new Set<string>();
     let mgmtIface = '';

@@ -21,9 +21,9 @@ export default async function searchRoutes(app: FastifyInstance) {
     // Each query is capped low; the palette shows the most relevant few per type
     const [devices, ports, alerts, logs] = await Promise.all([
       query(
-        `SELECT id, hostname, mgmt_ip::text AS mgmt_ip, model, status
+        `SELECT id, hostname, host(mgmt_ip) AS mgmt_ip, model, status
          FROM devices
-         WHERE hostname ILIKE $1 OR mgmt_ip::text ILIKE $1 OR model ILIKE $1 OR serial_number ILIKE $1
+         WHERE hostname ILIKE $1 OR host(mgmt_ip) ILIKE $1 OR model ILIKE $1 OR serial_number ILIKE $1
          ORDER BY hostname LIMIT 8`, [like]),
       query(
         `SELECT p.device_id, p.name, p.description, p.vlan, d.hostname

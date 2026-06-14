@@ -65,7 +65,7 @@ export default async function clientRoutes(app: FastifyInstance) {
         const swSf = siteFilter(siteId, 'd', sw.length + 1);
         sw.push(...swSf.params);
         ({ rows: switches } = await query(
-          `SELECT d.id AS device_id, d.hostname, d.mgmt_ip::text AS mgmt_ip,
+          `SELECT d.id AS device_id, d.hostname, host(d.mgmt_ip) AS mgmt_ip,
                   d.model, d.status, COALESCE(s.name, 'Unassigned') AS site_name
            FROM devices d LEFT JOIN sites s ON s.id = d.site_id
            WHERE (d.hostname ILIKE $1 OR host(d.mgmt_ip) ILIKE $1)
@@ -80,7 +80,7 @@ export default async function clientRoutes(app: FastifyInstance) {
                   tl.neighbor_name, tl.neighbor_ip, tl.neighbor_platform,
                   tl.neighbor_port, tl.local_port,
                   d.id AS device_id, d.hostname AS switch_hostname,
-                  d.mgmt_ip::text AS switch_ip, COALESCE(s.name, 'Unassigned') AS site_name
+                  host(d.mgmt_ip) AS switch_ip, COALESCE(s.name, 'Unassigned') AS site_name
            FROM topology_links tl
            JOIN devices d ON d.id = tl.device_id
            LEFT JOIN sites s ON s.id = d.site_id

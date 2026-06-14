@@ -57,7 +57,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
     if (!c) return reply.code(404).send({ error: 'Campaign not found' });
 
     const { rows: results } = await query(
-      `SELECT r.*, d.hostname, d.mgmt_ip::text AS mgmt_ip, d.ios_version
+      `SELECT r.*, d.hostname, host(d.mgmt_ip) AS mgmt_ip, d.ios_version
        FROM firmware_campaign_results r
        LEFT JOIN devices d ON d.id = r.device_id
        WHERE r.campaign_id = $1
@@ -200,7 +200,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
   }, async (req) => {
     const sf = siteFilter((req.query as any).siteId, 'd');
     const { rows } = await query(`
-      SELECT d.id, d.hostname, d.mgmt_ip::text AS mgmt_ip, d.model, d.ios_version,
+      SELECT d.id, d.hostname, host(d.mgmt_ip) AS mgmt_ip, d.model, d.ios_version,
              d.eos_date::text, d.eol_date::text, d.recommended_release, d.status,
              COALESCE(s.name, 'Unassigned') AS site_name
       FROM devices d

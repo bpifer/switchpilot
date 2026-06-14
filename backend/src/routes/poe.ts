@@ -15,7 +15,7 @@ export default async function poeRoutes(app: FastifyInstance) {
       SELECT
         d.id AS device_id,
         d.hostname,
-        d.mgmt_ip::text AS mgmt_ip,
+        host(d.mgmt_ip) AS mgmt_ip,
         d.status,
         COALESCE(s.name, 'Unassigned') AS site_name,
         dm.poe_watts_used::float     AS poe_watts_used,
