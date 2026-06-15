@@ -127,7 +127,7 @@ export default function PortGrid({ ports, selected, onSelect }: {
             <div className="flex gap-1.5">
               {uplinks.sort((a, b) => portNum(a.name) - portNum(b.name)).map(p => (
                 <PortButton key={p.name} p={p} selected={selected} onSelect={onSelect}
-                  label={p.name.includes('/') ? p.name.replace(/^.*\//, '') : String(portNum(p.name))} wide />
+                  label={p.name.includes('/') ? p.name.replace(/^.*\//, '') : String(portNum(p.name))} sfp />
               ))}
             </div>
           </div>
@@ -143,14 +143,20 @@ export default function PortGrid({ ports, selected, onSelect }: {
         <Legend cls="bg-red-500" label="Err-disabled" />
         <Legend cls="bg-yellow-400" label="Errors" />
         <Legend cls="bg-green-500 shadow-[inset_0_-3px_0_rgba(37,99,235,0.9)]" label="PoE active" />
+        <span className="flex items-center gap-1.5">
+          <span className="relative inline-block h-4 w-5 rounded border border-gray-400 bg-gray-200">
+            <span className="absolute inset-x-1 top-0.5 h-1 rounded-sm bg-black/35" />
+          </span>
+          SFP / fiber
+        </span>
         <span className="flex items-center gap-1.5"><span className="text-sky-500">▲</span>Trunk / uplink</span>
       </div>
     </div>
   );
 }
 
-function PortButton({ p, selected, onSelect, label, wide = false }: {
-  p: Port; selected: string | null; onSelect: (n: string) => void; label: string; wide?: boolean;
+function PortButton({ p, selected, onSelect, label, sfp = false }: {
+  p: Port; selected: string | null; onSelect: (n: string) => void; label: string; sfp?: boolean;
 }) {
   const tooltip = [
     p.name,
@@ -162,14 +168,36 @@ function PortButton({ p, selected, onSelect, label, wide = false }: {
     (p.macs ?? []).length > 0 ? `${p.macs.length} MAC${p.macs.length !== 1 ? 's' : ''}` : null,
   ].filter(Boolean).join(' — ');
 
+  const sel = selected === p.name ? 'ring-2 ring-sky-400 ring-offset-1 ring-offset-gray-800' : '';
+
+  // SFP/fiber cages render as taller rounded modules with a transceiver slot,
+  // so they read as obviously different from RJ45 copper squares.
+  if (sfp) {
+    return (
+      <button
+        title={tooltip}
+        onClick={() => onSelect(p.name)}
+        className={`relative h-9 w-12 rounded-md border-2 text-[8px] leading-none font-semibold
+          ${portColor(p)} ${sel}
+          shadow-[inset_0_0_0_1px_rgba(0,0,0,0.35)] transition-opacity hover:opacity-80`}
+      >
+        {/* transceiver slot */}
+        <span className="absolute inset-x-1.5 top-1 h-1.5 rounded-sm bg-black/35" />
+        <span className="absolute inset-x-0 bottom-1 text-center">{label}</span>
+        {p.mode === 'trunk' && (
+          <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-[7px] leading-none text-sky-300" title="Trunk / uplink">▲</span>
+        )}
+      </button>
+    );
+  }
+
   return (
     <button
       title={tooltip}
       onClick={() => onSelect(p.name)}
       className={`
-        relative ${wide ? 'h-8 w-10' : 'h-6 w-7'} rounded-sm border-2 text-[8px] leading-none font-medium
-        ${portColor(p)}
-        ${selected === p.name ? 'ring-2 ring-sky-400 ring-offset-1 ring-offset-gray-800' : ''}
+        relative h-6 w-7 rounded-sm border-2 text-[8px] leading-none font-medium
+        ${portColor(p)} ${sel}
         ${p.poe_watts ? 'shadow-[inset_0_-3px_0_rgba(37,99,235,0.9)]' : ''}
         transition-opacity hover:opacity-80
       `}

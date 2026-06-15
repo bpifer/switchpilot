@@ -76,9 +76,9 @@ Built this session (validated live where hardware allowed):
       confirm end to end.
 
 Still on the wishlist (ranked):
-- [ ] **UniFi driver** (controller API, not SSH) - the biggest gap for the
-      homelab audience; the `DeviceDriver` seam is ready. Then Aruba/HPE,
-      Netgear, Brocade/ICX.
+- [~] **UniFi driver** - DECLINED (2026-06-14): UniFi has its own controller
+      dashboard, so it is not worth the effort. Other SSH-managed vendors
+      (Aruba/HPE, Netgear, Brocade/ICX) are still candidates via the driver seam.
 - [ ] **More notification channels**: Discord, ntfy, Telegram, Pushover, Gotify
       (the integrations layer already has Teams/Slack/SMTP to mirror).
 - [ ] **GitOps / intent-based config**: declare desired VLANs/port profiles in
