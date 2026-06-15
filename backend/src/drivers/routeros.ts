@@ -202,6 +202,14 @@ export function routerosDriver(): DeviceDriver {
       };
     },
 
+    poeCycleLines(port) {
+      const p = rosPort(port);
+      return {
+        off: [`/interface ethernet poe set [find name=${p}] poe-out=off`],
+        on: [`/interface ethernet poe set [find name=${p}] poe-out=auto`],
+      };
+    },
+
     cableTest(_port: string) {
       // TDR output varies by model and returns inline (no separate read step),
       // which doesn't fit the run/show contract; revisit with hardware.

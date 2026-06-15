@@ -2,8 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
-import { devicePushConfig, deviceExec, bouncePort, cableTest, setPortAdmin, pushPortConfig, getDevice } from '../services/deviceComms.js';
-import { bridgeVlanFiltering, isMikrotik, routerOsPortMacs, routerOsVlans } from '../services/routerosMonitor.js';
+import { devicePushConfig, deviceExec, bouncePort, cableTest, setPortAdmin, pushPortConfig, getDevice, poeCyclePort } from '../services/deviceComms.js';
+import { bridgeVlanFiltering, isMikrotik, routerOsPortMacs, routerOsVlans, routerOsSfp } from '../services/routerosMonitor.js';
 import { expandInterfaceName, parseMacTable, parseVlanBrief } from '../cisco/parsers.js';
 
 export default async function portRoutes(app: FastifyInstance) {
@@ -124,6 +124,28 @@ export default async function portRoutes(app: FastifyInstance) {
       const me = req.user as any;
       await bouncePort(id, port);
       await audit(me.username, 'port.bounce', `${id}/${port}`, {}, req.ip);
+      return { ok: true };
+    });
+
+  // SFP optical diagnostics (DDM): temperature, Tx/Rx power, vendor, etc.
+  app.get('/api/devices/:id/ports/:port/sfp', { preHandler: requireRole('readonly'), schema: { tags: ['ports'] } },
+    async (req) => {
+      const { id, port } = req.params as any;
+      const device = await getDevice(id);
+      if (isMikrotik(device)) return routerOsSfp(id, port);
+      // Cisco: structured parse is image-dependent, so return the raw detail.
+      const out = await deviceExec(id, [`show interfaces ${expandInterfaceName(port)} transceiver detail`]).catch(() => ({}));
+      const raw = Object.values(out)[0] ?? '';
+      return { present: /temperature|transceiver|optic/i.test(raw), raw };
+    });
+
+  // PoE power-cycle (reboot a powered AP/camera without unplugging it)
+  app.post('/api/devices/:id/ports/:port/poe-cycle', { preHandler: requireRole('helpdesk'), schema: { tags: ['ports'] } },
+    async (req) => {
+      const { id, port } = req.params as any;
+      const me = req.user as any;
+      await poeCyclePort(id, port);
+      await audit(me.username, 'port.poecycle', `${id}/${port}`, {}, req.ip);
       return { ok: true };
     });
 

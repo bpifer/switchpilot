@@ -8,6 +8,7 @@ import { redis, initPubSub } from './redis.js';
 import { startScheduler } from './scheduler.js';
 import { startLeaderElection } from './leader.js';
 import { startSyslogListener } from './services/syslogService.js';
+import { startMqtt } from './services/mqttService.js';
 import { loadOuiCache, syncOuiDatabase } from './services/ouiService.js';
 
 async function main() {
@@ -29,6 +30,7 @@ async function main() {
   await startLeaderElection();
   startScheduler();
   startSyslogListener();
+  startMqtt();
 
   await app.listen({ port: config.port, host: '0.0.0.0' });
   app.log.info(`SwitchPilot API listening on :${config.port}${config.enableDocs ? ' — docs at /docs' : ''}`);

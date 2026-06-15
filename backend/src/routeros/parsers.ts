@@ -237,6 +237,37 @@ export function parseEthernetMonitor(output: string): RosPortStatus {
   };
 }
 
+export interface RosSfp {
+  present: boolean;
+  temperatureC: number | null;
+  voltageV: number | null;
+  txPowerDbm: number | null;
+  rxPowerDbm: number | null;
+  txBiasMa: number | null;
+  vendor: string;
+  partNumber: string;
+  serial: string;
+  wavelengthNm: number | null;
+}
+
+/** Parse SFP DDM/optical fields from `/interface ethernet monitor <port> once`. */
+export function parseSfpMonitor(output: string): RosSfp {
+  const kv = parseKeyValue(output);
+  const num = (s: string | undefined) => { const m = (s ?? '').match(/-?[\d.]+/); return m ? parseFloat(m[0]) : null; };
+  return {
+    present: (kv['sfp-module-present'] ?? 'no').toLowerCase() === 'yes',
+    temperatureC: num(kv['sfp-temperature']),
+    voltageV: num(kv['sfp-supply-voltage']),
+    txPowerDbm: num(kv['sfp-tx-power']),
+    rxPowerDbm: num(kv['sfp-rx-power']),
+    txBiasMa: num(kv['sfp-tx-bias-current']),
+    vendor: kv['sfp-vendor-name'] ?? '',
+    partNumber: kv['sfp-vendor-part-number'] ?? '',
+    serial: kv['sfp-vendor-serial'] ?? '',
+    wavelengthNm: num(kv['sfp-wavelength']),
+  };
+}
+
 /** "1Gbps" -> 1000, "100Mbps" -> 100, "10Gbps" -> 10000. */
 export function parseRate(s: string | undefined): number | null {
   if (!s) return null;

@@ -123,6 +123,19 @@ export async function bouncePort(deviceId: string, portName: string): Promise<st
   });
 }
 
+/** Power-cycle a PoE port: cut power, pause, restore. Reboots a powered device
+ *  (AP/camera/phone) without yanking the cable. */
+export async function poeCyclePort(deviceId: string, portName: string): Promise<string> {
+  const device = await getDevice(deviceId);
+  const { off, on } = driverFor(device).poeCycleLines(portName);
+  const target = await sshTargetFor(device);
+  return withDeviceSession(target, async session => {
+    await session.configure(off);
+    await new Promise(r => setTimeout(r, 4000));
+    return session.configure(on);
+  });
+}
+
 /** Run a TDR cable test on a copper port and return results. */
 export async function cableTest(deviceId: string, portName: string): Promise<string> {
   const device = await getDevice(deviceId);

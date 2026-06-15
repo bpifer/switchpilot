@@ -9,12 +9,13 @@ import { withDeviceSession } from '../cisco/sshPool.js';
 import { lookupVendor } from '../cisco/oui.js';
 import {
   parseResource, parseCpuLoad, parseHealth, parseInterfaces, parseBridgeHosts,
-  parseNeighbors, parseEthernetMonitor, parseTerse,
+  parseNeighbors, parseEthernetMonitor, parseTerse, parseSfpMonitor, type RosSfp,
 } from '../routeros/parsers.js';
 import { detectRouterOs } from '../routeros/detector.js';
 import { resolveRosCapabilities } from '../routeros/capabilities.js';
 import { getDevice, sshTargetFor, type DeviceRow } from './deviceComms.js';
 import { raiseAlert, resolveAlert } from './alertService.js';
+import { publishDevice } from './mqttService.js';
 
 /** Full RouterOS refresh. Mirrors refreshDevice for MikroTik gear. */
 export async function refreshRouterOsDevice(deviceId: string): Promise<void> {
@@ -129,6 +130,7 @@ export async function refreshRouterOsDevice(deviceId: string): Promise<void> {
 
     await redis.set(`device:${deviceId}:lastRefresh`, Date.now().toString()).catch(() => { /* cache only */ });
   });
+  publishDevice(deviceId).catch(() => { /* mqtt best-effort */ });
 }
 
 /** True when a device should use the RouterOS refresh path. */
@@ -160,6 +162,16 @@ function expandVlanIds(spec: string): number[] {
     else if (/^\d+$/.test(part.trim())) out.push(+part.trim());
   }
   return out;
+}
+
+/** SFP optical diagnostics (DDM) for a RouterOS port. */
+export async function routerOsSfp(deviceId: string, port: string): Promise<RosSfp & { raw: string }> {
+  const p = safePort(port);
+  const target = await sshTargetFor(await getDevice(deviceId));
+  return withDeviceSession(target, async session => {
+    const raw = await session.exec(`/interface ethernet monitor ${p} once`);
+    return { ...parseSfpMonitor(raw), raw };
+  });
 }
 
 /** Bridge VLANs for a RouterOS device, shaped like the Cisco VLAN list. */

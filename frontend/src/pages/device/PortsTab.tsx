@@ -89,6 +89,12 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
                     onClick={() => action('bounce', () => api(`/api/devices/${deviceId}/ports/${portPath}/bounce`, { method: 'POST' }))}>
               {busy === 'bounce' ? 'Bouncing…' : 'Bounce'}
             </Button>
+            {port.poe_watts != null && (
+              <Button variant="secondary" disabled={!!busy}
+                      onClick={() => action('poe', () => api(`/api/devices/${deviceId}/ports/${portPath}/poe-cycle`, { method: 'POST' }))}>
+                {busy === 'poe' ? 'Power-cycling…' : 'PoE cycle'}
+              </Button>
+            )}
             <Button variant="secondary" disabled={!!busy}
                     onClick={() => action('tdr', () => api(`/api/devices/${deviceId}/ports/${portPath}/cable-test`, { method: 'POST' }))}>
               {busy === 'tdr' ? 'Testing…' : 'Cable test'}
@@ -124,6 +130,11 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
           <span className="text-sm text-slate-300">none</span>
         )}
       </div>
+
+      {/* SFP optics (DDM) for fiber/SFP ports */}
+      {/^(sfp|qsfp|Te|Tw|Fo|Hu|Twe|Fi)/i.test(port.name) && (
+        <SfpOptics deviceId={deviceId} portPath={portPath} />
+      )}
 
       {/* History */}
       <PortHistory deviceId={deviceId} portPath={portPath} />
@@ -208,6 +219,44 @@ function PortHistory({ deviceId, portPath }: { deviceId: string; portPath: strin
             <span>{new Date(samples[samples.length - 1].recorded_at).toLocaleString()}</span>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function SfpOptics({ deviceId, portPath }: { deviceId: string; portPath: string }) {
+  const { data, isLoading } = useApiQuery<any>(
+    `/api/devices/${deviceId}/ports/${portPath}/sfp`, { refetchInterval: 60000 });
+  if (isLoading || !data) return null;
+
+  const header = (
+    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Optics (SFP / DDM)</div>
+  );
+  if (data.present === false) {
+    return <div className="mt-4">{header}<span className="text-sm text-slate-300">No transceiver inserted.</span></div>;
+  }
+  const stats: [string, string | null, boolean?][] = [
+    ['Temp', data.temperatureC != null ? `${data.temperatureC} °C` : null, data.temperatureC > 70],
+    ['Voltage', data.voltageV != null ? `${data.voltageV} V` : null],
+    ['Tx power', data.txPowerDbm != null ? `${data.txPowerDbm} dBm` : null],
+    ['Rx power', data.rxPowerDbm != null ? `${data.rxPowerDbm} dBm` : null, data.rxPowerDbm != null && data.rxPowerDbm < -20],
+    ['Bias', data.txBiasMa != null ? `${data.txBiasMa} mA` : null],
+    ['Vendor', data.vendor || null],
+    ['Part', data.partNumber || null],
+    ['Wavelength', data.wavelengthNm != null ? `${data.wavelengthNm} nm` : null],
+  ];
+  const shown = stats.filter(s => s[1]);
+  return (
+    <div className="mt-4">
+      {header}
+      {shown.length > 0 ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {shown.map(([k, v, warn]) => <Stat key={k} label={k} value={v as string} tone={warn ? 'warn' : undefined} />)}
+        </div>
+      ) : data.raw ? (
+        <pre className="max-h-56 overflow-auto rounded-lg bg-gray-900 p-3 text-xs leading-relaxed text-green-300">{data.raw}</pre>
+      ) : (
+        <span className="text-sm text-slate-300">No optical data exposed by this port.</span>
       )}
     </div>
   );

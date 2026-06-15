@@ -28,6 +28,7 @@
     "fastify": "^4.28.1",
     "ioredis": "^5.4.1",
     "ldapjs": "^3.0.7",
+    "mqtt": "^5.15.1",
     "net-snmp": "^3.11.2",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.14",

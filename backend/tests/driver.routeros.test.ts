@@ -25,6 +25,13 @@ describe('routerosDriver', () => {
     });
   });
 
+  it('poe cycle toggles poe-out off then auto', () => {
+    expect(ros.poeCycleLines('ether5')).toEqual({
+      off: ['/interface ethernet poe set [find name=ether5] poe-out=off'],
+      on: ['/interface ethernet poe set [find name=ether5] poe-out=auto'],
+    });
+  });
+
   it('maps a trap level onto one rule per topic (RouterOS ANDs topics in a rule)', () => {
     // a single multi-topic rule would match nothing, so each severity is its own rule
     expect(ros.loggingTrap('warnings')).toEqual([

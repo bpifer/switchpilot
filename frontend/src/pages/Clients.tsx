@@ -51,6 +51,14 @@ export default function Clients() {
   const isRecent = (ts: string) =>
     Date.now() - new Date(ts).getTime() < 24 * 3600 * 1000;
 
+  const [woke, setWoke] = useState('');
+  const wake = async (mac: string) => {
+    try {
+      await api('/api/wol', { method: 'POST', body: { mac } });
+      setWoke(mac); setTimeout(() => setWoke(''), 2500);
+    } catch { /* surfaced by lack of confirmation */ }
+  };
+
   const exportCsv = () => {
     const header = 'MAC,IP,Vendor,Hostname,Switch,Port,VLAN,First Seen,Last Seen';
     const rows = results.map(r => [
@@ -159,6 +167,7 @@ export default function Clients() {
                   <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Port</th>
                   <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">VLAN</th>
                   <th className="pb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Last seen</th>
+                  <th className="pb-3 text-xs font-semibold uppercase tracking-wide text-slate-500"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -191,11 +200,17 @@ export default function Clients() {
                         {new Date(r.last_seen).toLocaleString()}
                       </span>
                     </td>
+                    <td className="py-2.5 pl-3 text-right">
+                      <button onClick={() => wake(r.mac)} title="Send a Wake-on-LAN magic packet to this MAC"
+                        className="rounded border border-slate-200 px-2 py-0.5 text-[11px] text-slate-500 hover:bg-slate-50 hover:text-brand-600 transition">
+                        {woke === r.mac ? 'Sent ✓' : 'Wake'}
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {results.length === 0 && !loading && (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400">
+                    <td colSpan={9} className="py-12 text-center text-slate-400">
                       <div className="flex flex-col items-center gap-1">
                         <span className="text-sm">
                           {query

@@ -75,6 +75,13 @@ describe('ciscoDriver', () => {
     });
     expect(ios.loggingTrap('informational')).toEqual(['logging trap informational']);
   });
+
+  it('poe cycle powers the port off then back on', () => {
+    expect(ios.poeCycleLines('Gi1/0/5')).toEqual({
+      off: ['interface GigabitEthernet1/0/5', 'power inline never'],
+      on: ['interface GigabitEthernet1/0/5', 'power inline auto'],
+    });
+  });
 });
 
 describe('driverFor', () => {

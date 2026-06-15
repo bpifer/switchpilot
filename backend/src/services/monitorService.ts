@@ -6,6 +6,7 @@ import { CiscoSshSession } from '../cisco/sshClient.js';
 import { RouterOsSshSession } from '../routeros/sshClient.js';
 import { withDeviceSession } from '../cisco/sshPool.js';
 import { refreshRouterOsDevice, isMikrotik } from './routerosMonitor.js';
+import { publishDevice } from './mqttService.js';
 import { snmpProbe } from '../cisco/snmpClient.js';
 import {
   parseShowVersion, parseInterfacesStatus, parseMacTable, parseCdpNeighborsDetail,
@@ -54,6 +55,7 @@ export async function pollStatus(device: DeviceRow): Promise<void> {
   } else if (reachable) {
     await query('UPDATE devices SET last_seen_at=now() WHERE id=$1', [device.id]);
   }
+  publishDevice(device.id).catch(() => { /* mqtt best-effort */ });
 }
 
 /** Full refresh: identity, metrics, environment, ports, PoE, MACs, stack, neighbors. */
@@ -255,6 +257,7 @@ export async function refreshDevice(deviceId: string): Promise<void> {
 
     await redis.set(`device:${deviceId}:lastRefresh`, Date.now().toString()).catch(() => { /* cache only */ });
   });
+  publishDevice(deviceId).catch(() => { /* mqtt best-effort */ });
 }
 
 async function evaluateHealthAlerts(

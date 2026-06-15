@@ -81,6 +81,14 @@ export function ciscoDriver(os: string): DeviceDriver {
       return { down: [`interface ${iface}`, 'shutdown'], up: [`interface ${iface}`, 'no shutdown'] };
     },
 
+    poeCycleLines(port) {
+      const iface = expandInterfaceName(port);
+      return {
+        off: [`interface ${iface}`, 'power inline never'],
+        on: [`interface ${iface}`, 'power inline auto'],
+      };
+    },
+
     cableTest(port) {
       const iface = expandInterfaceName(port);
       return {

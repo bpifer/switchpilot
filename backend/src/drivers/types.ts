@@ -51,6 +51,8 @@ export interface DeviceDriver {
   portConfig(port: string, opts: PortConfigOpts): string[];
   /** Admin bounce, split so the caller can pause between the two phases. */
   bounceLines(port: string): { down: string[]; up: string[] };
+  /** PoE power-cycle: power-off lines then power-on lines (caller pauses between). */
+  poeCycleLines(port: string): { off: string[]; on: string[] };
   /** TDR cable test: a command to start it and a command to read results. */
   cableTest(port: string): { run: string; show: string };
   /** Set which syslog severities are forwarded. */

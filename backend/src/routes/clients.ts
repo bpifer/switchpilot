@@ -1,6 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
 import { siteFilter } from './util.js';
+import { requireRole } from '../auth/rbac.js';
+import { audit } from '../audit.js';
+import { sendWol } from '../services/wolService.js';
 
 /** Normalise any common MAC format to Cisco dotted-hex (aabb.ccdd.eeff). */
 function normalizeMac(s: string): string | null {
@@ -10,6 +13,28 @@ function normalizeMac(s: string): string | null {
 }
 
 export default async function clientRoutes(app: FastifyInstance) {
+  // Wake-on-LAN: send a magic packet for a MAC (broadcast on the platform's segment).
+  app.post('/api/wol', {
+    preHandler: requireRole('helpdesk'),
+    schema: {
+      tags: ['clients'],
+      body: {
+        type: 'object', required: ['mac'],
+        properties: { mac: { type: 'string' }, broadcast: { type: 'string' } }
+      }
+    }
+  }, async (req, reply) => {
+    const { mac, broadcast } = req.body as { mac: string; broadcast?: string };
+    const me = req.user as any;
+    try {
+      await sendWol(mac, broadcast || undefined);
+      await audit(me.username, 'wol.send', mac, { broadcast: broadcast ?? 'default' }, req.ip);
+      return { ok: true };
+    } catch (err: any) {
+      return reply.code(err.statusCode ?? 500).send({ error: err.message });
+    }
+  });
+
   // Unified endpoint search. `q` matches endpoints by MAC/IP/vendor/PTR
   // hostname, and (when searching) also surfaces the infrastructure the
   // endpoint table can't hold: managed switches (by hostname or mgmt IP) and
