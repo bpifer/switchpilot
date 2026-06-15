@@ -59,6 +59,37 @@ items lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.md).
       git history already work for RouterOS; only restore is blocked.
 - [ ] PoE drill-down is in; consider a reverse link (device metrics -> PoE).
 
+## Homelabber feature roadmap
+
+Built this session (validated live where hardware allowed):
+- [x] **Prometheus exporter** for Grafana - per-device + per-port gauges
+      (`/metrics`), labelled by device/port/vendor/site.
+- [x] **MQTT + Home Assistant** (`services/mqttService.ts`). Set `MQTT_URL`
+      (+ `MQTT_USERNAME`/`MQTT_PASSWORD`, optional `MQTT_BASE_TOPIC`,
+      `MQTT_HA_PREFIX`, `MQTT_HA_DISCOVERY`) in the api env to activate. Publishes
+      HA-discovered device entities; commands: `<base>/cmd/port` {deviceId,port,
+      action: enable|disable|poe-cycle}, `<base>/cmd/wol` {mac}.
+- [x] **SFP/DDM optics** - `GET /ports/:port/sfp` + port-detail panel. Validated
+      "no module"; insert a 10G SFP+ to confirm Tx/Rx power readings.
+- [x] **PoE power-cycle + Wake-on-LAN** - port PoE-cycle button + a Wake button
+      per endpoint. WoL validated live; PoE-cycle needs PoE-capable hardware to
+      confirm end to end.
+
+Still on the wishlist (ranked):
+- [ ] **UniFi driver** (controller API, not SSH) - the biggest gap for the
+      homelab audience; the `DeviceDriver` seam is ready. Then Aruba/HPE,
+      Netgear, Brocade/ICX.
+- [ ] **More notification channels**: Discord, ntfy, Telegram, Pushover, Gotify
+      (the integrations layer already has Teams/Slack/SMTP to mirror).
+- [ ] **GitOps / intent-based config**: declare desired VLANs/port profiles in
+      YAML, reconcile + flag drift (compliance/drift engine + git history exist);
+      mirror the config-history repo to an external git remote for DR.
+- [ ] **PoE energy + cost**: watts over time -> kWh -> dollar figure (rate cfg).
+- [ ] **Richer auto-topology map**: link utilization, VLAN overlays, "what's
+      plugged into what" from the neighbor/client data.
+- [ ] **DHCP/IPAM correlation** (pull leases from MikroTik/pfSense/Pi-hole) +
+      make the SPA an installable PWA for phone/rack use.
+
 ## Cisco-coupling audited (done this session)
 
 Hunted hardcoded `show`/IOS paths that would break RouterOS; all now
