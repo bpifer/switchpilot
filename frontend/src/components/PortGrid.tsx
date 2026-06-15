@@ -144,7 +144,13 @@ export default function PortGrid({ ports, selected, onSelect }: {
         <Legend cls="bg-yellow-400" label="Errors" />
         <Legend cls="bg-green-500 shadow-[inset_0_-3px_0_rgba(37,99,235,0.9)]" label="PoE active" />
         <span className="flex items-center gap-1.5">
-          <span className="relative inline-block h-4 w-5 rounded border border-gray-400 bg-gray-200">
+          <span className="relative inline-block h-4 w-4 rounded-sm border border-gray-400 bg-gray-200">
+            <span className="absolute -top-px left-1/2 -translate-x-1/2 h-1 w-2 rounded-b-[1px] bg-white" />
+          </span>
+          RJ45 / copper
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="relative inline-block h-4 w-5 rounded-md border border-gray-400 bg-gray-200">
             <span className="absolute inset-x-1 top-0.5 h-1 rounded-sm bg-black/35" />
           </span>
           SFP / fiber
@@ -191,20 +197,24 @@ function PortButton({ p, selected, onSelect, label, sfp = false }: {
     );
   }
 
+  // Copper RJ45 jacks: a square body with a keyway notch cut into the top edge
+  // (the panel-colored tab), so they read as an 8P8C jack vs the SFP cages.
   return (
     <button
       title={tooltip}
       onClick={() => onSelect(p.name)}
       className={`
-        relative h-6 w-7 rounded-sm border-2 text-[8px] leading-none font-medium
+        relative h-7 w-7 rounded-sm border-2 text-[8px] leading-none font-medium
         ${portColor(p)} ${sel}
         ${p.poe_watts ? 'shadow-[inset_0_-3px_0_rgba(37,99,235,0.9)]' : ''}
         transition-opacity hover:opacity-80
       `}
     >
-      {label}
+      {/* RJ45 keyway notch */}
+      <span className="absolute -top-[2px] left-1/2 -translate-x-1/2 h-[3px] w-2.5 rounded-b-[2px] bg-gray-800" />
+      <span className="absolute inset-x-0 bottom-0.5 text-center">{label}</span>
       {p.mode === 'trunk' && (
-        <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-[7px] leading-none text-sky-300"
+        <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[7px] leading-none text-sky-300"
               title="Trunk / uplink">▲</span>
       )}
     </button>
