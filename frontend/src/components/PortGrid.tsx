@@ -15,6 +15,7 @@ export interface Port {
   output_errors: number;
   macs: string[];
   flap_count_1h: number;
+  media?: string;   // transceiver/media type, e.g. "10/100/1000BaseTX" or "Not Present"
 }
 
 /** Normalize a speed string ("1000", "a-1000", "10G", "10Gbps", "100") to Mbps. */
@@ -52,9 +53,13 @@ function modKey(name: string): string {
   return slash >= 0 ? name.slice(0, slash) : name.replace(/\d+$/, '');
 }
 
-/** 10G+ copper uplinks (Cisco) and all SFP/SFP+ cages (Cisco + RouterOS). */
-function isUplink(name: string): boolean {
-  return /^(Te|Tw|Fo|Hu)/i.test(name) || /^(sfp|qsfp)/i.test(name);
+/** SFP/fiber ports: by name (RouterOS sfp*, Cisco Te/Tw/Fo/Hu) or by media type
+ *  (Cisco 1G SFP slots are Gi-named but report "Not Present"/a fiber type, not
+ *  the "...BaseTX" of RJ45 copper). */
+function isSfp(p: Port): boolean {
+  if (/^(Te|Tw|Fo|Hu)/i.test(p.name) || /^(sfp|qsfp)/i.test(p.name)) return true;
+  const m = p.media ?? '';
+  return !!m && !/baseT/i.test(m);
 }
 
 export default function PortGrid({ ports, selected, onSelect }: {
@@ -70,8 +75,8 @@ export default function PortGrid({ ports, selected, onSelect }: {
     return n.includes('/') || /^(ether|sfp|qsfp|combo)/i.test(n);
   });
 
-  const copper = physical.filter(p => !isUplink(p.name));
-  const uplinks = physical.filter(p => isUplink(p.name));
+  const copper = physical.filter(p => !isSfp(p));
+  const uplinks = physical.filter(p => isSfp(p));
 
   // Group access ports by module/family: Gi1/0, Fa0, ether, ...
   const groups = new Map<string, Port[]>();

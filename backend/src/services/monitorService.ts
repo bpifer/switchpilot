@@ -162,20 +162,22 @@ export async function refreshDevice(deviceId: string): Promise<void> {
     if (portRows.length) {
       await query(
         `INSERT INTO ports (device_id, name, description, admin_up, oper_status, vlan, mode, speed, duplex,
-            poe_watts, input_errors, output_errors, macs, last_flap_at, flap_count_1h, updated_at)
+            poe_watts, input_errors, output_errors, macs, last_flap_at, flap_count_1h, media, updated_at)
          SELECT $1, t.name, t.description, t.admin_up, t.oper_status, t.vlan, t.mode, t.speed, t.duplex,
-            t.poe_watts, t.input_errors, t.output_errors, t.macs, t.last_flap_at, t.flap_count_1h, now()
+            t.poe_watts, t.input_errors, t.output_errors, t.macs, t.last_flap_at, t.flap_count_1h, t.media, now()
          FROM jsonb_to_recordset($2::jsonb) AS t(
             name text, description text, admin_up boolean, oper_status text, vlan text, mode text,
             speed text, duplex text, poe_watts real, input_errors bigint, output_errors bigint,
-            macs jsonb, last_flap_at timestamptz, flap_count_1h int)
+            macs jsonb, last_flap_at timestamptz, flap_count_1h int, media text)
          ON CONFLICT (device_id, name) DO UPDATE SET
             description=EXCLUDED.description, admin_up=EXCLUDED.admin_up, oper_status=EXCLUDED.oper_status,
             vlan=EXCLUDED.vlan, mode=EXCLUDED.mode, speed=EXCLUDED.speed, duplex=EXCLUDED.duplex,
             poe_watts=EXCLUDED.poe_watts, input_errors=EXCLUDED.input_errors, output_errors=EXCLUDED.output_errors,
-            macs=EXCLUDED.macs, last_flap_at=EXCLUDED.last_flap_at, flap_count_1h=EXCLUDED.flap_count_1h, updated_at=now()`,
+            macs=EXCLUDED.macs, last_flap_at=EXCLUDED.last_flap_at, flap_count_1h=EXCLUDED.flap_count_1h,
+            media=EXCLUDED.media, updated_at=now()`,
         [deviceId, JSON.stringify(portRows.map(({ i, err, flapCount, lastFlapAt }) => ({
           name: i.name, description: i.description, admin_up: i.status !== 'disabled', oper_status: i.status,
+          media: i.type ?? '',
           vlan: i.vlan, mode: i.vlan === 'trunk' ? 'trunk' : i.vlan === 'routed' ? 'routed' : 'access',
           speed: i.speed, duplex: i.duplex, poe_watts: poeByPort.get(i.name) ?? null,
           input_errors: err?.inputErrors ?? 0, output_errors: err?.outputErrors ?? 0,
