@@ -161,8 +161,9 @@ export function routerosDriver(): DeviceDriver {
       const lines: string[] = [];
 
       if (o.description !== undefined) {
-        // Avoid breaking the quoted RouterOS string; swap quotes/backslashes.
-        const c = o.description.replace(/["\\]/g, "'");
+        // Swap quotes/backslashes and strip CR/LF so a comment can't break out
+        // of the quoted string or inject extra RouterOS commands.
+        const c = o.description.replace(/["\\]/g, "'").replace(/[\r\n]+/g, ' ');
         lines.push(`/interface ethernet set [find default-name=${port}] comment="${c}"`);
       }
 

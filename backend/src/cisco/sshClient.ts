@@ -94,6 +94,9 @@ export class CiscoSshSession {
 
   /** Run a single command and return its output (without the echoed command/prompt). */
   async exec(command: string, timeoutMs = 30000): Promise<string> {
+    // A single command must never contain an embedded newline - that would let
+    // user input (e.g. a port description) inject additional CLI commands.
+    command = command.replace(/[\r\n]+/g, ' ');
     this.buffer = '';
     this.stream.write(command + '\n');
     const raw = await this.waitForPrompt(timeoutMs);

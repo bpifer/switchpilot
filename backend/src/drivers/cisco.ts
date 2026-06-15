@@ -52,7 +52,11 @@ export function ciscoDriver(os: string): DeviceDriver {
 
     portConfig(port, o: PortConfigOpts) {
       const lines = [`interface ${expandInterfaceName(port)}`];
-      if (o.description !== undefined) lines.push(o.description ? `description ${o.description}` : 'no description');
+      if (o.description !== undefined) {
+        // Strip CR/LF so a description can't inject extra IOS commands.
+        const d = o.description.replace(/[\r\n]+/g, ' ').trim();
+        lines.push(d ? `description ${d}` : 'no description');
+      }
       if (o.mode === 'access') {
         lines.push('switchport mode access');
         if (o.vlan) lines.push(`switchport access vlan ${o.vlan}`);

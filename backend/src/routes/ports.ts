@@ -75,7 +75,7 @@ export default async function portRoutes(app: FastifyInstance) {
         properties: {
           vlan: { type: 'integer', minimum: 1, maximum: 4094 },
           voiceVlan: { type: 'integer', minimum: 1, maximum: 4094 },
-          description: { type: 'string', maxLength: 200 },
+          description: { type: 'string', maxLength: 200, pattern: '^[^\\r\\n]*$' },
           mode: { type: 'string', enum: ['access', 'trunk'] },
           trunkNativeVlan: { type: 'integer', minimum: 1, maximum: 4094 },
           trunkAllowedVlans: { type: 'string', pattern: '^[0-9,\\-]*$' },

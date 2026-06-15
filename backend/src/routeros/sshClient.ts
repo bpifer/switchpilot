@@ -34,6 +34,9 @@ export class RouterOsSshSession {
 
   /** Run one command over its own exec channel and return combined output. */
   exec(command: string, timeoutMs = 30000): Promise<string> {
+    // Embedded newlines would split into extra RouterOS commands - strip them so
+    // user input (e.g. an interface comment) can't inject commands.
+    command = command.replace(/[\r\n]+/g, ' ');
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error(`RouterOS command timed out: ${command}`)), timeoutMs);
       this.conn.exec(command, (err, channel) => {

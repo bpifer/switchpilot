@@ -46,6 +46,15 @@ describe('ciscoDriver', () => {
     ]);
   });
 
+  it('strips newlines from a description so it cannot inject extra IOS commands', () => {
+    const lines = ios.portConfig('Gi1/0/1', { description: 'lobby AP\nexit\nusername evil privilege 15 secret p' });
+    expect(lines).toEqual([
+      'interface GigabitEthernet1/0/1',
+      'description lobby AP exit username evil privilege 15 secret p',
+    ]);
+    expect(lines.some(l => /[\r\n]/.test(l))).toBe(false);
+  });
+
   it('empty description clears it; vlan without mode still sets access vlan', () => {
     expect(ios.portConfig('Gi1/0/2', { description: '' })).toEqual([
       'interface GigabitEthernet1/0/2', 'no description'

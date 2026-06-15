@@ -102,6 +102,12 @@ describe('routerosDriver.portConfig (bridge VLAN)', () => {
     expect(lines.some(l => l.includes('auto-negotiation=no') && l.includes('speed=1Gbps') && l.includes('full-duplex=yes'))).toBe(true);
   });
 
+  it('strips quotes and newlines from a comment so it cannot break out / inject', () => {
+    const [line] = ros.portConfig('ether1', { description: 'ap"\n/user add name=evil group=full' });
+    expect(line).toBe('/interface ethernet set [find default-name=ether1] comment="ap\' /user add name=evil group=full"');
+    expect(/[\r\n]/.test(line)).toBe(false);
+  });
+
   it('portfast/bpduGuard map to the bridge port', () => {
     const lines = ros.portConfig('ether2', { portfast: true, bpduGuard: true });
     expect(lines.some(l => l.includes('bridge port set [find interface=ether2]') && l.includes('edge=yes') && l.includes('bpdu-guard=yes'))).toBe(true);
