@@ -113,6 +113,69 @@ Holdtime : 130 sec
 export const SHOW_PROCESSES_CPU = `CPU utilization for five seconds: 7%/2%; one minute: 9%; five minutes: 11%
 `;
 
+// ---------------------------------------------------------------------------
+// REAL output captured from Cisco Modeling Labs (CML) virtual switches, used
+// to regression-test parser compatibility across IOS families. Captured via an
+// EEM applet -> console (iosvl2) and the boot banner (ioll2-xe), 2026-06-18.
+//   - iosvl2  = vios_l2-ADVENTERPRISEK9-M 15.2  (classic IOS, Gi0/x naming)
+//   - ioll2-xe = X86_64BI_LINUX_L2-ADVENTERPRISEK9 17.18.2 (IOS-XE / IOL)
+// Notes proven by these captures: both report no Catalyst model string (model
+// is empty -> family null), and IOSv's experimental version carries a colon.
+// ---------------------------------------------------------------------------
+export const SHOW_VERSION_IOSV_L2 = `Cisco IOS Software, vios_l2 Software (vios_l2-ADVENTERPRISEK9-M), Experimental Version 15.2(20200924:215240) [sweickge-sep24-2020-l2iol-release 135]
+Copyright (c) 1986-2020 by Cisco Systems, Inc.
+Compiled Tue 29-Sep-20 11:53 by sweickge
+
+ROM: Bootstrap program is IOSv
+
+IOS-L2-SW uptime is 0 minutes
+System returned to ROM by reload
+System image file is "flash0:/vios_l2-adventerprisek9-m"
+Last reload reason: Unknown reason
+
+Cisco IOSv () processor (revision 1.0) with 722157K/62464K bytes of memory.
+Processor board ID 9K70VA7Z9HT
+1 Virtual Ethernet interface
+4 Gigabit Ethernet interfaces
+DRAM configuration is 72 bits wide with parity disabled.
+256K bytes of non-volatile configuration memory.
+Configuration register is 0x101
+`;
+
+export const SHOW_VERSION_IOL_XE = `Cisco IOS Software [IOSXE], Linux Software (X86_64BI_LINUX_L2-ADVENTERPRISEK9-M), Version 17.18.2, RELEASE SOFTWARE (fc3)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Dec-25 03:28 by mcpre
+
+IOSXE-L2-SW uptime is 1 minute
+Processor board ID 2039811
+4 Ethernet interfaces
+`;
+
+export const SHOW_INTERFACES_STATUS_IOSV = `Port      Name               Status       Vlan       Duplex  Speed Type
+Gi0/0     Uplink-to-Core     notconnect   trunk      a-full   auto RJ45
+Gi0/1     WorkstationA       notconnect   10         a-full   auto RJ45
+Gi0/2     IP-Phone-Reception notconnect   20         a-full   auto RJ45
+Gi0/3     Unused-Port        disabled     1            auto   auto RJ45
+`;
+
+export const SHOW_VLAN_BRIEF_IOSV = `VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    Gi0/0, Gi0/3
+10   VLAN0010                         active    Gi0/1
+20   VLAN0020                         active    Gi0/2
+1002 fddi-default                     act/unsup
+1003 token-ring-default               act/unsup
+1004 fddinet-default                  act/unsup
+1005 trnet-default                    act/unsup
+`;
+
+export const SHOW_PROCESSES_CPU_IOSV = `CPU utilization for five seconds: 99%/0%; one minute: 41%; five minutes: 10%
+`;
+
+export const SHOW_PROCESSES_MEMORY_IOSV = `Processor Pool Total:  612577120 Used:   62807940 Free:  549769180
+`;
+
 export const SHOW_PROCESSES_MEMORY = `Processor Pool Total:  862236672 Used:  204503040 Free:  657733632
 `;
 
