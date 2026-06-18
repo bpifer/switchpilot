@@ -2,8 +2,10 @@
 // All operations go through the SSH pool: one cached session per device with a
 // 90s idle TTL, so back-to-back UI actions and sweeps reuse the handshake.
 import { query } from '../db.js';
+import { audit } from '../audit.js';
 import { decryptSecret } from '../crypto/secrets.js';
 import { type SshTarget } from '../cisco/sshClient.js';
+import { makeHostVerifier } from '../cisco/hostKey.js';
 import { withDeviceSession } from '../cisco/sshPool.js';
 import type { SnmpTarget } from '../cisco/snmpClient.js';
 import { driverFor, type PortConfigOpts } from '../drivers/index.js';
@@ -16,7 +18,40 @@ export interface DeviceRow {
   family: string;
   credential_id: string | null;
   capabilities: Record<string, unknown>;
+  ssh_host_key_fp?: string;
   [k: string]: unknown;
+}
+
+/** Record a device's SSH host-key fingerprint the first time we see it
+ *  (trust-on-first-use). The WHERE guard makes this a no-op once pinned, so
+ *  concurrent first connections can't clobber an existing pin. */
+async function pinHostKey(deviceId: string, fp: string): Promise<void> {
+  try {
+    const { rowCount } = await query(
+      `UPDATE devices SET ssh_host_key_fp=$1, ssh_host_key_pinned_at=now()
+       WHERE id=$2 AND coalesce(ssh_host_key_fp,'')=''`, [fp, deviceId]);
+    if (rowCount) await audit('system', 'device.sshkey.pin', deviceId, { fingerprint: fp });
+  } catch (err) {
+    console.error(`failed to pin SSH host key for ${deviceId}:`, (err as Error).message);
+  }
+}
+
+/** Audit a host-key mismatch. The connection is already being refused by the
+ *  verifier (before auth); this records it as a security event for the timeline. */
+async function recordHostKeyMismatch(device: DeviceRow, presented: string, expected: string): Promise<void> {
+  try {
+    await audit('system', 'device.sshkey.mismatch', device.id,
+      { host: device.mgmt_ip, expected, presented });
+  } catch (err) {
+    console.error(`failed to record SSH host-key mismatch for ${device.id}:`, (err as Error).message);
+  }
+}
+
+/** Clear a device's pinned SSH host key so the next connection re-pins. Use when
+ *  a switch is legitimately re-imaged or replaced (otherwise it would be refused). */
+export async function repinHostKey(deviceId: string, username: string): Promise<void> {
+  await query(`UPDATE devices SET ssh_host_key_fp='', ssh_host_key_pinned_at=NULL WHERE id=$1`, [deviceId]);
+  await audit(username, 'device.sshkey.repin', deviceId, {});
 }
 
 export async function getDevice(deviceId: string): Promise<DeviceRow> {
@@ -37,7 +72,14 @@ export async function sshTargetFor(device: DeviceRow): Promise<SshTarget> {
     password: decryptSecret(c.ssh_password_enc),
     enablePassword: decryptSecret(c.enable_password_enc) || undefined,
     skipEnable: driver.skipEnable,
-    os: driver.os
+    os: driver.os,
+    // Pin the host key on first connect; refuse a changed key thereafter. Runs
+    // for every pooled SSH operation (exec, config push, refresh, terminal).
+    hostVerifier: makeHostVerifier({
+      expectedFp: device.ssh_host_key_fp ?? '',
+      onPin: fp => { void pinHostKey(device.id, fp); },
+      onMismatch: (presented, expected) => { void recordHostKeyMismatch(device, presented, expected); }
+    })
   };
 }
 

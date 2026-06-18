@@ -1,4 +1,5 @@
 import { Client, type ClientChannel } from 'ssh2';
+import { buildSshVerification } from './hostKey.js';
 
 export interface SshTarget {
   host: string;
@@ -11,6 +12,10 @@ export interface SshTarget {
   skipEnable?: boolean;
   /** Device OS, so the pool opens the right session class ('routeros' -> MikroTik). */
   os?: string;
+  /** ssh2 host-key verifier (see hostKey.ts). When set, the session pins/verifies
+   *  the device's SSH host key and refuses a changed key before authenticating.
+   *  Absent => no host-key checking (ssh2's prior behavior), e.g. onboarding probes. */
+  hostVerifier?: (key: Buffer) => boolean;
 }
 
 /** The session surface the pool and deviceComms rely on; both the Cisco shell
@@ -51,17 +56,20 @@ export class CiscoSshSession {
 
   async connect(): Promise<void> {
     const t = this.target;
+    const { hostVerifier, rejectionError } = buildSshVerification(t);
     await new Promise<void>((resolve, reject) => {
       this.conn
         .on('ready', resolve)
-        .on('error', reject)
+        // Prefer the host-key error (clear + actionable) over ssh2's opaque one.
+        .on('error', err => reject(rejectionError() ?? err))
         .connect({
           host: t.host,
           port: t.port ?? 22,
           username: t.username,
           password: t.password,
           readyTimeout: t.timeoutMs ?? 15000,
-          algorithms: SSH_ALGORITHMS
+          algorithms: SSH_ALGORITHMS,
+          hostVerifier
         });
     });
     this.stream = await new Promise<ClientChannel>((resolve, reject) => {

@@ -3,6 +3,7 @@
 // stream straight through so the operator drives the CLI directly.
 import { Client } from 'ssh2';
 import { SSH_ALGORITHMS, type SshTarget } from './sshClient.js';
+import { buildSshVerification } from './hostKey.js';
 
 export interface ShellHandle {
   write(data: string): void;
@@ -16,6 +17,7 @@ export function openInteractiveShell(
   onClose: () => void
 ): Promise<ShellHandle> {
   const conn = new Client();
+  const { hostVerifier, rejectionError } = buildSshVerification(target);
   return new Promise((resolve, reject) => {
     conn
       .on('ready', () => {
@@ -31,14 +33,15 @@ export function openInteractiveShell(
           });
         });
       })
-      .on('error', err => reject(err))
+      .on('error', err => reject(rejectionError() ?? err))
       .connect({
         host: target.host,
         port: target.port ?? 22,
         username: target.username,
         password: target.password,
         readyTimeout: 15000,
-        algorithms: SSH_ALGORITHMS
+        algorithms: SSH_ALGORITHMS,
+        hostVerifier
       });
   });
 }

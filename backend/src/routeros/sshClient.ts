@@ -5,6 +5,7 @@
 // exec channel per line is correct. vendor: mikrotik.
 import { Client } from 'ssh2';
 import type { SshTarget } from '../cisco/sshClient.js';
+import { buildSshVerification } from '../cisco/hostKey.js';
 
 // RouterOS prints these when it rejects input; surface them as errors so a bad
 // config push fails loudly instead of silently.
@@ -17,16 +18,18 @@ export class RouterOsSshSession {
 
   async connect(): Promise<void> {
     const t = this.target;
+    const { hostVerifier, rejectionError } = buildSshVerification(t);
     await new Promise<void>((resolve, reject) => {
       this.conn
         .on('ready', resolve)
-        .on('error', reject)
+        .on('error', err => reject(rejectionError() ?? err))
         .connect({
           host: t.host,
           port: t.port ?? 22,
           username: t.username,
           password: t.password,
           readyTimeout: t.timeoutMs ?? 15000,
+          hostVerifier,
           // RouterOS 7 negotiates modern kex/ciphers; let ssh2 pick defaults.
         });
     });

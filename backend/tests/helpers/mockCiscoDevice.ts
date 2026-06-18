@@ -45,6 +45,10 @@ export async function startMockDevice(opts: MockDeviceOptions = {}): Promise<Run
     }
   }, client => {
     connections++;
+    // A client may abort mid-handshake (e.g. host-key verification rejects the
+    // server before auth); without a handler ssh2 surfaces that as an unhandled
+    // 'error'. The mock doesn't care why a connection dropped.
+    client.on('error', () => { /* client disconnected */ });
     client.on('authentication', ctx => ctx.accept());
     client.on('ready', () => {
       client.on('session', accept => {
