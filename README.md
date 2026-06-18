@@ -17,7 +17,9 @@ SFP/fiber cages, ports colored by live link speed (10G blue, 1G green, 10/100
 orange). Per port: enable/disable, bounce, **PoE power-cycle** (reboot a frozen
 AP/camera without unplugging), cable test (Cisco TDR), access/trunk VLAN config
 (Cisco switchport and RouterOS bridge-VLAN), and **SFP optical diagnostics**
-(DDM: temperature, Tx/Rx power, vendor).
+(DDM: temperature, Tx/Rx power, vendor). Structured edits are **previewed**
+(a before/after diff with connectivity guardrails) before applying and **read
+back** from the device afterward to confirm they landed.
 
 **Config management.** Scheduled and on-demand backups, each committed to a local
 git repo with author and reason. Browse the per-device history, diff any two
@@ -29,8 +31,10 @@ RouterOS hardening rules.
 
 **Monitoring & alerts.** Continuous polling (online/offline, CPU, memory, temp,
 port flapping, interface errors), syslog ingest for both Cisco and RouterOS,
-alerts with maintenance windows, and real-time push to the UI. Notify via email,
-Slack, Teams, or generic signed webhooks.
+alerts with maintenance windows, and real-time push to the UI. A composite
+**fleet health score** (reachability + compliance + open criticals) sits on the
+dashboard. Notify via email, Slack, Teams, Discord, ntfy, Gotify, Telegram,
+Pushover, or generic signed webhooks.
 
 **Endpoints.** Every MAC on the network with IP, OUI vendor, reverse-DNS,
 switch + port + VLAN. Search by IP / MAC / hostname, and **Wake-on-LAN** any
@@ -54,6 +58,8 @@ event-triggered automation, and sites for grouping gear by location.
 
 RBAC (Super Admin / Network Admin / Help Desk / Read Only), local + LDAP auth,
 TOTP MFA with single-use recovery codes, an AES-256-GCM credential vault,
+**SSH host-key pinning** (trust-on-first-use; a changed key is refused before
+authentication, so credentials are never sent to an impersonated switch),
 hash-chained tamper-evident audit log, and `sp_`-prefixed API keys for scripts.
 A recent self-audit lives in [`docs/SECURITY-AUDIT.md`](docs/SECURITY-AUDIT.md).
 
@@ -96,7 +102,7 @@ switch management network can reach.
 | `MQTT_URL` | enables the Home Assistant / MQTT bridge |
 | `ALLOWED_ORIGINS` | CORS allow-list (set this in production) |
 | `ENABLE_API_DOCS` | `false` to hide the Swagger UI at `/docs` |
-| `SMTP_HOST`, `SLACK_WEBHOOK_URL`, `TEAMS_WEBHOOK_URL` | alert channels |
+| `SMTP_HOST`, `SLACK_WEBHOOK_URL`, `TEAMS_WEBHOOK_URL`, `DISCORD_WEBHOOK_URL`, `NTFY_URL`, `GOTIFY_URL`, `TELEGRAM_BOT_TOKEN`, `PUSHOVER_TOKEN` | alert channels (each optional) |
 | `LDAP_URL` | optional directory auth |
 
 Full list in `.env.example`.
