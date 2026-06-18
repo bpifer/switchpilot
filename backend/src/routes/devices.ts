@@ -5,7 +5,7 @@ import { requireRole } from '../auth/rbac.js';
 import { encryptSecret } from '../crypto/secrets.js';
 import { detectDevice } from '../cisco/detector.js';
 import { listFamilies, resolveCapabilities, familyForModel } from '../cisco/capabilities.js';
-import { getDevice, sshTargetFor, snmpTargetFor } from '../services/deviceComms.js';
+import { getDevice, sshTargetFor, snmpTargetFor, repinHostKey } from '../services/deviceComms.js';
 import { refreshDevice } from '../services/monitorService.js';
 import { provisionDevice, buildProvisionPlan } from '../services/provisionService.js';
 
@@ -250,6 +250,17 @@ export default async function deviceRoutes(app: FastifyInstance) {
     async (req) => {
       await refreshDevice((req.params as any).id);
       return getDevice((req.params as any).id);
+    });
+
+  // Re-pin the SSH host key after a legitimate re-image/replacement. Clears the
+  // pinned fingerprint, then reconnects (best-effort) so the new key is pinned.
+  app.post('/api/devices/:id/repin-host-key', { preHandler: requireRole('netadmin'), schema: { tags: ['devices'] } },
+    async (req) => {
+      const { id } = req.params as any;
+      await getDevice(id); // 404 if the device doesn't exist
+      await repinHostKey(id, (req.user as any).username);
+      await refreshDevice(id).catch(() => { /* key is cleared; next connect re-pins */ });
+      return getDevice(id);
     });
 
   // Metric history for charts
