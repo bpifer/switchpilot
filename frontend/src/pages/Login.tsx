@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api, setToken } from '../api';
+import { LogoMark } from '../components/Logo';
 import type { Me } from '../App';
 
 export default function Login({ onLogin }: { onLogin: (me: Me) => void }) {
@@ -35,17 +36,11 @@ export default function Login({ onLogin }: { onLogin: (me: Me) => void }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-brand-900 px-4">
       <div className="w-full max-w-sm">
-        {/* Logo card */}
+        {/* Brand */}
         <div className="mb-6 flex flex-col items-center">
-          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-500 shadow-lg">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                 strokeWidth={1.5} stroke="white" className="h-7 w-7">
-              <path strokeLinecap="round" strokeLinejoin="round"
-                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
-          </div>
+          <LogoMark className="mb-3 h-16 w-16 drop-shadow-lg" />
           <h1 className="text-2xl font-bold tracking-tight text-white">SwitchPilot</h1>
-          <p className="mt-1 text-sm text-slate-400">Cisco switch management</p>
+          <p className="mt-1 text-sm text-slate-400">Cisco &amp; MikroTik switch management</p>
         </div>
 
         {/* Form card */}
