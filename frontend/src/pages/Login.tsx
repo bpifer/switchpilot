@@ -40,7 +40,7 @@ export default function Login({ onLogin }: { onLogin: (me: Me) => void }) {
         <div className="mb-6 flex flex-col items-center">
           <LogoMark className="mb-3 h-16 w-16 drop-shadow-lg" />
           <h1 className="text-2xl font-bold tracking-tight text-white">SwitchPilot</h1>
-          <p className="mt-1 text-sm text-slate-400">Cisco &amp; MikroTik switch management</p>
+          <p className="mt-1 text-sm text-slate-400">Network Management</p>
         </div>
 
         {/* Form card */}
