@@ -4,6 +4,11 @@ import {
   parseCpu, parseMemory, parseEnvironment, parsePowerInline, parseShowSwitch,
   parseVlanBrief, expandInterfaceName
 } from '../src/cisco/parsers.js';
+import { familyForModel } from '../src/cisco/capabilities.js';
+import {
+  SHOW_VERSION_IOSV_L2, SHOW_VERSION_IOL_XE, SHOW_INTERFACES_STATUS_IOSV,
+  SHOW_VLAN_BRIEF_IOSV, SHOW_PROCESSES_CPU_IOSV, SHOW_PROCESSES_MEMORY_IOSV
+} from './fixtures/cisco.js';
 
 describe('parseShowVersion', () => {
   it('parses Catalyst 2960X IOS output', () => {
@@ -234,5 +239,48 @@ describe('expandInterfaceName', () => {
     expect(expandInterfaceName('Gi1/0/1')).toBe('GigabitEthernet1/0/1');
     expect(expandInterfaceName('Te1/1/1')).toBe('TenGigabitEthernet1/1/1');
     expect(expandInterfaceName('Po1')).toBe('Port-channel1');
+  });
+});
+
+// Regression coverage from REAL Cisco Modeling Labs (CML) virtual-switch output.
+// These guard the IOS families the test bench exercises: classic IOS (iosvl2
+// 15.2) and IOS-XE/IOL (ioll2-xe 17.18). See fixtures/cisco.ts for provenance.
+describe('CML virtual switch captures', () => {
+  it('parses IOSv-L2 15.2 show version (experimental version with a colon)', () => {
+    const v = parseShowVersion(SHOW_VERSION_IOSV_L2);
+    expect(v.hostname).toBe('IOS-L2-SW');
+    expect(v.serial).toBe('9K70VA7Z9HT');
+    // The colon-bearing build string must parse, not silently drop to ''.
+    expect(v.iosVersion).toBe('15.2(20200924:215240)');
+    // Virtual platforms emit no Catalyst model string -> model empty -> no family.
+    expect(v.model).toBe('');
+    expect(familyForModel(v.model)).toBeNull();
+  });
+
+  it('parses IOL-XE 17.18 show version banner', () => {
+    const v = parseShowVersion(SHOW_VERSION_IOL_XE);
+    expect(v.hostname).toBe('IOSXE-L2-SW');
+    expect(v.iosVersion).toBe('17.18.2');
+    expect(v.serial).toBe('2039811');
+    expect(v.model).toBe('');
+  });
+
+  it('parses IOSv-L2 show interfaces status (RJ45 type, trunk + disabled rows)', () => {
+    const rows = parseInterfacesStatus(SHOW_INTERFACES_STATUS_IOSV);
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toMatchObject({ name: 'Gi0/0', status: 'notconnect', vlan: 'trunk', type: 'RJ45' });
+    expect(rows[3]).toMatchObject({ name: 'Gi0/3', status: 'disabled', vlan: '1' });
+  });
+
+  it('parses IOSv-L2 show vlan brief (default + reserved 100x VLANs)', () => {
+    const vlans = parseVlanBrief(SHOW_VLAN_BRIEF_IOSV);
+    expect(vlans.map(v => v.id)).toEqual([1, 10, 20, 1002, 1003, 1004, 1005]);
+    expect(vlans.find(v => v.id === 1)!.ports).toEqual(['Gi0/0', 'Gi0/3']);
+    expect(vlans.find(v => v.id === 10)!.ports).toEqual(['Gi0/1']);
+  });
+
+  it('parses IOSv-L2 cpu and memory', () => {
+    expect(parseCpu(SHOW_PROCESSES_CPU_IOSV)).toEqual({ fiveSec: 99, oneMin: 41, fiveMin: 10 });
+    expect(parseMemory(SHOW_PROCESSES_MEMORY_IOSV)).toBeCloseTo(10.3, 1);
   });
 });

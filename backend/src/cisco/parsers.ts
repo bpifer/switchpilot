@@ -28,9 +28,11 @@ export function parseShowVersion(output: string): ShowVersionInfo {
     output.match(/Processor board ID\s+(\S+)/)?.[1] ?? '';
 
   // NX-OS: "NXOS: version 7.3(9)N1(1)" or "system: version 9.3(8)"
+  // The `:` in the IOS token class handles engineering/experimental builds whose
+  // version carries a colon, e.g. IOSv "15.2(20200924:215240)" (seen on CML).
   const iosVersion =
     output.match(/(?:NXOS|system):\s+version\s+([\w.()]+)/i)?.[1] ??
-    output.match(/Version\s+([\w.()]+?)[,\s]/)?.[1] ?? '';
+    output.match(/Version\s+([\w.():]+?)[,\s]/)?.[1] ?? '';
 
   let uptimeSeconds = 0;
   // NX-OS: "Kernel uptime is 0 day(s), 3 hour(s), 14 minute(s), 22 second(s)"

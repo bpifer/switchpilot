@@ -55,7 +55,7 @@ export async function detectDevice(
         model = vals[0] ?? '';
         serial = vals[1] ?? '';
       } catch { /* ENTITY-MIB not available */ }
-      const iosVersion = probe.sysDescr.match(/Version\s+([\w.()]+?)[,\s]/)?.[1] ?? '';
+      const iosVersion = probe.sysDescr.match(/Version\s+([\w.():]+?)[,\s]/)?.[1] ?? '';
       return {
         hostname: probe.sysName.split('.')[0],
         model,
