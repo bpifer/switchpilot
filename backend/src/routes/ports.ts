@@ -5,6 +5,27 @@ import { requireRole } from '../auth/rbac.js';
 import { devicePushConfig, deviceExec, bouncePort, cableTest, setPortAdmin, pushPortConfig, getDevice, poeCyclePort } from '../services/deviceComms.js';
 import { bridgeVlanFiltering, isMikrotik, routerOsPortMacs, routerOsVlans, routerOsSfp } from '../services/routerosMonitor.js';
 import { expandInterfaceName, parseMacTable, parseVlanBrief } from '../cisco/parsers.js';
+import { driverFor } from '../drivers/index.js';
+import { previewConfigLines } from '../services/configPreview.js';
+
+// Shared body schema for a structured port edit — used by both the apply route
+// and its dry-run preview so they accept exactly the same fields.
+const portConfigBody = {
+  type: 'object',
+  properties: {
+    vlan: { type: 'integer', minimum: 1, maximum: 4094 },
+    voiceVlan: { type: 'integer', minimum: 1, maximum: 4094 },
+    description: { type: 'string', maxLength: 200, pattern: '^[^\\r\\n]*$' },
+    mode: { type: 'string', enum: ['access', 'trunk'] },
+    trunkNativeVlan: { type: 'integer', minimum: 1, maximum: 4094 },
+    trunkAllowedVlans: { type: 'string', pattern: '^[0-9,\\-]*$' },
+    speed: { type: 'string', enum: ['auto', '10', '100', '1000', '10000'] },
+    duplex: { type: 'string', enum: ['auto', 'full', 'half'] },
+    portfast: { type: 'boolean' },
+    bpduGuard: { type: 'boolean' },
+    poeEnabled: { type: 'boolean' }
+  }
+};
 
 export default async function portRoutes(app: FastifyInstance) {
   app.get('/api/devices/:id/ports', { preHandler: requireRole('readonly'), schema: { tags: ['ports'] } },
@@ -65,28 +86,22 @@ export default async function portRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  // Dry-run a structured port edit: classify the driver-generated config lines
+  // against the live running config + surface guardrail warnings, without
+  // touching the device. The Ports tab shows this before applying.
+  app.post('/api/devices/:id/ports/:port/config/preview', {
+    preHandler: requireRole('helpdesk'),
+    schema: { tags: ['ports'], body: portConfigBody }
+  }, async (req) => {
+    const { id, port } = req.params as any;
+    const lines = driverFor(await getDevice(id)).portConfig(port, req.body as any);
+    return previewConfigLines(id, lines);
+  });
+
   // Change access VLAN / description / mode
   app.post('/api/devices/:id/ports/:port/config', {
     preHandler: requireRole('helpdesk'),
-    schema: {
-      tags: ['ports'],
-      body: {
-        type: 'object',
-        properties: {
-          vlan: { type: 'integer', minimum: 1, maximum: 4094 },
-          voiceVlan: { type: 'integer', minimum: 1, maximum: 4094 },
-          description: { type: 'string', maxLength: 200, pattern: '^[^\\r\\n]*$' },
-          mode: { type: 'string', enum: ['access', 'trunk'] },
-          trunkNativeVlan: { type: 'integer', minimum: 1, maximum: 4094 },
-          trunkAllowedVlans: { type: 'string', pattern: '^[0-9,\\-]*$' },
-          speed: { type: 'string', enum: ['auto', '10', '100', '1000', '10000'] },
-          duplex: { type: 'string', enum: ['auto', 'full', 'half'] },
-          portfast: { type: 'boolean' },
-          bpduGuard: { type: 'boolean' },
-          poeEnabled: { type: 'boolean' }
-        }
-      }
-    }
+    schema: { tags: ['ports'], body: portConfigBody }
   }, async (req) => {
     const { id, port } = req.params as any;
     const b = req.body as any;

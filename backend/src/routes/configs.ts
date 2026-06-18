@@ -13,7 +13,7 @@ import { isMikrotik } from '../services/routerosMonitor.js';
 const ROUTEROS_RESTORE_MSG = 'Config restore/rollback is not supported on RouterOS yet: a /export cannot be replayed line by line. Use /import on the device.';
 import { backupDevice } from '../services/configService.js';
 import { gitLog, gitShow, gitDiff } from '../services/configVersioning.js';
-import { expandInterfaceName } from '../cisco/parsers.js';
+import { previewConfigLines } from '../services/configPreview.js';
 
 /** Fetch hostname + site name for a device, for git path resolution. */
 async function deviceGitContext(id: string): Promise<{ hostname: string; site: string | null } | null> {
@@ -42,75 +42,7 @@ export default async function configRoutes(app: FastifyInstance) {
   }, async (req) => {
     const { id } = req.params as any;
     const { lines } = req.body as { lines: string[] };
-    const out = await deviceExec(id, [driverFor(await getDevice(id)).configCommand]);
-    const runningLines = (Object.values(out)[0] ?? '').replace(/\r/g, '').split('\n');
-    const running = new Set(runningLines.map(l => l.trim()).filter(Boolean));
-
-    const result = lines
-      .map(l => l.trim())
-      .filter(l => l && !l.startsWith('!'))
-      .map(line => {
-        if (line.startsWith('no ')) {
-          const positive = line.slice(3).trim();
-          return running.has(positive)
-            ? { line, status: 'removes', note: 'currently configured - this removes it' }
-            : { line, status: 'no-op', note: 'nothing to remove - already absent' };
-        }
-        if (line.startsWith('interface ') || line === 'end' || line === 'exit') {
-          return { line, status: 'context', note: 'mode selector' };
-        }
-        return running.has(line)
-          ? { line, status: 'present', note: 'already in running config' }
-          : { line, status: 'new', note: 'will be added' };
-      });
-
-    // ----- Guardrails: flag lines that could cut connectivity or access -----
-    // Learn which interfaces are trunks and which carries the management IP.
-    const devRow = await query<{ ip: string }>('SELECT host(mgmt_ip) AS ip FROM devices WHERE id=$1', [id]);
-    const mgmtIp = devRow.rows[0]?.ip ?? '';
-    const trunkIfaces = new Set<string>();
-    let mgmtIface = '';
-    let cur = '';
-    for (const raw of runningLines) {
-      const ifm = raw.match(/^interface (\S+)/);
-      if (ifm) { cur = expandInterfaceName(ifm[1]); continue; }
-      if (!cur) continue;
-      if (/^\s*switchport mode trunk/.test(raw)) trunkIfaces.add(cur);
-      if (mgmtIp && new RegExp(`ip address ${mgmtIp.replace(/\./g, '\\.')}\\b`).test(raw)) mgmtIface = cur;
-      if (/^\S/.test(raw)) cur = '';   // a non-indented line ends the interface block
-    }
-
-    const warnings: string[] = [];
-    let ctx = '';
-    for (const { line } of result) {
-      const ifm = line.match(/^interface (\S+)/i);
-      if (ifm) { ctx = expandInterfaceName(ifm[1]); continue; }
-      const onTrunk = trunkIfaces.has(ctx);
-      const onMgmt = !!ctx && ctx === mgmtIface;
-      if (/^shutdown\b/i.test(line)) {
-        if (onMgmt) warnings.push(`"shutdown" on ${ctx} (the management interface) will likely cut your access to this switch.`);
-        else if (onTrunk) warnings.push(`"shutdown" on ${ctx} (a trunk/uplink) may disconnect downstream devices.`);
-      }
-      if (onTrunk && /^switchport trunk allowed vlan (?!add|remove|none|all)/i.test(line)) {
-        warnings.push(`On trunk ${ctx}: this REPLACES the allowed VLAN list - any VLAN not listed is removed from the uplink. Use "switchport trunk allowed vlan add ..." to extend instead.`);
-      }
-      if (onMgmt && /^no ip address/i.test(line)) {
-        warnings.push(`"no ip address" on ${ctx} removes the management IP - you will lose access to this switch.`);
-      }
-      const noVlan = line.match(/^no vlan (\d+)/i);
-      if (noVlan) warnings.push(`Deleting VLAN ${noVlan[1]} - access ports assigned to it lose connectivity.`);
-      if (/^no username \S/i.test(line)) warnings.push(`${line} removes a login account - make sure another admin account remains.`);
-    }
-
-    return {
-      lines: result,
-      warnings,
-      summary: {
-        new: result.filter(r => r.status === 'new').length,
-        present: result.filter(r => r.status === 'present').length,
-        removes: result.filter(r => r.status === 'removes').length
-      }
-    };
+    return previewConfigLines(id, lines);
   });
 
   // Set the syslog trap level (which severities are forwarded to the collector)

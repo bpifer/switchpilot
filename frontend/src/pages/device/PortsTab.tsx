@@ -3,6 +3,7 @@ import { api } from '../../api';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import { Card, Button, StatusBadge, Modal, Field, inputCls } from '../../components/ui';
 import PortGrid, { type Port } from '../../components/PortGrid';
+import ConfigPreviewModal, { type PreviewData } from '../../components/ConfigPreviewModal';
 
 interface PortSample {
   recorded_at: string;
@@ -53,6 +54,9 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
   const [busy, setBusy] = useState('');
   const [result, setResult] = useState('');
   const [editVlan, setEditVlan] = useState(false);
+  // A pending port edit: the dry-run diff plus the body we'll apply on confirm.
+  const [preview, setPreview] = useState<PreviewData | null>(null);
+  const [pendingBody, setPendingBody] = useState<any | null>(null);
   // Port names contain slashes (Gi1/0/1) - encode so they stay one path segment
   const portPath = encodeURIComponent(port.name);
 
@@ -63,6 +67,31 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
     try { const r = await fn(); if (r?.result) setResult(r.result); onChanged(); }
     catch (err: any) { setResult(`Error: ${err.message}`); }
     finally { setBusy(''); }
+  }
+
+  // Step 1 of a config change: dry-run the edit and show the diff before applying.
+  async function startPreview(body: any) {
+    setBusy('preview'); setResult('');
+    try {
+      const p = await api<PreviewData>(`/api/devices/${deviceId}/ports/${portPath}/config/preview`,
+        { method: 'POST', body });
+      setPreview(p); setPendingBody(body); setEditVlan(false);
+    } catch (err: any) {
+      setEditVlan(false);
+      setResult(`Error: ${err.message}`);
+    } finally { setBusy(''); }
+  }
+
+  // Step 2: the operator confirmed the diff - push the change to the device.
+  function applyConfig() {
+    if (!pendingBody) return;
+    action('cfg', async () => {
+      const r = await api<{ warning?: string }>(`/api/devices/${deviceId}/ports/${portPath}/config`,
+        { method: 'POST', body: pendingBody });
+      setPreview(null); setPendingBody(null);
+      // Surface the RouterOS vlan-filtering caveat (staged-but-not-enforced).
+      return r?.warning ? { result: `Note: ${r.warning}` } : undefined;
+    });
   }
 
   const macs = port.macs ?? [];
@@ -146,14 +175,20 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
       {editVlan && (
         <PortConfigModal
           port={port}
-          busy={busy === 'cfg'}
+          busy={busy === 'preview'}
           onClose={() => setEditVlan(false)}
-          onApply={body => action('cfg', async () => {
-            const r = await api<{ warning?: string }>(`/api/devices/${deviceId}/ports/${portPath}/config`, { method: 'POST', body });
-            setEditVlan(false);
-            // Surface the RouterOS vlan-filtering caveat (staged-but-not-enforced).
-            return r?.warning ? { result: `Note: ${r.warning}` } : undefined;
-          })}
+          onApply={startPreview}
+        />
+      )}
+
+      {preview && (
+        <ConfigPreviewModal
+          title={`Apply to ${port.name}`}
+          data={preview}
+          busy={busy === 'cfg'}
+          applyLabel="Apply & save"
+          onApply={applyConfig}
+          onClose={() => { setPreview(null); setPendingBody(null); }}
         />
       )}
     </Card>
