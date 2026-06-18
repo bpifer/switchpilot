@@ -50,6 +50,23 @@ export const config = {
   },
   teamsWebhook: process.env.TEAMS_WEBHOOK_URL ?? '',
   slackWebhook: process.env.SLACK_WEBHOOK_URL ?? '',
+  discordWebhook: process.env.DISCORD_WEBHOOK_URL ?? '',
+  ntfy: {
+    url: process.env.NTFY_URL ?? '',        // full topic URL, e.g. https://ntfy.sh/my-switches
+    token: process.env.NTFY_TOKEN ?? ''     // optional, for protected topics
+  },
+  gotify: {
+    url: process.env.GOTIFY_URL ?? '',      // base, e.g. https://gotify.example.com
+    token: process.env.GOTIFY_TOKEN ?? ''
+  },
+  telegram: {
+    token: process.env.TELEGRAM_BOT_TOKEN ?? '',
+    chatId: process.env.TELEGRAM_CHAT_ID ?? ''
+  },
+  pushover: {
+    token: process.env.PUSHOVER_TOKEN ?? '',
+    user: process.env.PUSHOVER_USER ?? ''
+  },
   ldap: {
     url: process.env.LDAP_URL ?? '',
     bindDn: process.env.LDAP_BIND_DN ?? '',

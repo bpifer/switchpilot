@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import { query } from '../db.js';
 import { config } from '../config.js';
 import { publishEvent } from '../redis.js';
+import { dispatchNotifications } from './notifiers.js';
 
 export type Severity = 'info' | 'warning' | 'critical';
 const SEV_RANK: Record<Severity, number> = { info: 1, warning: 2, critical: 3 };
@@ -74,7 +75,10 @@ export async function raiseAlert(
   await Promise.allSettled([
     shouldEmail ? sendEmail(title, message) : Promise.resolve(),
     sendTeams(title, message, severity),
-    sendSlack(title, message)
+    sendSlack(title, message),
+    // Homelab/self-hosted channels (Discord, ntfy, Gotify, Telegram, Pushover);
+    // each is a no-op unless its env vars are set.
+    dispatchNotifications(title, message, severity)
   ]);
 }
 
