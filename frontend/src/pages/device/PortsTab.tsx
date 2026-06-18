@@ -14,6 +14,14 @@ interface PortSample {
   status: string;
 }
 
+// Device read-back result returned by the port-config apply endpoint.
+interface PortVerification {
+  ok: boolean;
+  checked: boolean;
+  confirmed: string[];
+  mismatches: { field: string; expected: string; actual: string }[];
+}
+
 function fmtBps(bps: number): string {
   if (bps >= 1e9) return `${(bps / 1e9).toFixed(1)} Gbps`;
   if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)} Mbps`;
@@ -86,11 +94,20 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
   function applyConfig() {
     if (!pendingBody) return;
     action('cfg', async () => {
-      const r = await api<{ warning?: string }>(`/api/devices/${deviceId}/ports/${portPath}/config`,
-        { method: 'POST', body: pendingBody });
+      const r = await api<{ warning?: string; verified?: PortVerification | null }>(
+        `/api/devices/${deviceId}/ports/${portPath}/config`, { method: 'POST', body: pendingBody });
       setPreview(null); setPendingBody(null);
-      // Surface the RouterOS vlan-filtering caveat (staged-but-not-enforced).
-      return r?.warning ? { result: `Note: ${r.warning}` } : undefined;
+      // Compose feedback: RouterOS vlan-filtering caveat + device read-back result.
+      const notes: string[] = [];
+      if (r?.warning) notes.push(`Note: ${r.warning}`);
+      const v = r?.verified;
+      if (v?.checked && !v.ok) {
+        notes.push('⚠ Applied, but the device read-back does not match:\n' +
+          v.mismatches.map(m => `  ${m.field}: expected ${m.expected}, device shows ${m.actual}`).join('\n'));
+      } else if (v?.checked && v.confirmed.length > 0) {
+        notes.push(`✓ Verified on device (${v.confirmed.join(', ')}).`);
+      }
+      return notes.length ? { result: notes.join('\n') } : undefined;
     });
   }
 

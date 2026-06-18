@@ -76,6 +76,10 @@ export function ciscoDriver(os: string): DeviceDriver {
       return lines;
     },
 
+    portReadbackCommand(port) {
+      return `show running-config interface ${expandInterfaceName(port)}`;
+    },
+
     bounceLines(port) {
       const iface = expandInterfaceName(port);
       return { down: [`interface ${iface}`, 'shutdown'], up: [`interface ${iface}`, 'no shutdown'] };

@@ -7,6 +7,7 @@ import { bridgeVlanFiltering, isMikrotik, routerOsPortMacs, routerOsVlans, route
 import { expandInterfaceName, parseMacTable, parseVlanBrief } from '../cisco/parsers.js';
 import { driverFor } from '../drivers/index.js';
 import { previewConfigLines } from '../services/configPreview.js';
+import { verifyPortConfig } from '../services/portVerify.js';
 
 // Shared body schema for a structured port edit — used by both the apply route
 // and its dry-run preview so they accept exactly the same fields.
@@ -128,8 +129,12 @@ export default async function portRoutes(app: FastifyInstance) {
           'Enable bridge vlan-filtering to activate it - do this carefully, as it can interrupt management on a live bridge.';
       }
     }
-    await audit(me.username, 'port.config', `${id}/${port}`, b, req.ip);
-    return { ok: true, output, warning };
+    // Read the change back from the device and confirm it actually landed,
+    // instead of trusting the optimistic table update. Best-effort: a read-back
+    // failure must not fail the (already-applied) edit.
+    const verified = await verifyPortConfig(id, port, b).catch(() => null);
+    await audit(me.username, 'port.config', `${id}/${port}`, { ...b, verified: verified?.ok ?? null }, req.ip);
+    return { ok: true, output, warning, verified };
   });
 
   // Bounce (shutdown / no shutdown)

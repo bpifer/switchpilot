@@ -82,6 +82,10 @@ describe('ciscoDriver', () => {
       on: ['interface GigabitEthernet1/0/5', 'power inline auto'],
     });
   });
+
+  it('port read-back command targets the expanded interface', () => {
+    expect(ios.portReadbackCommand('Gi1/0/5')).toBe('show running-config interface GigabitEthernet1/0/5');
+  });
 });
 
 describe('driverFor', () => {
