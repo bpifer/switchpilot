@@ -4,10 +4,12 @@ import {
   parseCpu, parseMemory, parseEnvironment, parsePowerInline, parseShowSwitch,
   parseVlanBrief, expandInterfaceName
 } from '../src/cisco/parsers.js';
+import { parseLldpNeighborsDetail } from '../src/cisco/parsers.js';
 import { familyForModel } from '../src/cisco/capabilities.js';
 import {
   SHOW_VERSION_IOSV_L2, SHOW_VERSION_IOL_XE, SHOW_INTERFACES_STATUS_IOSV,
-  SHOW_VLAN_BRIEF_IOSV, SHOW_PROCESSES_CPU_IOSV, SHOW_PROCESSES_MEMORY_IOSV
+  SHOW_VLAN_BRIEF_IOSV, SHOW_PROCESSES_CPU_IOSV, SHOW_PROCESSES_MEMORY_IOSV,
+  SHOW_CDP_DETAIL_IOSV, SHOW_LLDP_DETAIL_IOSV
 } from './fixtures/cisco.js';
 
 describe('parseShowVersion', () => {
@@ -282,5 +284,29 @@ describe('CML virtual switch captures', () => {
   it('parses IOSv-L2 cpu and memory', () => {
     expect(parseCpu(SHOW_PROCESSES_CPU_IOSV)).toEqual({ fiveSec: 99, oneMin: 41, fiveMin: 10 });
     expect(parseMemory(SHOW_PROCESSES_MEMORY_IOSV)).toBeCloseTo(10.3, 1);
+  });
+
+  it('parses real CDP detail (IP-less entry + "Linux Unix" platform)', () => {
+    const n = parseCdpNeighborsDetail(SHOW_CDP_DETAIL_IOSV);
+    expect(n).toHaveLength(1);
+    expect(n[0]).toMatchObject({
+      neighborName: 'IOSXE-L2-SW',
+      neighborIp: '',                       // CDP advertised no address here
+      platform: 'Linux Unix',
+      localPort: 'GigabitEthernet0/0',
+      neighborPort: 'Ethernet0/0'
+    });
+  });
+
+  it('parses real LLDP detail (mgmt IP, multi-line descr, lowercase "Port id")', () => {
+    const n = parseLldpNeighborsDetail(SHOW_LLDP_DETAIL_IOSV);
+    expect(n).toHaveLength(1);
+    expect(n[0]).toMatchObject({
+      neighborName: 'IOSXE-L2-SW',
+      neighborIp: '10.0.30.11',
+      localPort: 'Gi0/0',
+      neighborPort: 'Et0/0'
+    });
+    expect(n[0].platform).toContain('IOSXE');
   });
 });
