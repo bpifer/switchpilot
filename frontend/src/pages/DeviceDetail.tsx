@@ -85,6 +85,8 @@ export default function DeviceDetail({ me }: { me: Me }) {
             <Meta label="Site" value={sites.find(s => s.id === device.site_id)?.name ?? null} />
             <Meta label="Location" value={device.location} />
             <Meta label="Last seen" value={device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : null} />
+            <HostKeyStatus deviceId={id!} fp={device.ssh_host_key_fp} pinnedAt={device.ssh_host_key_pinned_at}
+                           canConfig={canConfig} onChanged={refetchDevice} />
           </div>
 
           <div className="mt-3.5 flex flex-wrap items-center gap-x-7 gap-y-3 border-t border-slate-100 pt-3.5">
@@ -242,6 +244,43 @@ function ProvisionModal({ deviceId, onClose }: { deviceId: string; onClose: () =
         </div>
       )}
     </Modal>
+  );
+}
+
+// SSH host-key pin status + a netadmin re-pin action (after a legitimate
+// re-image/replacement). Pinning happens automatically on first connect.
+function HostKeyStatus({ deviceId, fp, pinnedAt, canConfig, onChanged }: {
+  deviceId: string; fp?: string; pinnedAt?: string | null; canConfig: boolean; onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const pinned = !!fp;
+
+  async function repin() {
+    if (!confirm('Re-pin this device\'s SSH host key?\n\nUse this only after a legitimate re-image or hardware swap — the platform will trust whatever key the device presents on the next connection.')) return;
+    setBusy(true);
+    try { await api(`/api/devices/${deviceId}/repin-host-key`, { method: 'POST' }); onChanged(); }
+    catch (e: any) { alert(e.message); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">SSH key</span>
+      {pinned ? (
+        <span className="font-mono text-xs text-slate-700"
+              title={`${fp}${pinnedAt ? ` — pinned ${new Date(pinnedAt).toLocaleString()}` : ''}`}>
+          🔒 {fp!.replace(/^SHA256:/, '').slice(0, 12)}…
+        </span>
+      ) : (
+        <span className="text-sm text-amber-600" title="Pins automatically on the next successful SSH connection">not pinned</span>
+      )}
+      {canConfig && pinned && (
+        <button onClick={repin} disabled={busy}
+                className="ml-0.5 text-xs text-brand-600 hover:underline disabled:opacity-50">
+          {busy ? '…' : 're-pin'}
+        </button>
+      )}
+    </div>
   );
 }
 
