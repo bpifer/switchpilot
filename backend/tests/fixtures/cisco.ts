@@ -176,6 +176,59 @@ export const SHOW_PROCESSES_CPU_IOSV = `CPU utilization for five seconds: 99%/0%
 export const SHOW_PROCESSES_MEMORY_IOSV = `Processor Pool Total:  612577120 Used:   62807940 Free:  549769180
 `;
 
+// Real CDP/LLDP neighbor detail captured on IOS-L2-SW (iosvl2) looking at its
+// directly-linked neighbor IOSXE-L2-SW (ioll2-xe), Gi0/0 <-> Et0/0. Virtual
+// platforms expose two quirks worth pinning: CDP advertises NO IP here (the
+// "Entry address(es)" block is empty) while LLDP does, and the CDP platform
+// string is "Linux Unix".
+export const SHOW_CDP_DETAIL_IOSV = `-------------------------
+Device ID: IOSXE-L2-SW
+Entry address(es):
+Platform: Linux Unix,  Capabilities: Router Switch IGMP
+Interface: GigabitEthernet0/0,  Port ID (outgoing port): Ethernet0/0
+Holdtime : 177 sec
+
+Version :
+Cisco IOS Software [IOSXE], Linux Software (X86_64BI_LINUX_L2-ADVENTERPRISEK9-M), Version 17.18.2, RELEASE SOFTWARE (fc3)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Dec-25 03:28 by mcpre
+
+advertisement version: 2
+VTP Management Domain: ''
+Native VLAN: 1
+Duplex: full
+
+Total cdp entries displayed : 1
+`;
+
+export const SHOW_LLDP_DETAIL_IOSV = `------------------------------------------------
+Local Intf: Gi0/0
+Chassis id: aabb.cc00.0400
+Port id: Et0/0
+Port Description: Uplink-to-Core
+System Name: IOSXE-L2-SW
+
+System Description:
+Cisco IOS Software [IOSXE], Linux Software (X86_64BI_LINUX_L2-ADVENTERPRISEK9-M), Version 17.18.2, RELEASE SOFTWARE (fc3)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Dec-25 03:28 by mc
+
+Time remaining: 99 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.0.30.11
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type - not advertised
+Vlan ID: 1
+
+Total entries displayed: 1
+`;
+
 export const SHOW_PROCESSES_MEMORY = `Processor Pool Total:  862236672 Used:  204503040 Free:  657733632
 `;
 
