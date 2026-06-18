@@ -15,6 +15,7 @@ import { query } from './db.js';
 import { redis } from './redis.js';
 import { registry, refreshGauges, httpDuration } from './metrics.js';
 import { siteFilter } from './routes/util.js';
+import { computeFleetHealth } from './services/fleetHealth.js';
 
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
@@ -119,7 +120,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   }, async (req, reply) => {
     try { await req.jwtVerify(); } catch { return reply.code(401).send({ error: 'Authentication required' }); }
     const sf = siteFilter((req.query as any).siteId, 'd');
-    const [devices, alerts, jobs] = await Promise.all([
+    const [devices, alerts, jobs, compliance] = await Promise.all([
       query(`SELECT d.status, count(*)::int AS n FROM devices d
              ${sf.cond ? 'WHERE ' + sf.cond : ''} GROUP BY d.status`, sf.params),
       query(`SELECT a.severity, count(*)::int AS n FROM alerts a
@@ -127,12 +128,26 @@ export async function buildApp(): Promise<FastifyInstance> {
              WHERE a.resolved_at IS NULL AND a.acknowledged = false ${sf.cond ? 'AND ' + sf.cond : ''}
              GROUP BY a.severity`, sf.params),
       // jobs are fleet-level objects - never site-scoped
-      query(`SELECT status, count(*)::int AS n FROM jobs WHERE created_at > now() - interval '7 days' GROUP BY status`)
+      query(`SELECT status, count(*)::int AS n FROM jobs WHERE created_at > now() - interval '7 days' GROUP BY status`),
+      query<{ passed: number; total: number }>(
+        `SELECT COALESCE(SUM(CASE WHEN cr.passed THEN 1 ELSE 0 END),0)::int AS passed, count(*)::int AS total
+         FROM compliance_results cr JOIN devices d ON d.id = cr.device_id
+         ${sf.cond ? 'WHERE ' + sf.cond : ''}`, sf.params)
     ]);
+    const deviceCounts: Record<string, number> = Object.fromEntries(devices.rows.map(r => [r.status, r.n]));
+    const openAlerts: Record<string, number> = Object.fromEntries(alerts.rows.map(r => [r.severity, r.n]));
+    const comp = compliance.rows[0] ?? { passed: 0, total: 0 };
+    const health = computeFleetHealth({
+      devicesOnline: deviceCounts.online ?? 0,
+      devicesTotal: Object.values(deviceCounts).reduce((a, b) => a + b, 0),
+      compliancePassed: comp.passed, complianceTotal: comp.total,
+      openCriticals: openAlerts.critical ?? 0
+    });
     return {
-      devices: Object.fromEntries(devices.rows.map(r => [r.status, r.n])),
-      openAlerts: Object.fromEntries(alerts.rows.map(r => [r.severity, r.n])),
-      recentJobs: Object.fromEntries(jobs.rows.map(r => [r.status, r.n]))
+      devices: deviceCounts,
+      openAlerts,
+      recentJobs: Object.fromEntries(jobs.rows.map(r => [r.status, r.n])),
+      health
     };
   });
 
