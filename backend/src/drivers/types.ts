@@ -49,6 +49,10 @@ export interface DeviceDriver {
   setPortAdmin(port: string, enabled: boolean): string[];
   /** Config lines to apply a full port configuration (incl. interface select). */
   portConfig(port: string, opts: PortConfigOpts): string[];
+  /** Command that dumps one port's effective config, for read-back verification
+   *  after an edit. null when the vendor has no single-port read-back we can
+   *  reliably parse (RouterOS), so callers skip verification. */
+  portReadbackCommand(port: string): string | null;
   /** Admin bounce, split so the caller can pause between the two phases. */
   bounceLines(port: string): { down: string[]; up: string[] };
   /** PoE power-cycle: power-off lines then power-on lines (caller pauses between). */

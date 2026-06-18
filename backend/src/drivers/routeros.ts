@@ -195,6 +195,12 @@ export function routerosDriver(): DeviceDriver {
       return lines;
     },
 
+    // RouterOS port state is spread across bridge-VLAN rows + interface props;
+    // there is no single-command read-back we parse the way IOS running-config
+    // is parsed, so verification is skipped (null). The vlan-filtering caveat
+    // already warns when a staged VLAN is not yet enforced.
+    portReadbackCommand() { return null; },
+
     bounceLines(port) {
       return {
         down: [`/interface/set [find name=${port}] disabled=yes`],
