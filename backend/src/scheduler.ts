@@ -7,7 +7,7 @@ import { pollStatus, refreshDevice } from './services/monitorService.js';
 import { checkDrift, backupDevice } from './services/configService.js';
 import { raiseAlert, resolveAlert } from './services/alertService.js';
 import { drainJobQueue, reapStaleJobs } from './services/jobService.js';
-import { gitGc } from './services/configVersioning.js';
+import { gitGc, pushMirror } from './services/configVersioning.js';
 import { evaluateAllCompliance } from './services/complianceService.js';
 import { isLeader } from './leader.js';
 import type { DeviceRow } from './services/deviceComms.js';
@@ -73,7 +73,9 @@ export function startScheduler(): void {
       } else {
         await resolveAlert(d.id, 'config_changed');
       }
-    }, 'nightly backup').catch(err => console.error('backup sweep failed:', err));
+    }, 'nightly backup')
+      .then(() => pushMirror())   // off-box DR mirror, best-effort (no-op unless configured)
+      .catch(err => console.error('backup sweep failed:', err));
   });
 
   // drift checks (running config vs pinned baseline) + rule-based compliance scoring

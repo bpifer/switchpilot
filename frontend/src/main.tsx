@@ -22,3 +22,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </React.StrictMode>
 );
+
+// Register the service worker (production builds only) so the app is installable
+// as a PWA with a basic offline shell. Skipped in dev to keep Vite HMR clean.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => { /* non-fatal */ });
+  });
+}

@@ -57,7 +57,9 @@ items lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.md).
       (a /export is not replayable line-by-line). Proper support = upload the
       backup to the device + `/import`, or `/system reset` + paste. Backups/diff/
       git history already work for RouterOS; only restore is blocked.
-- [ ] PoE drill-down is in; consider a reverse link (device metrics -> PoE).
+- [x] PoE reverse link (device metrics -> PoE). DONE - the Analytics "PoE usage"
+      chart links to the fleet PoE budget view, mirroring the existing
+      budget -> device drill-down.
 
 ## Homelabber feature roadmap
 
@@ -82,13 +84,18 @@ Still on the wishlist (ranked):
 - [x] **More notification channels** DONE (PR #7, `ba9ac57`): Discord, ntfy,
       Gotify, Telegram, Pushover added alongside Teams/Slack/SMTP.
 - [ ] **GitOps / intent-based config**: declare desired VLANs/port profiles in
-      YAML, reconcile + flag drift (compliance/drift engine + git history exist);
-      mirror the config-history repo to an external git remote for DR.
+      YAML, reconcile + flag drift (compliance/drift engine + git history exist).
+- [x] **Config-history external git mirror (DR).** DONE - `CONFIG_HISTORY_REMOTE`
+      pushes the config-history repo to a dedicated remote after each nightly
+      backup sweep (`pushMirror` in configVersioning; best-effort, fails fast on a
+      bad remote, redacts credentials from logs).
 - [ ] **PoE energy + cost**: watts over time -> kWh -> dollar figure (rate cfg).
 - [ ] **Richer auto-topology map**: link utilization, VLAN overlays, "what's
       plugged into what" from the neighbor/client data.
-- [ ] **DHCP/IPAM correlation** (pull leases from MikroTik/pfSense/Pi-hole) +
-      make the SPA an installable PWA for phone/rack use.
+- [ ] **DHCP/IPAM correlation** (pull leases from MikroTik/pfSense/Pi-hole).
+- [x] **Installable PWA (phone/rack use).** DONE - web manifest + service worker
+      (offline app shell, network-first, never caches `/api`), a PNG + maskable
+      icon set, registered in production builds only.
 
 ## Change management & trust (from external review, valid items)
 

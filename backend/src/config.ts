@@ -43,6 +43,9 @@ export const config = {
   },
   firmwareDir: process.env.FIRMWARE_DIR ?? '/data/firmware',
   configHistoryDir: process.env.CONFIG_HISTORY_DIR ?? '/data/config-history',
+  // Optional external git remote to mirror the config-history repo to (off-box DR).
+  // Unset = no mirror. Use a dedicated remote; see .env.example for auth options.
+  configHistoryRemote: process.env.CONFIG_HISTORY_REMOTE ?? '',
   syslogPort: parseInt(process.env.SYSLOG_PORT ?? '514', 10),
   smtp: {
     host: process.env.SMTP_HOST ?? '',

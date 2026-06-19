@@ -181,6 +181,14 @@ export default function Analytics() {
 
         {/* PoE */}
         <Card title="PoE usage (W)">
+          <div className="-mt-1 mb-2 flex justify-end">
+            <button
+              onClick={() => setView('poe')}
+              className="text-xs font-medium text-brand-700 hover:underline"
+            >
+              View fleet PoE budget →
+            </button>
+          </div>
           <EmptyOrChart data={poeData} message="No PoE data — switch may not support PoE or data hasn't accumulated yet.">
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={poeData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>

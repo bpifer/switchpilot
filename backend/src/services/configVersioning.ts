@@ -158,3 +158,31 @@ export async function gitGc(): Promise<void> {
   if (!existsSync(path.join(REPO, '.git'))) return;
   await exec('git', ['-C', REPO, 'gc', '--auto', '--quiet']);
 }
+
+/**
+ * Best-effort mirror of the config-history repo to an external git remote for
+ * off-box DR. No-op unless CONFIG_HISTORY_REMOTE is set. Use a DEDICATED remote:
+ * the history is append-only and only ever fast-forwards. Auth is the operator's
+ * choice — an https URL with an embedded token, or an ssh remote with a mounted
+ * key. Never throws, fails fast (no credential prompt), and redacts any
+ * credentials from the URL before logging an error.
+ */
+export async function pushMirror(): Promise<void> {
+  const url = config.configHistoryRemote;
+  if (!url) return;
+  try {
+    await ensureRepo();
+    // Point (or re-point, in case a token rotated) the 'mirror' remote at the URL.
+    await exec('git', ['-C', REPO, 'remote', 'set-url', 'mirror', url])
+      .catch(() => exec('git', ['-C', REPO, 'remote', 'add', 'mirror', url]));
+    // GIT_TERMINAL_PROMPT=0 + a timeout so an unreachable/misconfigured remote
+    // fails fast instead of blocking on an interactive credential prompt.
+    await exec('git', ['-C', REPO, 'push', 'mirror', 'HEAD'], {
+      timeout: 30_000,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }
+    });
+  } catch (err) {
+    const msg = (err as Error).message.replace(/\/\/[^@/]+@/g, '//***@');
+    console.warn(`[config-git] mirror push failed: ${msg}`);
+  }
+}
