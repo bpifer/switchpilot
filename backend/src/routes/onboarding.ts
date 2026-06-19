@@ -8,6 +8,7 @@ import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
 import { encryptSecret } from '../crypto/secrets.js';
 import { CiscoSshSession } from '../cisco/sshClient.js';
+import { makeHostVerifier } from '../cisco/hostKey.js';
 import { RouterOsSshSession, runRouterOsCommands } from '../routeros/sshClient.js';
 import { parseShowVersion } from '../cisco/parsers.js';
 import { familyForModel, resolveCapabilities } from '../cisco/capabilities.js';
@@ -31,6 +32,14 @@ async function probeVendor(mgmtIp: string, username: string, password: string): 
   return 'cisco';
 }
 
+/** An ssh2 hostVerifier that records the presented host-key fingerprint (and
+ *  accepts it, since the device is not yet pinned) so onboarding can show it for
+ *  manual verification before the first real connect pins it. */
+function captureFp(): { verifier: (key: Buffer) => boolean; get: () => string } {
+  let captured = '';
+  return { verifier: makeHostVerifier({ expectedFp: '', onPin: fp => { captured = fp; } }), get: () => captured };
+}
+
 /** RouterOS analogue of inspectSwitch: identity + baseline checklist. */
 async function inspectRouterOs(mgmtIp: string, username: string, password: string): Promise<Inspection> {
   const cmds = {
@@ -41,7 +50,8 @@ async function inspectRouterOs(mgmtIp: string, username: string, password: strin
     logging: '/system logging action print terse',
     snmp: '/snmp print',
   };
-  const out = await runRouterOsCommands({ host: mgmtIp, username, password, timeoutMs: 15000 }, Object.values(cmds));
+  const cap = captureFp();
+  const out = await runRouterOsCommands({ host: mgmtIp, username, password, timeoutMs: 15000, hostVerifier: cap.verifier }, Object.values(cmds));
   const g = (k: keyof typeof cmds) => out[cmds[k]] ?? '';
   const det = detectRouterOs({ resource: g('resource'), routerboard: g('routerboard'), identity: g('identity') });
 
@@ -68,6 +78,7 @@ async function inspectRouterOs(mgmtIp: string, username: string, password: strin
     identity: { hostname: det.hostname, model: det.model, serial: det.serial, iosVersion: det.version },
     users: [],
     checklist,
+    hostKeyFingerprint: cap.get(),
   };
 }
 
@@ -75,12 +86,15 @@ interface Inspection {
   identity: { hostname: string; model: string; serial: string; iosVersion: string };
   users: { name: string; priv15: boolean }[];
   checklist: { key: string; label: string; present: boolean; why: string }[];
+  hostKeyFingerprint?: string;   // SHA256 fingerprint of the switch's SSH host key
 }
 
 async function inspectSwitch(mgmtIp: string, username: string, password: string, enablePassword?: string): Promise<Inspection> {
+  const cap = captureFp();
   const session = new CiscoSshSession({
     host: mgmtIp, username, password,
-    enablePassword: enablePassword || undefined, timeoutMs: 15000
+    enablePassword: enablePassword || undefined, timeoutMs: 15000,
+    hostVerifier: cap.verifier
   });
   await session.connect();
   try {
@@ -114,7 +128,7 @@ async function inspectSwitch(mgmtIp: string, username: string, password: string,
       }
     ];
 
-    return { identity: { hostname: ver.hostname, model: ver.model, serial: ver.serial, iosVersion: ver.iosVersion }, users, checklist };
+    return { identity: { hostname: ver.hostname, model: ver.model, serial: ver.serial, iosVersion: ver.iosVersion }, users, checklist, hostKeyFingerprint: cap.get() };
   } finally {
     session.close();
   }

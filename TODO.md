@@ -128,16 +128,15 @@ capacity trends.
 Difficulty: **Easy** ~half day, **Medium** 1-2 days, **Hard** multi-day / risky.
 Ranked by value-per-effort.
 
-- [ ] **Optional `/metrics` auth.** `Easy`. `GET /metrics` is unauthenticated
-      (homelabbers will expose it by accident). Gate behind an optional
-      `METRICS_TOKEN` (bearer or basic); unset = current behavior.
-- [ ] **Show the host-key fingerprint at onboarding.** `Easy`. TOFU pins
-      whatever answers on first connect; surface the SHA256 fingerprint in the
-      onboarding analyze step so the operator can eyeball it before pinning.
-      Host-key infra already exists.
-- [ ] **Document a DR / upgrade-rollback process.** `Easy`. Migrations are
-      forward-only; write the runbook: `pg_dump` before upgrade, restore to roll
-      back, where `/data` (firmware + config git) lives. Mostly docs.
+- [x] **Optional `/metrics` auth.** `Easy`. DONE - `METRICS_TOKEN` env gates
+      `GET /metrics` (`Authorization: Bearer <token>` or `?token=`, timing-safe
+      compare); unset keeps it open.
+- [x] **Show the host-key fingerprint at onboarding.** `Easy`. DONE - the
+      analyze step captures and returns the SHA256 host-key fingerprint; the
+      wizard shows it with a "verify before it is pinned" note.
+- [x] **Document a DR / upgrade-rollback process.** `Easy`. DONE -
+      `docs/DISASTER-RECOVERY.md` (backup/restore of the DB + volumes + `.env`,
+      forward-only migrations, snapshot-based rollback, CREDENTIAL_KEY warning).
 - [ ] **Capture command output in the audit log.** `Medium`. Config push +
       firmware currently audit `{ lines }` (commands) but not device output.
       Store the output (size-capped, secret-redacted) and show it on the audit
