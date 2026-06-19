@@ -183,10 +183,16 @@ MikroTik-only, same Node/React/Postgres/Redis stack). Same difficulty legend as
 above. NOTE: that project is AGPLv3 - reimplement from behavior/standards, do
 NOT copy source. Ranked by value-per-effort.
 
-- [ ] **Device Tools tab.** `Medium`. Ping, traceroute, IP scan, packet capture
-      with `.pcap` export, and bandwidth test, run from the platform behind the
-      driver seam (MikroTik `/tool ...`, Cisco `ping`/`traceroute`/`monitor
-      capture`). SP currently has WoL only. Best value-per-effort of this batch.
+- [x] **Device Tools tab.** `Medium`. DONE - a device-detail Tools tab runs
+      ping + traceroute (both vendors) and ip-scan (RouterOS) behind the driver
+      seam (`driver.tools`/`toolCommand`, `runDeviceTool`). Targets are charset-
+      validated at the route and re-guarded in the driver (injection-safe);
+      continuous RouterOS traceroute is time-bounded via
+      `RouterOsSshSession.execBounded`. Helpdesk+ to run, audited.
+- [ ] **Device Tools: packet capture + bandwidth test.** `Hard`. Deferred from
+      the initial tab: packet capture needs binary `.pcap` retrieval off the
+      device (MikroTik `/tool sniffer` to file + fetch, Cisco `monitor capture` +
+      export) and bandwidth test is intrusive (needs a target/server).
 - [ ] **NetFlow/IPFIX traffic analytics.** `Hard`. A UDP/2055 collector + v5/v9/
       IPFIX decoder, per-client usage accounting, app breakdown by port/proto,
       top talkers, configurable detailed + rollup retention. Net-new and the

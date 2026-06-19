@@ -12,9 +12,10 @@ import BackupsTab from './device/BackupsTab';
 import HistoryTab from './device/HistoryTab';
 import NeighborsTab from './device/NeighborsTab';
 import VlansTab from './device/VlansTab';
+import ToolsTab from './device/ToolsTab';
 
-type DeviceTab = 'ports' | 'config' | 'backups' | 'history' | 'neighbors' | 'vlans';
-const TABS: DeviceTab[] = ['ports', 'config', 'backups', 'history', 'vlans', 'neighbors'];
+type DeviceTab = 'ports' | 'config' | 'backups' | 'history' | 'neighbors' | 'vlans' | 'tools';
+const TABS: DeviceTab[] = ['ports', 'config', 'backups', 'history', 'vlans', 'neighbors', 'tools'];
 
 export default function DeviceDetail({ me }: { me: Me }) {
   const { id } = useParams<{ id: string }>();
@@ -129,6 +130,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
         {tab === 'history' && <HistoryTab deviceId={id!} canConfig={canConfig} />}
         {tab === 'vlans' && <VlansTab deviceId={id!} />}
         {tab === 'neighbors' && <NeighborsTab deviceId={id!} />}
+        {tab === 'tools' && <ToolsTab deviceId={id!} canOperate={canOperate} />}
       </div>
     </div>
   );

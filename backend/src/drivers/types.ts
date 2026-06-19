@@ -29,6 +29,30 @@ export interface BaselinePlan {
   notes: string[];
 }
 
+/** Diagnostic tools a driver can run from the platform. Read-only and
+ *  non-config: they execute on the device but change nothing. */
+export type DeviceToolId = 'ping' | 'traceroute' | 'ip-scan';
+
+export interface DeviceToolOpts {
+  /** Destination host (ping/traceroute) or IPv4 address/CIDR (ip-scan).
+   *  Charset-validated by the caller; drivers MUST re-check before interpolating. */
+  target: string;
+  /** Probe count for ping/traceroute (ignored by ip-scan). */
+  count: number;
+}
+
+/** Hard charset boundary for any tool target before it reaches a device CLI:
+ *  IPv4/IPv6 literals, hostnames, and IPv4 CIDR only - no whitespace and no CLI
+ *  metacharacters (`;` `|` `&` `$` `[` `]` quotes ...), so a target can never
+ *  break out of the command on either IOS or RouterOS. */
+export const TOOL_TARGET_RE = /^[A-Za-z0-9._:/-]{1,64}$/;
+
+export function assertToolTarget(target: string): void {
+  if (!TOOL_TARGET_RE.test(target)) {
+    throw Object.assign(new Error('Invalid tool target'), { statusCode: 400 });
+  }
+}
+
 export interface DeviceDriver {
   readonly vendor: string;        // 'cisco'
   readonly os: string;            // ios | iosxe | nxos | routeros
@@ -61,4 +85,11 @@ export interface DeviceDriver {
   cableTest(port: string): { run: string; show: string };
   /** Set which syslog severities are forwarded. */
   loggingTrap(level: string): string[];
+
+  /** Diagnostic tools this driver supports (subset of DeviceToolId). The UI
+   *  only offers these for the device's vendor. */
+  readonly tools: DeviceToolId[];
+  /** Build the CLI command for a diagnostic tool. Re-guards the target and
+   *  throws (400) on bad input or (501) for a tool not in `tools`. */
+  toolCommand(tool: DeviceToolId, opts: DeviceToolOpts): string;
 }

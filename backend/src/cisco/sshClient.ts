@@ -23,6 +23,10 @@ export interface SshTarget {
 export interface DeviceSession {
   connect(): Promise<void>;
   exec(command: string, timeoutMs?: number): Promise<string>;
+  /** Optional: collect output from a possibly non-self-terminating command for a
+   *  bounded time, then stop. Implemented by the RouterOS exec session for
+   *  diagnostic tools like traceroute; absent on the Cisco shell session. */
+  execBounded?(command: string, durationMs: number): Promise<string>;
   configure(lines: string[], timeoutMs?: number): Promise<string>;
   saveConfig(cmd?: string): Promise<string>;
   close(): void;

@@ -2,7 +2,8 @@
 // command strings that used to live in deviceComms, the ports route, and the
 // configs route - behavior is unchanged.
 import { expandInterfaceName } from '../cisco/parsers.js';
-import type { DeviceDriver, PortConfigOpts, BaselineOpts, BaselinePlan } from './types.js';
+import type { DeviceDriver, PortConfigOpts, BaselineOpts, BaselinePlan, DeviceToolId, DeviceToolOpts } from './types.js';
+import { assertToolTarget } from './types.js';
 
 export function ciscoDriver(os: string): DeviceDriver {
   const nxos = os === 'nxos';
@@ -99,6 +100,19 @@ export function ciscoDriver(os: string): DeviceDriver {
         run: `test cable-diagnostics tdr interface ${iface}`,
         show: `show cable-diagnostics tdr interface ${iface}`
       };
+    },
+
+    tools: ['ping', 'traceroute'],
+
+    toolCommand(tool: DeviceToolId, { target, count }: DeviceToolOpts): string {
+      assertToolTarget(target);
+      switch (tool) {
+        // `repeat` bounds ping; IOS traceroute self-terminates (max 30 hops).
+        case 'ping':       return `ping ${target} repeat ${count}`;
+        case 'traceroute': return `traceroute ${target}`;
+        default:
+          throw Object.assign(new Error(`${tool} is not supported on Cisco`), { statusCode: 501 });
+      }
     },
 
     loggingTrap(level) {

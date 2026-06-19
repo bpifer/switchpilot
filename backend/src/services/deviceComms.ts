@@ -8,7 +8,7 @@ import { type SshTarget } from '../cisco/sshClient.js';
 import { makeHostVerifier } from '../cisco/hostKey.js';
 import { withDeviceSession } from '../cisco/sshPool.js';
 import type { SnmpTarget } from '../cisco/snmpClient.js';
-import { driverFor, type PortConfigOpts } from '../drivers/index.js';
+import { driverFor, type PortConfigOpts, type DeviceToolId } from '../drivers/index.js';
 
 export interface DeviceRow {
   id: string;
@@ -188,4 +188,30 @@ export async function cableTest(deviceId: string, portName: string): Promise<str
     await new Promise(r => setTimeout(r, 7000)); // TDR takes a few seconds
     return session.exec(show);
   });
+}
+
+/** Run a diagnostic tool (ping/traceroute/ip-scan) against a target and return
+ *  the raw device output. The driver owns the per-vendor command; continuous
+ *  tools (RouterOS traceroute) are time-bounded via the session's execBounded. */
+export async function runDeviceTool(
+  deviceId: string,
+  tool: DeviceToolId,
+  opts: { target: string; count: number }
+): Promise<string> {
+  const device = await getDevice(deviceId);
+  const driver = driverFor(device);
+  if (!driver.tools.includes(tool)) {
+    throw Object.assign(new Error(`${tool} is not supported on ${driver.vendor}`), { statusCode: 501 });
+  }
+  const cmd = driver.toolCommand(tool, { target: opts.target, count: opts.count });
+  const target = await sshTargetFor(device);
+  // Time budget: ping scales with probe count; Cisco traceroute self-terminates
+  // so allow a full path; RouterOS traceroute streams forever, so keep it short.
+  const maxMs =
+    tool === 'ping'          ? Math.min(opts.count, 10) * 1500 + 6000 :
+    tool === 'ip-scan'       ? 12000 :
+    driver.os === 'routeros' ? 12000 : 45000;   // traceroute
+  return withDeviceSession(target, async session =>
+    session.execBounded ? session.execBounded(cmd, maxMs) : session.exec(cmd, maxMs)
+  );
 }

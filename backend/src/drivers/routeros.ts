@@ -3,7 +3,8 @@
 // See docs/PLAN-multi-vendor.md. Port VLAN config uses bridge-VLAN filtering
 // (pvid + per-VLAN tagged/untagged membership), validated against a CRS326.
 // Cable test still throws (per-model TDR, inline output doesn't fit run/show).
-import type { DeviceDriver, PortConfigOpts, BaselineOpts, BaselinePlan } from './types.js';
+import type { DeviceDriver, PortConfigOpts, BaselineOpts, BaselinePlan, DeviceToolId, DeviceToolOpts } from './types.js';
+import { assertToolTarget } from './types.js';
 
 // ---- bridge VLAN scripting -------------------------------------------------
 // Access/trunk assignment is read-modify-write: a port must be removed from the
@@ -220,6 +221,21 @@ export function routerosDriver(): DeviceDriver {
       // TDR output varies by model and returns inline (no separate read step),
       // which doesn't fit the run/show contract; revisit with hardware.
       return unsupported('Cable test');
+    },
+
+    tools: ['ping', 'traceroute', 'ip-scan'],
+
+    toolCommand(tool: DeviceToolId, { target, count }: DeviceToolOpts): string {
+      assertToolTarget(target);
+      switch (tool) {
+        // count bounds ping; ip-scan is bounded by duration. traceroute streams
+        // continuously over the exec channel, so the caller time-bounds it.
+        case 'ping':       return `/ping ${target} count=${count}`;
+        case 'traceroute': return `/tool traceroute ${target}`;
+        case 'ip-scan':    return `/tool ip-scan address-range=${target} duration=5`;
+        default:
+          throw Object.assign(new Error(`${tool} is not supported on RouterOS`), { statusCode: 501 });
+      }
     },
 
     loggingTrap(level) {

@@ -42,6 +42,7 @@ import logRoutes from './routes/logs.js';
 import onboardingRoutes from './routes/onboarding.js';
 import integrationRoutes from './routes/integrations.js';
 import searchRoutes from './routes/search.js';
+import toolRoutes from './routes/tools.js';
 
 /** Constant-time check of the /metrics bearer token (or ?token=). */
 function validMetricsToken(req: { headers: Record<string, unknown>; query?: unknown }): boolean {
@@ -191,6 +192,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(onboardingRoutes);
   await app.register(integrationRoutes);
   await app.register(searchRoutes);
+  await app.register(toolRoutes);
 
   return app;
 }

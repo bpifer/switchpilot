@@ -52,6 +52,34 @@ export class RouterOsSshSession {
     });
   }
 
+  /**
+   * Run a possibly-continuous command (e.g. `/tool traceroute`), collecting
+   * output for up to durationMs, then close the channel and return what was
+   * captured. Resolves early if the command finishes on its own (ping, ip-scan).
+   * Used by diagnostic tools that do not self-terminate over an exec channel.
+   */
+  execBounded(command: string, durationMs: number): Promise<string> {
+    command = command.replace(/[\r\n]+/g, ' ');
+    return new Promise((resolve, reject) => {
+      this.conn.exec(command, (err, channel) => {
+        if (err) return reject(err);
+        let out = '';
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          try { channel.close(); } catch { /* already closing */ }
+          resolve(out.replace(/\r/g, '').trim());
+        };
+        const timer = setTimeout(finish, durationMs);
+        channel.on('data', (d: Buffer) => { out += d.toString('utf8'); });
+        channel.stderr.on('data', (d: Buffer) => { out += d.toString('utf8'); });
+        channel.on('close', finish);
+      });
+    });
+  }
+
   /** Apply config lines. Each is an absolute RouterOS command; a rejection
    *  (failure:/syntax error/...) throws so the job is marked failed. */
   async configure(lines: string[], timeoutMs = 60000): Promise<string> {
