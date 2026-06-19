@@ -2,6 +2,7 @@
 // starting background services, or listening - so tests can drive it via
 // `app.inject(...)`. index.ts wraps this with migrate/seed/redis/leader/listen.
 import Fastify, { type FastifyInstance } from 'fastify';
+import { timingSafeEqual } from 'node:crypto';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
@@ -41,6 +42,17 @@ import logRoutes from './routes/logs.js';
 import onboardingRoutes from './routes/onboarding.js';
 import integrationRoutes from './routes/integrations.js';
 import searchRoutes from './routes/search.js';
+
+/** Constant-time check of the /metrics bearer token (or ?token=). */
+function validMetricsToken(req: { headers: Record<string, unknown>; query?: unknown }): boolean {
+  const auth = String(req.headers.authorization ?? '');
+  const provided = auth.startsWith('Bearer ')
+    ? auth.slice('Bearer '.length)
+    : String((req.query as { token?: unknown } | undefined)?.token ?? '');
+  const a = Buffer.from(provided);
+  const b = Buffer.from(config.metricsToken);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true, bodyLimit: 10 * 1024 * 1024 });
@@ -98,9 +110,13 @@ export async function buildApp(): Promise<FastifyInstance> {
     );
   });
 
-  // Prometheus scrape endpoint (unauthenticated by convention — restrict at the
-  // network layer; it exposes only aggregate counts, no device/credential data).
-  app.get('/metrics', { schema: { hide: true } }, async (_req, reply) => {
+  // Prometheus scrape endpoint. Exposes only aggregate/labelled gauges, no
+  // credential data. Open by default (restrict at the network layer); set
+  // METRICS_TOKEN to require `Authorization: Bearer <token>` (or ?token=).
+  app.get('/metrics', { schema: { hide: true } }, async (req, reply) => {
+    if (config.metricsToken && !validMetricsToken(req)) {
+      return reply.code(401).type('text/plain').send('unauthorized\n');
+    }
     await refreshGauges();
     reply.header('Content-Type', registry.contentType);
     return registry.metrics();

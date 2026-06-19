@@ -15,6 +15,7 @@ interface Analysis {
   spAdminExists: boolean;
   otherAdmins: string[];
   vendor?: string;   // 'cisco' | 'mikrotik'
+  hostKeyFingerprint?: string;
 }
 
 interface OnboardResult {
@@ -141,6 +142,16 @@ export default function OnboardWizard({ sites, onClose }: { sites: any[]; onClos
             <div className="mt-0.5 font-mono text-xs text-slate-500">
               {analysis.identity.model} · {analysis.identity.iosVersion} · SN {analysis.identity.serial}
             </div>
+            {analysis.hostKeyFingerprint && (
+              <div className="mt-2 border-t border-slate-200 pt-2">
+                <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">SSH host key</div>
+                <div className="mt-0.5 break-all font-mono text-xs text-slate-600">{analysis.hostKeyFingerprint}</div>
+                <div className="mt-0.5 text-[11px] text-slate-400">
+                  Verify this matches the switch (e.g. <span className="font-mono">ssh-keygen -lf</span> on its host key)
+                  before onboarding. It is pinned on first connect; a later change is then refused.
+                </div>
+              </div>
+            )}
           </div>
 
           {requirementsMet && (

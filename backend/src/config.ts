@@ -13,6 +13,9 @@ export const config = {
     : null,
   // Serve Swagger UI at /docs. Default on; set ENABLE_API_DOCS=false to hide the schema in prod.
   enableDocs: process.env.ENABLE_API_DOCS !== 'false',
+  // Optional bearer token guarding GET /metrics. Unset = open (scrape on a trusted
+  // network); set it and Prometheus must send `Authorization: Bearer <token>`.
+  metricsToken: process.env.METRICS_TOKEN ?? '',
   db: {
     host: process.env.POSTGRES_HOST ?? 'localhost',
     port: parseInt(process.env.POSTGRES_PORT ?? '5432', 10),
