@@ -79,8 +79,8 @@ Still on the wishlist (ranked):
 - [~] **UniFi driver** - DECLINED (2026-06-14): UniFi has its own controller
       dashboard, so it is not worth the effort. Other SSH-managed vendors
       (Aruba/HPE, Netgear, Brocade/ICX) are still candidates via the driver seam.
-- [ ] **More notification channels**: Discord, ntfy, Telegram, Pushover, Gotify
-      (the integrations layer already has Teams/Slack/SMTP to mirror).
+- [x] **More notification channels** DONE (PR #7, `ba9ac57`): Discord, ntfy,
+      Gotify, Telegram, Pushover added alongside Teams/Slack/SMTP.
 - [ ] **GitOps / intent-based config**: declare desired VLANs/port profiles in
       YAML, reconcile + flag drift (compliance/drift engine + git history exist);
       mirror the config-history repo to an external git remote for DR.
@@ -89,6 +89,86 @@ Still on the wishlist (ranked):
       plugged into what" from the neighbor/client data.
 - [ ] **DHCP/IPAM correlation** (pull leases from MikroTik/pfSense/Pi-hole) +
       make the SPA an installable PWA for phone/rack use.
+
+## Change management & trust (from external review, valid items)
+
+Ranked; the "biggest trust" gaps are at the top.
+- [x] **SSH host-key verification.** DONE (PR #3, `7f3a387`/`d24e5be`) - TOFU
+      pin on first onboard, refuse a changed key before auth, device-page UI to
+      view/re-pin.
+- [ ] **Transactional / commit-confirm pushes.** `configure()` aborts mid-push
+      on `% Invalid` but does NOT roll back already-applied lines, and there is
+      no "apply -> verify reachability -> auto-revert if the session drops."
+      Pre-change backups exist, but add IOS `reload in` + confirm (or
+      `configure replace`). Biggest trust multiplier.
+- [x] **Post-change read-back validation.** DONE (PR #5, `ffcf67a`) -
+      `services/portVerify.ts` re-reads the port after an edit.
+- [x] **Preview/diff on structured edits.** DONE (PR #4, `00fa171`) -
+      `services/configPreview.ts`; the Ports-tab flow now previews before apply.
+- [ ] **Visual rack view** (U layout of devices). Pure frontend; homelab-loved.
+- [ ] **Dry-run remediation + compliance-rule auto-remediation.** Drift already
+      auto-remediates vs a pinned baseline; add a dry-run mode and optional
+      scheduled remediation for compliance rules.
+- [x] **Fleet health score** DONE (PR #6, `454f8a4`) - `services/fleetHealth.ts`
+      composite (online% + compliance% + open-criticals) on the dashboard.
+- [ ] **Unified per-device timeline** - stitch the audit log, alerts, git config
+      history, and jobs into one chronological feed (data all exists).
+- [ ] **Golden config inheritance** - templates + baseline + drift cover most of
+      this; add a hierarchy/inheritance model.
+- [ ] Niche / high-effort: 802.1X user tracking for endpoints, offline config
+      "digital twin" simulation, AI-assisted config analysis (why non-compliant /
+      what changed / what broke).
+
+Already covered (raised in the review but built): ring-based firmware rollouts
+(canary->fleet), MAC/IP/hostname/VLAN endpoint search, cpu/mem/temp/PoE/port-bw
+capacity trends.
+
+## Architecture, security & DR (external review #2, valid items)
+
+Difficulty: **Easy** ~half day, **Medium** 1-2 days, **Hard** multi-day / risky.
+Ranked by value-per-effort.
+
+- [ ] **Optional `/metrics` auth.** `Easy`. `GET /metrics` is unauthenticated
+      (homelabbers will expose it by accident). Gate behind an optional
+      `METRICS_TOKEN` (bearer or basic); unset = current behavior.
+- [ ] **Show the host-key fingerprint at onboarding.** `Easy`. TOFU pins
+      whatever answers on first connect; surface the SHA256 fingerprint in the
+      onboarding analyze step so the operator can eyeball it before pinning.
+      Host-key infra already exists.
+- [ ] **Document a DR / upgrade-rollback process.** `Easy`. Migrations are
+      forward-only; write the runbook: `pg_dump` before upgrade, restore to roll
+      back, where `/data` (firmware + config git) lives. Mostly docs.
+- [ ] **Capture command output in the audit log.** `Medium`. Config push +
+      firmware currently audit `{ lines }` (commands) but not device output.
+      Store the output (size-capped, secret-redacted) and show it on the audit
+      timeline for high-trust ops.
+- [ ] **Platform backup/restore workflow.** `Medium`. A "download a config
+      bundle" + DB export/import path (or a documented `pg_dump`/restore + the
+      git config repo), so the whole instance is recoverable, not just per-switch
+      configs.
+- [ ] **Secrets (CREDENTIAL_KEY) rotation.** `Medium`. A routine that re-encrypts
+      all stored credentials/MFA secrets from an old key to a new one, with key
+      versioning so rotation is non-destructive.
+- [ ] **SNMP trap receiver (event-driven, not just polling).** `Medium`. Syslog
+      ingest is already first-class; add a UDP/162 trap listener that maps common
+      traps (linkUp/Down, etc.) to alerts, like the syslog path.
+- [ ] **Reads through the driver + split `monitorService`.** `Hard`. The write
+      surface is driver-abstracted, but Cisco reads (`show ...`) are inline in
+      `monitorService.refreshDevice` while RouterOS uses `routerosMonitor`. Add
+      `driver.readCommands`/parser pairs (or `getPorts/getVlans/getNeighbors`) and
+      extract a `ciscoMonitor.ts` mirroring `routerosMonitor.ts`, so the refresh
+      loop is "ask the driver for command+parser pairs and run them." This is
+      backlog #4 in PLAN-multi-vendor and the real remaining Cisco coupling.
+      `monitorService` (280 lines) is the one genuinely oversized service; the
+      others (`complianceService` 130, `provisionService` 61) are fine, and the
+      code already extracts focused modules (`configPreview`, `portVerify`,
+      `fleetHealth`, `notifiers`).
+
+Raised in the review but already covered: sweep concurrency (`scheduler.ts`
+`CONCURRENCY=8` worker pool + per-device SSH pool), syslog retention (14-day
+purge), HA (Postgres-advisory-lock leader election + `replicas: 2`),
+credentials-in-memory (unavoidable, acknowledged), compliance config caching
+(regex over the stored backup, not a heavy live parse).
 
 ## Cisco-coupling audited (done this session)
 
