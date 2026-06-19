@@ -176,6 +176,56 @@ purge), HA (Postgres-advisory-lock leader election + `replicas: 2`),
 credentials-in-memory (unavoidable, acknowledged), compliance config caching
 (regex over the stored backup, not a heavy live parse).
 
+## Cross-tool review: mikrotik-manager (external review #3, valid items)
+
+Compared SwitchPilot against `2GT-Media-Group-LLC/mikrotik-manager` (AGPLv3,
+MikroTik-only, same Node/React/Postgres/Redis stack). Same difficulty legend as
+above. NOTE: that project is AGPLv3 - reimplement from behavior/standards, do
+NOT copy source. Ranked by value-per-effort.
+
+- [ ] **Device Tools tab.** `Medium`. Ping, traceroute, IP scan, packet capture
+      with `.pcap` export, and bandwidth test, run from the platform behind the
+      driver seam (MikroTik `/tool ...`, Cisco `ping`/`traceroute`/`monitor
+      capture`). SP currently has WoL only. Best value-per-effort of this batch.
+- [ ] **NetFlow/IPFIX traffic analytics.** `Hard`. A UDP/2055 collector + v5/v9/
+      IPFIX decoder, per-client usage accounting, app breakdown by port/proto,
+      top talkers, configurable detailed + rollup retention. Net-new and the
+      biggest capability gap; genuinely multi-vendor (Cisco NetFlow + MikroTik
+      traffic-flow both export to one collector), so it fits the vendor-neutral
+      mandate. Caveat: value depends on which switches can export flows (CRS326
+      yes via RouterOS; 2960X-class access switches are limited).
+- [ ] **Topology upgrades.** `Medium`. Add manual link drawing + persistence,
+      orphan-node detection, and MNDP dedup on top of the existing CDP/LLDP
+      auto-graph (`routes/topology.ts`). Complements the "richer auto-topology
+      map" wishlist item above.
+- [ ] **Self-lockout guard for writes.** Folds into **Transactional /
+      commit-confirm pushes** (the #1 trust gap). Their `firewallSafety` idea:
+      before applying a change, detect if it would drop the platform's own mgmt
+      session (disabling the uplink/mgmt port, an ACL line, a mgmt-path VLAN
+      change) and refuse or stage it behind `reload in` + auto-revert. Not a
+      standalone item; design it into commit-confirm.
+- [ ] **Per-device availability % (30-day).** `Easy`/`Medium`. SP has a fleet
+      health score (online %); add per-device availability history/% over a
+      window (MM tracks 30-day per-device uptime).
+- [ ] **Credential presets (reusable, admin-restricted).** `Medium`. Reusable
+      credential sets to speed onboarding / bulk-add, with presets restricted to
+      admins. SP already has discovery + per-device credentials; this is the
+      reuse/bulk layer on top.
+- [ ] **Cert / SSL-expiry alert.** `Easy`. Where SP tracks a device or platform
+      cert, alert ahead of expiry (MM has this as an alert type).
+
+MM parity, already in SP (no action): 2FA/TOTP + backup codes, RBAC,
+AES-256-GCM credentials, audit log, config backup + git history + line diffs +
+rollback, drift/compliance, maintenance windows, templates, global search,
+syslog, discovery, WoL, PoE, the full notification set, and a base CDP/LLDP
+topology.
+
+Reviewed but deliberately skipped (router-centric; would deepen single-vendor
+assumptions and leave the multi-vendor switch focus): firewall / Security Center
+rule builder + NAT + address lists, WireGuard VPN, DHCP/DNS/NTP config pages,
+queues/QoS, and wireless SSID/CAPsMAN management. The one vendor-neutral slice
+worth keeping (read-only DHCP/IPAM correlation) is already on the roadmap above.
+
 ## Cisco-coupling audited (done this session)
 
 Hunted hardcoded `show`/IOS paths that would break RouterOS; all now
