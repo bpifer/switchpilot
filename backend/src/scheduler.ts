@@ -96,6 +96,7 @@ export function startScheduler(): void {
     await query(`DELETE FROM client_tracking WHERE last_seen < now() - ($1 * interval '1 day')`, [r.clientDays]);
     await query(`DELETE FROM alerts WHERE resolved_at IS NOT NULL AND resolved_at < now() - ($1 * interval '1 day')`, [r.alertDays]);
     await query(`DELETE FROM syslog_messages WHERE received_at < now() - ($1 * interval '1 day')`, [r.syslogDays]);
+    await query(`DELETE FROM flow_records WHERE bucket < now() - ($1 * interval '1 day')`, [config.netflow.retentionDays]);
     // clean up expired maintenance windows older than 30 days
     await query(`DELETE FROM maintenance_windows WHERE ends_at < now() - interval '30 days'`);
     // keep the config-history git repo compact (runs --auto, so it's cheap on most days)

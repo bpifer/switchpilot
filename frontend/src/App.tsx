@@ -23,6 +23,7 @@ const Alerts = lazy(() => import('./pages/Alerts'));
 const Topology = lazy(() => import('./pages/Topology'));
 const Users = lazy(() => import('./pages/Users'));
 const Analytics = lazy(() => import('./pages/Analytics'));
+const Traffic = lazy(() => import('./pages/Traffic'));
 const Clients = lazy(() => import('./pages/Clients'));
 const Maintenance = lazy(() => import('./pages/Maintenance'));
 const Discovery = lazy(() => import('./pages/Discovery'));
@@ -53,6 +54,7 @@ const ICONS: Record<string, string> = {
   alerts:    'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
   analytics: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z',
   clients:   'M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z',
+  traffic:   'M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.28m5.94 2.28-2.28 5.94',
   users:       'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
   maintenance: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
   discovery:   'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7',
@@ -91,6 +93,7 @@ const NAV: NavSection[] = [
   ]},
   { title: 'Insights', items: [
     { to: '/analytics', label: 'Analytics', icon: ICONS.analytics },
+    { to: '/traffic',   label: 'Traffic',   icon: ICONS.traffic },
   ]},
   { title: 'Organization', items: [
     { to: '/sites',        label: 'Sites',        icon: ICONS.sites },
@@ -330,6 +333,7 @@ export default function App() {
           <Route path="/alerts" element={<Alerts me={me} />} />
           <Route path="/topology" element={<Topology />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/traffic" element={<Traffic />} />
           <Route path="/clients" element={<Clients />} />
           {/* Locate was folded into the Clients search; keep the old path working */}
           <Route path="/locate" element={<Navigate to="/clients" replace />} />

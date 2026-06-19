@@ -35,6 +35,8 @@ services:
     ports:
       - "3000:3000"
       - "514:5514/udp"
+      # NetFlow/IPFIX collector (active only when NETFLOW_ENABLED=true; >1024 so no remap)
+      - "2055:2055/udp"
     volumes:
       - firmware:/data/firmware
       - confighistory:/data/config-history

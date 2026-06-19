@@ -9,6 +9,7 @@ import { startScheduler } from './scheduler.js';
 import { startLeaderElection } from './leader.js';
 import { startSyslogListener } from './services/syslogService.js';
 import { startMqtt } from './services/mqttService.js';
+import { startNetflowCollector } from './services/netflow/collector.js';
 import { loadOuiCache, syncOuiDatabase } from './services/ouiService.js';
 
 async function main() {
@@ -31,6 +32,7 @@ async function main() {
   startScheduler();
   startSyslogListener();
   startMqtt();
+  startNetflowCollector();   // UDP NetFlow/IPFIX collector (no-op unless NETFLOW_ENABLED)
 
   await app.listen({ port: config.port, host: '0.0.0.0' });
   app.log.info(`SwitchPilot API listening on :${config.port}${config.enableDocs ? ' — docs at /docs' : ''}`);

@@ -193,13 +193,18 @@ NOT copy source. Ranked by value-per-effort.
       the initial tab: packet capture needs binary `.pcap` retrieval off the
       device (MikroTik `/tool sniffer` to file + fetch, Cisco `monitor capture` +
       export) and bandwidth test is intrusive (needs a target/server).
-- [ ] **NetFlow/IPFIX traffic analytics.** `Hard`. A UDP/2055 collector + v5/v9/
-      IPFIX decoder, per-client usage accounting, app breakdown by port/proto,
-      top talkers, configurable detailed + rollup retention. Net-new and the
-      biggest capability gap; genuinely multi-vendor (Cisco NetFlow + MikroTik
-      traffic-flow both export to one collector), so it fits the vendor-neutral
-      mandate. Caveat: value depends on which switches can export flows (CRS326
-      yes via RouterOS; 2960X-class access switches are limited).
+- [x] **NetFlow/IPFIX traffic analytics.** `Hard`. DONE (v5/v9) - a UDP collector
+      (`NETFLOW_ENABLED`, udp/2055) decodes NetFlow v5 + v9, attributes each
+      exporter to a device, classifies the app by port, and aggregates into
+      `flow_records` (migration 024) flushed every 60s, pruned by
+      `NETFLOW_RETAIN_DAYS`. A Traffic page shows over-time bytes, top talkers,
+      and app breakdown (`/api/traffic/*`). Decoders are spec-derived (clean-room,
+      not copied) and unit-tested with synthetic packets. Deferred below: IPFIX,
+      auto-export-config, live validation against a real exporter.
+- [ ] **NetFlow follow-ups.** `Medium`. Add IPFIX (v10) decode (close to v9), a
+      driver helper to auto-configure flow export on a device (MikroTik `/ip
+      traffic-flow` target, Cisco flow record/exporter/monitor) instead of manual
+      setup, and validate end-to-end against the CRS326 (traffic-flow v5/v9).
 - [ ] **Topology upgrades.** `Medium`. Add manual link drawing + persistence,
       orphan-node detection, and MNDP dedup on top of the existing CDP/LLDP
       auto-graph (`routes/topology.ts`). Complements the "richer auto-topology

@@ -47,6 +47,13 @@ export const config = {
   // Unset = no mirror. Use a dedicated remote; see .env.example for auth options.
   configHistoryRemote: process.env.CONFIG_HISTORY_REMOTE ?? '',
   syslogPort: parseInt(process.env.SYSLOG_PORT ?? '514', 10),
+  netflow: {
+    // UDP NetFlow/IPFIX collector. Off by default; point exporters (Cisco
+    // NetFlow / MikroTik traffic-flow) at this host:port to populate Traffic.
+    enabled: process.env.NETFLOW_ENABLED === 'true',
+    port: parseInt(process.env.NETFLOW_PORT ?? '2055', 10),
+    retentionDays: parseInt(process.env.NETFLOW_RETAIN_DAYS ?? '30', 10),
+  },
   smtp: {
     host: process.env.SMTP_HOST ?? '',
     port: parseInt(process.env.SMTP_PORT ?? '587', 10),
