@@ -67,7 +67,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata: { name: api, labels: { app: api } }
 spec:
-  replicas: 2   # safe to scale: cron sweeps are guarded by a Postgres advisory lock (leader election)
+  replicas: 2   # scaling needs RWX storage for firmware + config-history (see the PVCs below); cron sweeps are already guarded by a Postgres advisory lock (leader election)
   selector: { matchLabels: { app: api } }
   template:
     metadata: { labels: { app: api } }
@@ -94,7 +94,9 @@ spec:
             - name: CREDENTIAL_KEY
               valueFrom: { secretKeyRef: { name: switchpilot-secrets, key: CREDENTIAL_KEY } }
           ports: [{ containerPort: 3000 }]
-          volumeMounts: [{ name: firmware, mountPath: /data/firmware }]
+          volumeMounts:
+            - { name: firmware, mountPath: /data/firmware }
+            - { name: confighistory, mountPath: /data/config-history }
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
             limits:   { cpu: "1000m", memory: "512Mi" }
@@ -109,13 +111,29 @@ spec:
       volumes:
         - name: firmware
           persistentVolumeClaim: { claimName: switchpilot-firmware }
+        - name: confighistory
+          persistentVolumeClaim: { claimName: switchpilot-confighistory }
 ---
+# api runs replicas: 2 (above), so BOTH the firmware images and the config-history
+# git repo must be shared (ReadWriteMany) - otherwise each pod keeps its own copy
+# (divergent git history for backups/diff/rollback), and a ReadWriteOnce volume
+# leaves the second pod Pending on a multi-node cluster. ReadWriteMany needs an
+# RWX-capable StorageClass (NFS, CephFS, EFS, Azure Files). If your cluster only
+# offers ReadWriteOnce: set api replicas to 1, or externalize both - firmware to
+# object storage and config-history via CONFIG_HISTORY_REMOTE.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata: { name: switchpilot-firmware }
 spec:
-  accessModes: [ReadWriteOnce]
+  accessModes: [ReadWriteMany]
   resources: { requests: { storage: 50Gi } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: switchpilot-confighistory }
+spec:
+  accessModes: [ReadWriteMany]
+  resources: { requests: { storage: 5Gi } }
 ---
 apiVersion: v1
 kind: Service

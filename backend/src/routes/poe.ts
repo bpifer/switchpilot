@@ -1,12 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
 import { siteFilter } from './util.js';
+import { requireRole } from '../auth/rbac.js';
 
 export default async function poeRoutes(app: FastifyInstance) {
   app.get('/api/poe/summary', {
+    preHandler: requireRole('readonly'),
     schema: { querystring: { type: 'object', properties: { siteId: { type: 'string' } } } }
-  }, async (req, reply) => {
-    try { await req.jwtVerify(); } catch { return reply.code(401).send({ error: 'Authentication required' }); }
+  }, async (req) => {
     const sf = siteFilter((req.query as any).siteId, 'd');
     const siteCond = sf.cond ? `AND ${sf.cond}` : '';
 

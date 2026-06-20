@@ -41,10 +41,8 @@ export default async function clientRoutes(app: FastifyInstance) {
   // unmanaged CDP/LLDP neighbors. Without `q` it lists recent endpoints.
   app.get<{ Querystring: { q?: string; limit?: string; active?: string; siteId?: string } }>(
     '/api/clients',
-    { schema: { tags: ['clients'] } },
-    async (req, reply) => {
-      try { await req.jwtVerify(); } catch { return reply.code(401).send({ error: 'Authentication required' }); }
-      const { q, limit = '100', active, siteId } = req.query;
+    { preHandler: requireRole('readonly'), schema: { tags: ['clients'] } },
+    async (req, reply) => {      const { q, limit = '100', active, siteId } = req.query;
       const lim = Math.min(parseInt(limit, 10) || 100, 500);
       const term = q?.trim();
       const like = term ? `%${term.replace(/[%_]/g, '\\$&')}%` : '';
@@ -122,10 +120,8 @@ export default async function clientRoutes(app: FastifyInstance) {
   // Clients seen on a specific device, optionally filtered by port
   app.get<{ Params: { id: string }; Querystring: { port?: string; active?: string } }>(
     '/api/devices/:id/clients',
-    { schema: { tags: ['clients'] } },
-    async (req, reply) => {
-      try { await req.jwtVerify(); } catch { return reply.code(401).send({ error: 'Authentication required' }); }
-      const { id } = req.params;
+    { preHandler: requireRole('readonly'), schema: { tags: ['clients'] } },
+    async (req, reply) => {      const { id } = req.params;
       const { port, active } = req.query;
       const activeFilter = active === 'true'
         ? `AND last_seen > now() - interval '24 hours'` : '';
@@ -149,10 +145,8 @@ export default async function clientRoutes(app: FastifyInstance) {
   // History: all devices/ports a specific MAC has been seen on
   app.get<{ Params: { mac: string } }>(
     '/api/clients/:mac/history',
-    { schema: { tags: ['clients'] } },
-    async (req, reply) => {
-      try { await req.jwtVerify(); } catch { return reply.code(401).send({ error: 'Authentication required' }); }
-      const { rows } = await query(
+    { preHandler: requireRole('readonly'), schema: { tags: ['clients'] } },
+    async (req, reply) => {      const { rows } = await query(
         `SELECT ct.id, ct.mac, ct.port_name, ct.vlan, ct.first_seen, ct.last_seen,
                 d.id AS device_id, d.hostname, d.mgmt_ip
          FROM client_tracking ct

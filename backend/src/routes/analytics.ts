@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
+import { requireRole } from '../auth/rbac.js';
 
 // Bucket size + retention per range
 function rangeConfig(range: string): { interval: string; bucket: string } {
@@ -49,10 +50,8 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   // Device-level time-series: cpu, memory, temp, poe_used, poe_capacity
   app.get<{ Params: { id: string }; Querystring: { metric?: string; range?: string } }>(
     '/api/analytics/device/:id',
-    { schema: { tags: ['analytics'] } },
-    async (req, reply) => {
-      try { await req.jwtVerify(); } catch { return reply.code(401).send({ error: 'Authentication required' }); }
-      const { id } = req.params;
+    { preHandler: requireRole('readonly'), schema: { tags: ['analytics'] } },
+    async (req, reply) => {      const { id } = req.params;
       const metric = req.query.metric ?? 'cpu';
       const range = req.query.range ?? '7d';
       const { interval, bucket } = rangeConfig(range);
@@ -81,10 +80,8 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   // Per-device availability % over a window, from the hourly rollup.
   app.get<{ Params: { id: string }; Querystring: { days?: string } }>(
     '/api/analytics/device/:id/availability',
-    { schema: { tags: ['analytics'] } },
-    async (req, reply) => {
-      try { await req.jwtVerify(); } catch { return reply.code(401).send({ error: 'Authentication required' }); }
-      const days = Math.min(365, Math.max(1, parseInt(req.query.days ?? '30', 10) || 30));
+    { preHandler: requireRole('readonly'), schema: { tags: ['analytics'] } },
+    async (req, reply) => {      const days = Math.min(365, Math.max(1, parseInt(req.query.days ?? '30', 10) || 30));
       const { rows } = await query<{ up: number; total: number }>(
         `SELECT COALESCE(SUM(up),0)::int AS up, COALESCE(SUM(total),0)::int AS total
          FROM device_availability WHERE device_id = $1 AND hour > now() - ($2 * interval '1 day')`,
@@ -97,10 +94,8 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   // Per-port time-series: in_bps, out_bps, in_errors, out_errors
   app.get<{ Params: { deviceId: string; portName: string }; Querystring: { range?: string } }>(
     '/api/analytics/port/:deviceId/:portName',
-    { schema: { tags: ['analytics'] } },
-    async (req, reply) => {
-      try { await req.jwtVerify(); } catch { return reply.code(401).send({ error: 'Authentication required' }); }
-      const { deviceId, portName } = req.params;
+    { preHandler: requireRole('readonly'), schema: { tags: ['analytics'] } },
+    async (req, reply) => {      const { deviceId, portName } = req.params;
       const { interval, bucket } = portRangeConfig(req.query.range ?? '7d');
 
       const { rows } = await query(
@@ -122,10 +117,8 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   // List ports that have metric data (for port selector in UI)
   app.get<{ Params: { deviceId: string } }>(
     '/api/analytics/port/:deviceId',
-    { schema: { tags: ['analytics'] } },
-    async (req, reply) => {
-      try { await req.jwtVerify(); } catch { return reply.code(401).send({ error: 'Authentication required' }); }
-      const { rows } = await query(
+    { preHandler: requireRole('readonly'), schema: { tags: ['analytics'] } },
+    async (req, reply) => {      const { rows } = await query(
         `SELECT DISTINCT port_name
          FROM port_metrics WHERE device_id = $1 AND in_bps IS NOT NULL
          ORDER BY port_name`,
@@ -138,10 +131,8 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   // VLAN summary: named VLANs + access port membership + trunk ports
   app.get<{ Params: { id: string } }>(
     '/api/analytics/device/:id/vlans',
-    { schema: { tags: ['analytics'] } },
-    async (req, reply) => {
-      try { await req.jwtVerify(); } catch { return reply.code(401).send({ error: 'Authentication required' }); }
-      const { id } = req.params;
+    { preHandler: requireRole('readonly'), schema: { tags: ['analytics'] } },
+    async (req, reply) => {      const { id } = req.params;
 
       const [vlanRows, trunkRows] = await Promise.all([
         query(

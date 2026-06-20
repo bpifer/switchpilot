@@ -14,6 +14,8 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       `reload in` + confirm (or `configure replace`); and before applying, detect
       a change that would drop the platform's own mgmt session (uplink/mgmt port,
       an ACL line, a mgmt-path VLAN) and refuse or stage it behind auto-revert.
+      (External review independently traced `configure()` and confirmed this is
+      the single highest-value fix in the repo - not just in this list.)
 - [ ] **SNMP trap receiver (event-driven).** `Medium`. A UDP/162 listener that
       maps common traps (linkUp/Down, etc.) to alerts, mirroring the first-class
       syslog path. Well-scoped, high operational value.
@@ -38,6 +40,11 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       orphan-node detection, and MNDP dedup, plus link-utilization + VLAN overlays
       and "what's plugged into what", on top of the CDP/LLDP auto-graph
       (`routes/topology.ts`).
+- [ ] **Test the riskiest untested code.** `Medium`. Backend `monitorService` (the
+      300+ line poll/refresh pipeline) and `jobService` (claim/retry/reaper) have
+      no tests despite being the most failure-prone code, while drivers/parsers/
+      crypto/RBAC are well covered. Add unit tests there, then the largest untested
+      frontend pages (`Compliance`, `Firmware`, `DeviceDetail`). (External review.)
 
 ## P3 - Nice to have
 
@@ -62,6 +69,12 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       is non-destructive.
 - [ ] **Credential presets (reusable, admin-restricted).** `Medium`. Reusable
       credential sets to speed onboarding / bulk-add; restrict presets to admins.
+- [ ] **Credential edit endpoint (`PUT /api/credentials/:id`).** `Medium`. There is
+      GET/POST/DELETE but no edit; deleting a credential sets every device's
+      `credential_id` to NULL (FK `ON DELETE SET NULL`), so rotating a password by
+      delete-and-recreate silently detaches every device using it. Add an in-place
+      edit that re-encrypts only changed secrets and keeps devices attached.
+      (External review.)
 
 ## P4 - Later (large, risky, or niche)
 
@@ -80,6 +93,10 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
 - [ ] **Niche / high-effort.** `Hard`. 802.1X user tracking for endpoints, offline
       config "digital twin" simulation, AI-assisted config analysis (why
       non-compliant / what changed / what broke).
+- [ ] **JWT in localStorage -> httpOnly cookie.** `Medium`, acknowledged. Tokens
+      live in localStorage (chosen to sidestep CSRF, matching the security audit);
+      no XSS vector is known, but if one appears token theft would be total and
+      silent. Revisit only if the CSRF tradeoff changes. (External review.)
 
 ## Blocked / declined
 
@@ -123,6 +140,14 @@ rollup, shown in the device band).
 **Cross-tool (mikrotik-manager review):** Device Tools tab (ping/traceroute on
 both vendors, ip-scan on RouterOS, injection-safe, audited); NetFlow v5/v9 traffic
 analytics (UDP collector + Traffic page; IPFIX/auto-config tracked in P2).
+
+**Code review (session-traced):** `trustProxy: true` on Fastify so `req.ip` is the
+real client behind nginx/Ingress (fixes audit-log IPs + the per-IP login throttle);
+unified auth - analytics/clients/poe/`/api/summary` switched from a hand-rolled
+`jwtVerify` to `requireRole('readonly')`, which also restores API-key (`sp_...`)
+access on those endpoints; k8s manifest now persists config-history on its own PVC
+and marks firmware + config-history `ReadWriteMany` (with a comment on the
+RWX-vs-replicas:1 tradeoff) so `replicas: 2` no longer diverges or wedges.
 
 ## Reference
 

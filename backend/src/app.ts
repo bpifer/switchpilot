@@ -16,6 +16,7 @@ import { query } from './db.js';
 import { redis } from './redis.js';
 import { registry, refreshGauges, httpDuration } from './metrics.js';
 import { siteFilter } from './routes/util.js';
+import { requireRole } from './auth/rbac.js';
 import { computeFleetHealth } from './services/fleetHealth.js';
 
 import authRoutes from './routes/auth.js';
@@ -57,7 +58,11 @@ function validMetricsToken(req: { headers: Record<string, unknown>; query?: unkn
 }
 
 export async function buildApp(): Promise<FastifyInstance> {
-  const app = Fastify({ logger: true, bodyLimit: 10 * 1024 * 1024 });
+  // trustProxy: the API runs behind nginx (compose) / an Ingress (k8s) that set
+  // X-Forwarded-For, so req.ip must be derived from it - otherwise every audit
+  // entry and the per-IP login throttle see the proxy's IP, not the client's.
+  // (Keep the API itself off the public internet; only the proxy should reach it.)
+  const app = Fastify({ logger: true, bodyLimit: 10 * 1024 * 1024, trustProxy: true });
 
   // Built-in development secrets are fatal in production and a loud warning
   // everywhere else, so a non-production deployment can't silently ship with
@@ -134,9 +139,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   app.get('/api/summary', {
+    preHandler: requireRole('readonly'),
     schema: { tags: ['system'], querystring: { type: 'object', properties: { siteId: { type: 'string' } } } }
-  }, async (req, reply) => {
-    try { await req.jwtVerify(); } catch { return reply.code(401).send({ error: 'Authentication required' }); }
+  }, async (req) => {
     const sf = siteFilter((req.query as any).siteId, 'd');
     const [devices, alerts, jobs, compliance] = await Promise.all([
       query(`SELECT d.status, count(*)::int AS n FROM devices d
