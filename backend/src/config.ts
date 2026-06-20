@@ -47,6 +47,9 @@ export const config = {
   // Unset = no mirror. Use a dedicated remote; see .env.example for auth options.
   configHistoryRemote: process.env.CONFIG_HISTORY_REMOTE ?? '',
   syslogPort: parseInt(process.env.SYSLOG_PORT ?? '514', 10),
+  // UDP port for the SNMP trap receiver (event-driven link/reboot/auth alerts).
+  // Non-root can't bind <1024, so compose maps host 162 -> 5162 inside.
+  snmpTrapPort: parseInt(process.env.SNMP_TRAP_PORT ?? '162', 10),
   netflow: {
     // UDP NetFlow/IPFIX collector. Off by default; point exporters (Cisco
     // NetFlow / MikroTik traffic-flow) at this host:port to populate Traffic.

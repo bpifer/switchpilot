@@ -8,6 +8,7 @@ import { redis, initPubSub } from './redis.js';
 import { startScheduler } from './scheduler.js';
 import { startLeaderElection } from './leader.js';
 import { startSyslogListener } from './services/syslogService.js';
+import { startSnmpTrapListener } from './services/snmpTrapService.js';
 import { startMqtt } from './services/mqttService.js';
 import { startNetflowCollector } from './services/netflow/collector.js';
 import { loadOuiCache, syncOuiDatabase } from './services/ouiService.js';
@@ -31,6 +32,7 @@ async function main() {
   await startLeaderElection();
   startScheduler();
   startSyslogListener();
+  startSnmpTrapListener();
   startMqtt();
   startNetflowCollector();   // UDP NetFlow/IPFIX collector (no-op unless NETFLOW_ENABLED)
 

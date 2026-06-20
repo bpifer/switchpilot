@@ -16,10 +16,6 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       an ACL line, a mgmt-path VLAN) and refuse or stage it behind auto-revert.
       (External review independently traced `configure()` and confirmed this is
       the single highest-value fix in the repo - not just in this list.)
-- [ ] **SNMP trap receiver (event-driven).** `Medium`. A UDP/162 listener that
-      maps common traps (linkUp/Down, etc.) to alerts, mirroring the first-class
-      syslog path. Well-scoped, high operational value.
-
 ## P2 - High value
 
 - [ ] **Capture command output in the audit log.** `Medium`. Config push +
@@ -140,7 +136,9 @@ post-change read-back validation (`portVerify`); preview/diff on structured edit
 host-key fingerprint shown at onboarding; DR / upgrade-rollback runbook
 (`docs/DISASTER-RECOVERY.md`); daily TLS cert-expiry alert (`certCheck`,
 `cert_expiry`); per-device 30-day availability % (`device_availability` hourly
-rollup, shown in the device band).
+rollup, shown in the device band); SNMP trap receiver (UDP/162 -> alerts for
+linkDown/Up, coldStart, authFailure; `snmpTrapService`, mirrors the syslog path,
+pure classifier unit-tested).
 
 **Cross-tool (mikrotik-manager review):** Device Tools tab (ping/traceroute on
 both vendors, ip-scan on RouterOS, injection-safe, audited); NetFlow v5/v9 traffic
