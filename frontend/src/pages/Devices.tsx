@@ -138,16 +138,35 @@ export default function Devices({ me }: { me: Me }) {
 }
 
 function CredentialManager({ credentials, onClose }: { credentials: any[]; onClose: () => void }) {
-  const [form, setForm] = useState<any>({
-    name: '', sshUsername: '', sshPassword: '', enablePassword: '', snmpVersion: '2c', snmpCommunity: '',
-  });
+  const blank = { name: '', sshUsername: '', sshPassword: '', enablePassword: '', snmpVersion: '2c', snmpCommunity: '' };
+  const [form, setForm] = useState<any>(blank);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  function startEdit(c: any) {
+    // Secrets are never returned by the API; leave them blank (blank = keep current).
+    setEditingId(c.id);
+    setForm({ name: c.name, sshUsername: c.ssh_username ?? '', snmpVersion: c.snmp_version ?? '2c',
+              sshPassword: '', enablePassword: '', snmpCommunity: '' });
+    setError('');
+  }
+  function cancelEdit() { setEditingId(null); setForm(blank); setError(''); }
 
   async function submit() {
     setBusy(true); setError('');
     try {
-      await api('/api/credentials', { method: 'POST', body: form });
+      if (editingId) {
+        // Editing in place keeps devices attached; only send secrets the user
+        // actually typed so a blank field doesn't blank the stored secret.
+        const body: any = { name: form.name, sshUsername: form.sshUsername, snmpVersion: form.snmpVersion };
+        for (const k of ['sshPassword', 'enablePassword', 'snmpCommunity'] as const) {
+          if (form[k]) body[k] = form[k];
+        }
+        await api(`/api/credentials/${editingId}`, { method: 'PUT', body });
+      } else {
+        await api('/api/credentials', { method: 'POST', body: form });
+      }
       onClose();
     } catch (err: any) { setError(err.message); }
     finally { setBusy(false); }
@@ -163,18 +182,21 @@ function CredentialManager({ credentials, onClose }: { credentials: any[]; onClo
                 <span className="font-medium text-slate-800">{c.name}</span>
                 <span className="ml-2 text-slate-400">ssh: {c.ssh_username || '—'} · snmp v{c.snmp_version}</span>
               </div>
-              <button
-                className="text-xs text-red-500 hover:text-red-700 hover:underline"
-                onClick={() => api(`/api/credentials/${c.id}`, { method: 'DELETE' }).then(onClose)}
-              >
-                Delete
-              </button>
+              <div className="flex items-center gap-3">
+                <button className="text-xs text-brand-600 hover:text-brand-700 hover:underline" onClick={() => startEdit(c)}>Edit</button>
+                <button
+                  className="text-xs text-red-500 hover:text-red-700 hover:underline"
+                  onClick={() => api(`/api/credentials/${c.id}`, { method: 'DELETE' }).then(onClose)}
+                >
+                  Delete
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
 
-      <h3 className="mb-3 text-sm font-semibold text-slate-700">New profile</h3>
+      <h3 className="mb-3 text-sm font-semibold text-slate-700">{editingId ? 'Edit profile' : 'New profile'}</h3>
       {error && (
         <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">
           {error}
@@ -189,20 +211,21 @@ function CredentialManager({ credentials, onClose }: { credentials: any[]; onClo
         <Field label="SSH username">
           <input className={inputCls} value={form.sshUsername} onChange={e => setForm({ ...form, sshUsername: e.target.value })} />
         </Field>
-        <Field label="SSH password">
+        <Field label={editingId ? 'SSH password (blank = keep)' : 'SSH password'}>
           <input type="password" className={inputCls} value={form.sshPassword} onChange={e => setForm({ ...form, sshPassword: e.target.value })} />
         </Field>
-        <Field label="Enable password (optional)">
+        <Field label={editingId ? 'Enable password (blank = keep)' : 'Enable password (optional)'}>
           <input type="password" className={inputCls} value={form.enablePassword} onChange={e => setForm({ ...form, enablePassword: e.target.value })} />
         </Field>
-        <Field label="SNMP community (v2c)">
+        <Field label={editingId ? 'SNMP community (blank = keep)' : 'SNMP community (v2c)'}>
           <input type="password" className={inputCls} value={form.snmpCommunity} onChange={e => setForm({ ...form, snmpCommunity: e.target.value })} />
         </Field>
       </div>
 
       <div className="mt-5 flex justify-end gap-2">
+        {editingId && <Button variant="secondary" onClick={cancelEdit}>Cancel edit</Button>}
         <Button variant="secondary" onClick={onClose}>Close</Button>
-        <Button onClick={submit} disabled={busy || !form.name}>Save profile</Button>
+        <Button onClick={submit} disabled={busy || !form.name}>{editingId ? 'Update profile' : 'Save profile'}</Button>
       </div>
     </Modal>
   );

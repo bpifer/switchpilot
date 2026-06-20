@@ -90,6 +90,58 @@ export default async function deviceRoutes(app: FastifyInstance) {
     return reply.code(201).send(rows[0]);
   });
 
+  // Edit a credential in place so rotating a password does NOT mean
+  // delete-and-recreate (which would NULL every device's credential_id via the
+  // FK). Partial update: only fields actually sent are changed, so omitting a
+  // secret leaves the stored one intact instead of blanking it.
+  app.put('/api/credentials/:id', {
+    preHandler: requireRole('netadmin'),
+    schema: {
+      tags: ['devices'],
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' }, sshUsername: { type: 'string' }, sshPassword: { type: 'string' },
+          enablePassword: { type: 'string' }, snmpVersion: { type: 'string', enum: ['2c', '3'] },
+          snmpCommunity: { type: 'string' }, snmpv3User: { type: 'string' },
+          snmpv3AuthProto: { type: 'string' }, snmpv3AuthKey: { type: 'string' },
+          snmpv3PrivProto: { type: 'string' }, snmpv3PrivKey: { type: 'string' }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    const id = (req.params as any).id;
+    const b = req.body as any;
+    const me = req.user as any;
+    // Column names are from these fixed maps (never user input), so they are safe
+    // to interpolate; all values stay parameterized. Plaintext vs encrypted split.
+    const plain: Record<string, string> = {
+      name: 'name', sshUsername: 'ssh_username', snmpVersion: 'snmp_version',
+      snmpv3User: 'snmpv3_user', snmpv3AuthProto: 'snmpv3_auth_proto', snmpv3PrivProto: 'snmpv3_priv_proto'
+    };
+    const secret: Record<string, string> = {
+      sshPassword: 'ssh_password_enc', enablePassword: 'enable_password_enc', snmpCommunity: 'snmp_community_enc',
+      snmpv3AuthKey: 'snmpv3_auth_key_enc', snmpv3PrivKey: 'snmpv3_priv_key_enc'
+    };
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    for (const [key, col] of Object.entries(plain)) {
+      if (b[key] !== undefined) { params.push(b[key]); sets.push(`${col}=$${params.length}`); }
+    }
+    for (const [key, col] of Object.entries(secret)) {
+      if (b[key] !== undefined) { params.push(encryptSecret(b[key])); sets.push(`${col}=$${params.length}`); }
+    }
+    if (sets.length === 0) return reply.code(400).send({ error: 'No fields to update' });
+    params.push(id);
+    const { rows } = await query(
+      `UPDATE credentials SET ${sets.join(', ')} WHERE id=$${params.length} RETURNING id, name`, params);
+    if (!rows[0]) return reply.code(404).send({ error: 'Credential not found' });
+    // Audit field NAMES only - never values.
+    const changed = [...Object.keys(plain), ...Object.keys(secret)].filter(k => b[k] !== undefined);
+    await audit(me.username, 'credential.update', id, { fields: changed }, req.ip);
+    return rows[0];
+  });
+
   app.delete('/api/credentials/:id', { preHandler: requireRole('netadmin'), schema: { tags: ['devices'] } },
     async (req) => {
       const me = req.user as any;

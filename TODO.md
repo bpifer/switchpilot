@@ -65,12 +65,6 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       is non-destructive.
 - [ ] **Credential presets (reusable, admin-restricted).** `Medium`. Reusable
       credential sets to speed onboarding / bulk-add; restrict presets to admins.
-- [ ] **Credential edit endpoint (`PUT /api/credentials/:id`).** `Medium`. There is
-      GET/POST/DELETE but no edit; deleting a credential sets every device's
-      `credential_id` to NULL (FK `ON DELETE SET NULL`), so rotating a password by
-      delete-and-recreate silently detaches every device using it. Add an in-place
-      edit that re-encrypts only changed secrets and keeps devices attached.
-      (External review.)
 - [ ] **Shared toast / mutation hook (frontend).** `Medium`. Every tab hand-rolls
       its own busy/result state + try/catch (PortsTab, ConfigTab, and ~13 more),
       and Jobs.tsx references a "409 toast" component that doesn't exist. Extract
@@ -150,7 +144,10 @@ unified auth - analytics/clients/poe/`/api/summary` switched from a hand-rolled
 `jwtVerify` to `requireRole('readonly')`, which also restores API-key (`sp_...`)
 access on those endpoints; k8s manifest now persists config-history on its own PVC
 and marks firmware + config-history `ReadWriteMany` (with a comment on the
-RWX-vs-replicas:1 tradeoff) so `replicas: 2` no longer diverges or wedges.
+RWX-vs-replicas:1 tradeoff) so `replicas: 2` no longer diverges or wedges; an
+in-place credential edit endpoint (`PUT /api/credentials/:id` + a Devices.tsx
+edit form) that re-encrypts only changed secrets, so password rotation no longer
+means delete-and-detach.
 
 **UX/docs review:** confirm step on the destructive one-click port actions
 (Disable/Bounce/PoE-cycle) so a stray click can't drop a link or power-cycle an
