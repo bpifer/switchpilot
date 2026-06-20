@@ -43,6 +43,14 @@ export async function pollStatus(device: DeviceRow): Promise<void> {
   }
 
   const newStatus = reachable ? 'online' : 'offline';
+  // Per-device availability rollup: bump the current hour's up/total counters so
+  // availability % over a window is a cheap aggregate. Best-effort.
+  await query(
+    `INSERT INTO device_availability (device_id, hour, up, total)
+     VALUES ($1, date_trunc('hour', now()), $2, 1)
+     ON CONFLICT (device_id, hour)
+     DO UPDATE SET up = device_availability.up + $2, total = device_availability.total + 1`,
+    [device.id, reachable ? 1 : 0]).catch(() => { /* availability is best-effort */ });
   if (device.status !== newStatus) {
     await query('UPDATE devices SET status=$1, last_seen_at=CASE WHEN $1=\'online\' THEN now() ELSE last_seen_at END WHERE id=$2',
       [newStatus, device.id]);

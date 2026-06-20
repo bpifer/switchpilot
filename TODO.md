@@ -14,10 +14,6 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       `reload in` + confirm (or `configure replace`); and before applying, detect
       a change that would drop the platform's own mgmt session (uplink/mgmt port,
       an ACL line, a mgmt-path VLAN) and refuse or stage it behind auto-revert.
-- [ ] **Cert / SSL-expiry alert.** `Easy`. Alert ahead of expiry for a device or
-      platform cert. Cheap, immediate ops value.
-- [ ] **Per-device availability % (30-day).** `Easy`/`Medium`. Fleet health has
-      online %; add per-device availability history/% over a window.
 - [ ] **SNMP trap receiver (event-driven).** `Medium`. A UDP/162 listener that
       maps common traps (linkUp/Down, etc.) to alerts, mirroring the first-class
       syslog path. Well-scoped, high operational value.
@@ -120,7 +116,9 @@ post-change read-back validation (`portVerify`); preview/diff on structured edit
 
 **Architecture, security & DR:** optional `/metrics` auth (`METRICS_TOKEN`);
 host-key fingerprint shown at onboarding; DR / upgrade-rollback runbook
-(`docs/DISASTER-RECOVERY.md`).
+(`docs/DISASTER-RECOVERY.md`); daily TLS cert-expiry alert (`certCheck`,
+`cert_expiry`); per-device 30-day availability % (`device_availability` hourly
+rollup, shown in the device band).
 
 **Cross-tool (mikrotik-manager review):** Device Tools tab (ping/traceroute on
 both vendors, ip-scan on RouterOS, injection-safe, audited); NetFlow v5/v9 traffic

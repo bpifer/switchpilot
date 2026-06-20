@@ -8,6 +8,7 @@ import { checkDrift, backupDevice } from './services/configService.js';
 import { raiseAlert, resolveAlert } from './services/alertService.js';
 import { drainJobQueue, reapStaleJobs } from './services/jobService.js';
 import { gitGc, pushMirror } from './services/configVersioning.js';
+import { checkDeviceCert } from './services/certCheck.js';
 import { evaluateAllCompliance } from './services/complianceService.js';
 import { isLeader } from './leader.js';
 import type { DeviceRow } from './services/deviceComms.js';
@@ -87,6 +88,14 @@ export function startScheduler(): void {
     evaluateAllCompliance().catch(err => console.error('compliance evaluation failed:', err));
   });
 
+  // daily TLS cert expiry check (best-effort; devices without TLS are skipped)
+  if (config.certCheck.enabled) {
+    cron.schedule('15 4 * * *', () => {
+      if (!isLeader()) return;
+      eachDevice(d => checkDeviceCert(d), 'cert check').catch(err => console.error('cert check sweep failed:', err));
+    });
+  }
+
   // prune history daily at 03:30 (windows configurable via RETAIN_* env vars)
   cron.schedule('30 3 * * *', async () => {
     if (!isLeader()) return;
@@ -97,6 +106,7 @@ export function startScheduler(): void {
     await query(`DELETE FROM alerts WHERE resolved_at IS NOT NULL AND resolved_at < now() - ($1 * interval '1 day')`, [r.alertDays]);
     await query(`DELETE FROM syslog_messages WHERE received_at < now() - ($1 * interval '1 day')`, [r.syslogDays]);
     await query(`DELETE FROM flow_records WHERE bucket < now() - ($1 * interval '1 day')`, [config.netflow.retentionDays]);
+    await query(`DELETE FROM device_availability WHERE hour < now() - interval '400 days'`);
     // clean up expired maintenance windows older than 30 days
     await query(`DELETE FROM maintenance_windows WHERE ends_at < now() - interval '30 days'`);
     // keep the config-history git repo compact (runs --auto, so it's cheap on most days)

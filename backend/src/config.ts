@@ -54,6 +54,13 @@ export const config = {
     port: parseInt(process.env.NETFLOW_PORT ?? '2055', 10),
     retentionDays: parseInt(process.env.NETFLOW_RETAIN_DAYS ?? '30', 10),
   },
+  certCheck: {
+    // Daily TLS-cert expiry check against each device's management port. Reads
+    // the presented cert (no auth); devices that don't speak TLS are skipped.
+    enabled: process.env.CERT_CHECK_ENABLED !== 'false',
+    port: parseInt(process.env.CERT_CHECK_PORT ?? '443', 10),
+    warnDays: parseInt(process.env.CERT_EXPIRY_WARN_DAYS ?? '30', 10),
+  },
   smtp: {
     host: process.env.SMTP_HOST ?? '',
     port: parseInt(process.env.SMTP_PORT ?? '587', 10),

@@ -78,6 +78,22 @@ export default async function analyticsRoutes(app: FastifyInstance) {
     }
   );
 
+  // Per-device availability % over a window, from the hourly rollup.
+  app.get<{ Params: { id: string }; Querystring: { days?: string } }>(
+    '/api/analytics/device/:id/availability',
+    { schema: { tags: ['analytics'] } },
+    async (req, reply) => {
+      try { await req.jwtVerify(); } catch { return reply.code(401).send({ error: 'Authentication required' }); }
+      const days = Math.min(365, Math.max(1, parseInt(req.query.days ?? '30', 10) || 30));
+      const { rows } = await query<{ up: number; total: number }>(
+        `SELECT COALESCE(SUM(up),0)::int AS up, COALESCE(SUM(total),0)::int AS total
+         FROM device_availability WHERE device_id = $1 AND hour > now() - ($2 * interval '1 day')`,
+        [req.params.id, days]);
+      const { up, total } = rows[0];
+      return { days, up, total, pct: total > 0 ? Math.round((up / total) * 10000) / 100 : null };
+    }
+  );
+
   // Per-port time-series: in_bps, out_bps, in_errors, out_errors
   app.get<{ Params: { deviceId: string; portName: string }; Querystring: { range?: string } }>(
     '/api/analytics/port/:deviceId/:portName',

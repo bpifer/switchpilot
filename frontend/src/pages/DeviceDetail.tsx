@@ -35,6 +35,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
   const { data: device, refetch: refetchDevice } = useApiQuery<any>(`/api/devices/${id}`, { refetchInterval: 60000 });
   const { data: sites = [] } = useApiQuery<{ id: string; name: string }[]>('/api/sites');
   const { data: ports = [], refetch: refetchPorts } = useApiQuery<Port[]>(`/api/devices/${id}/ports`, { refetchInterval: 60000 });
+  const { data: avail } = useApiQuery<{ pct: number | null }>(`/api/analytics/device/${id}/availability?days=30`, { refetchInterval: 300000 });
   const reload = () => { refetchDevice(); refetchPorts(); };
 
   async function refresh() {
@@ -86,6 +87,11 @@ export default function DeviceDetail({ me }: { me: Me }) {
             <Meta label="Site" value={sites.find(s => s.id === device.site_id)?.name ?? null} />
             <Meta label="Location" value={device.location} />
             <Meta label="Last seen" value={device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : null} />
+            <Meta label="Avail 30d" value={avail?.pct != null ? `${avail.pct}%` : null}
+                  tone={avail?.pct != null && avail.pct < 99 ? 'warn' : undefined} />
+            {device.cert_expires_at && (
+              <Meta label="TLS cert" value={certLabel(device.cert_expires_at)} tone={certTone(device.cert_expires_at)} />
+            )}
             <HostKeyStatus deviceId={id!} fp={device.ssh_host_key_fp} pinnedAt={device.ssh_host_key_pinned_at}
                            canConfig={canConfig} onChanged={refetchDevice} />
           </div>
@@ -284,6 +290,15 @@ function HostKeyStatus({ deviceId, fp, pinnedAt, canConfig, onChanged }: {
       )}
     </div>
   );
+}
+
+function certLabel(iso: string): string {
+  const days = Math.floor((new Date(iso).getTime() - Date.now()) / 86_400_000);
+  const on = new Date(iso).toLocaleDateString();
+  return days < 0 ? `expired ${on}` : `${days}d left (${on})`;
+}
+function certTone(iso: string): 'warn' | undefined {
+  return (new Date(iso).getTime() - Date.now()) / 86_400_000 <= 30 ? 'warn' : undefined;
 }
 
 function Meta({ label, value, mono = false, tone }: {
