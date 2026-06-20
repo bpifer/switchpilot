@@ -30,11 +30,13 @@ across the fleet, with one-click remediation. Ships with Cisco CIS-style and
 RouterOS hardening rules.
 
 **Monitoring & alerts.** Continuous polling (online/offline, CPU, memory, temp,
-port flapping, interface errors), syslog ingest for both Cisco and RouterOS,
-alerts with maintenance windows, and real-time push to the UI. A composite
-**fleet health score** (reachability + compliance + open criticals) sits on the
-dashboard. Notify via email, Slack, Teams, Discord, ntfy, Gotify, Telegram,
-Pushover, or generic signed webhooks.
+port flapping, interface errors), plus event-driven **syslog and SNMP-trap
+ingest** (linkUp/Down, coldStart, auth failures) for both Cisco and RouterOS.
+Per-device 30-day availability, TLS certificate-expiry warnings, alerts with
+maintenance windows, and real-time push to the UI. A composite **fleet health
+score** (reachability + compliance + open criticals) sits on the dashboard.
+Notify via email, Slack, Teams, Discord, ntfy, Gotify, Telegram, Pushover, or
+generic signed webhooks.
 
 **Endpoints.** Every MAC on the network with IP, OUI vendor, reverse-DNS,
 switch + port + VLAN. Search by IP / MAC / hostname, and **Wake-on-LAN** any
@@ -47,10 +49,15 @@ endpoint with one click.
 - **Home Assistant (MQTT)** - set `MQTT_URL` and your switches appear in HA via
   MQTT discovery (online, cpu/mem/temp, connected ports). Commands let HA
   enable/disable a port, PoE-cycle, or send Wake-on-LAN.
+- **NetFlow / IPFIX** - set `NETFLOW_ENABLED` and point your switches' flow export
+  (Cisco NetFlow, MikroTik traffic-flow) at the built-in collector; the Traffic
+  page shows top talkers, a per-application breakdown, and bytes over time.
 
-**Also included.** Topology from CDP/LLDP/MNDP, a PoE budget dashboard, Cisco
-lifecycle (EoS/EoL) tracking and ring-based firmware rollouts, scheduled and
-event-triggered automation, and sites for grouping gear by location.
+**Also included.** On-box network tools (ping, traceroute, IP scan) run from the
+switch, topology from CDP/LLDP/MNDP, a PoE budget dashboard, Cisco lifecycle
+(EoS/EoL) tracking and ring-based firmware rollouts, scheduled and event-triggered
+automation, sites for grouping gear by location, an installable PWA for phone /
+rack use, and an optional off-box mirror of the config-history git repo for DR.
 
 ---
 
@@ -100,6 +107,9 @@ switch management network can reach.
 | `CREDENTIAL_KEY` | 32-byte hex for credential encryption; same hard-fail |
 | `PLATFORM_URL` | reachable-from-switch URL (firmware downloads + syslog target) |
 | `MQTT_URL` | enables the Home Assistant / MQTT bridge |
+| `NETFLOW_ENABLED` | `true` starts the UDP NetFlow/IPFIX collector (Traffic page) |
+| `CONFIG_HISTORY_REMOTE` | optional git remote to mirror config history to (off-box DR) |
+| `METRICS_TOKEN` | optional bearer token guarding `GET /metrics` |
 | `ALLOWED_ORIGINS` | CORS allow-list (set this in production) |
 | `ENABLE_API_DOCS` | `false` to hide the Swagger UI at `/docs` |
 | `SMTP_HOST`, `SLACK_WEBHOOK_URL`, `TEAMS_WEBHOOK_URL`, `DISCORD_WEBHOOK_URL`, `NTFY_URL`, `GOTIFY_URL`, `TELEGRAM_BOT_TOKEN`, `PUSHOVER_TOKEN` | alert channels (each optional) |
@@ -132,6 +142,7 @@ cd frontend && npm install && npm run dev
 cd backend  && npm test                  # Vitest, no hardware/DB needed
 ```
 
-The backend suite covers the Cisco and RouterOS parsers, drivers, compliance
+The backend suite covers the Cisco and RouterOS parsers, drivers, the NetFlow
+decoder and SNMP-trap classifier, device-tool command building, the compliance
 evaluator, RBAC, and auth flows. CI typechecks both halves, runs the tests, and
 builds both Docker images on every push.
