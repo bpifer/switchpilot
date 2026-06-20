@@ -77,6 +77,13 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
     finally { setBusy(''); }
   }
 
+  // Destructive single-click actions get a lightweight confirm first (the safe
+  // Configure path already has the preview modal). Native confirm by design -
+  // it just needs to catch a stray click, not be a styled dialog.
+  function confirmAction(label: string, message: string, fn: () => Promise<any>) {
+    if (window.confirm(message)) void action(label, fn);
+  }
+
   // Step 1 of a config change: dry-run the edit and show the diff before applying.
   async function startPreview(body: any) {
     setBusy('preview'); setResult('');
@@ -127,17 +134,24 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
         {canOperate && (
           <div className="ml-auto flex flex-wrap gap-2">
             <Button variant="secondary" disabled={!!busy}
-                    onClick={() => action('admin', () => api(`/api/devices/${deviceId}/ports/${portPath}/admin`,
-                      { method: 'POST', body: { enabled: !port.admin_up } }))}>
+                    onClick={() => {
+                      const enabled = !port.admin_up;
+                      const run = () => api(`/api/devices/${deviceId}/ports/${portPath}/admin`, { method: 'POST', body: { enabled } });
+                      // Disabling drops the link; enabling a port is safe.
+                      if (enabled) action('admin', run);
+                      else confirmAction('admin', `Disable ${port.name}? This drops the link on this port.`, run);
+                    }}>
               {busy === 'admin' ? '…' : port.admin_up ? 'Disable' : 'Enable'}
             </Button>
             <Button variant="secondary" disabled={!!busy}
-                    onClick={() => action('bounce', () => api(`/api/devices/${deviceId}/ports/${portPath}/bounce`, { method: 'POST' }))}>
+                    onClick={() => confirmAction('bounce', `Bounce ${port.name}? This briefly drops the link (shut / no shut).`,
+                      () => api(`/api/devices/${deviceId}/ports/${portPath}/bounce`, { method: 'POST' }))}>
               {busy === 'bounce' ? 'Bouncing…' : 'Bounce'}
             </Button>
             {port.poe_watts != null && (
               <Button variant="secondary" disabled={!!busy}
-                      onClick={() => action('poe', () => api(`/api/devices/${deviceId}/ports/${portPath}/poe-cycle`, { method: 'POST' }))}>
+                      onClick={() => confirmAction('poe', `PoE-cycle ${port.name}? This power-cycles the attached device (AP / camera / phone).`,
+                        () => api(`/api/devices/${deviceId}/ports/${portPath}/poe-cycle`, { method: 'POST' }))}>
                 {busy === 'poe' ? 'Power-cycling…' : 'PoE cycle'}
               </Button>
             )}

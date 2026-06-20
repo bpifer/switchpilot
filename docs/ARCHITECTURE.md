@@ -73,9 +73,19 @@ Baselines enable drift detection; `auto_remediate` replays the baseline.
 - Append-only `audit_log` records every login and mutating action with IP.
 - HTTPS is expected to be terminated by nginx/ingress in front of the stack.
 
-### Scaling to thousands of switches
-- Stateless API — run multiple replicas behind the ingress; the scheduler
-  should run in exactly one replica (set `ROLE=worker` split if needed).
+### Scaling beyond a homelab (design direction, not yet proven)
+This is how the architecture is *meant* to scale. It is validated at homelab
+scale (tens of devices), not at the thousands this section implies. Two gaps to
+close before that claim is real: the SSH session pool (`sshPool.ts`) is in-memory
+per replica (not shared), and `monitorService.refreshDevice` issues 10+
+sequential `exec()` calls per device per metrics cycle - both fine at small
+scale, both bottlenecks at large scale.
+
+- Stateless API — run multiple replicas behind the ingress. Cron sweeps are
+  guarded by a Postgres advisory lock (leader election), so every replica runs
+  the same image and exactly one performs each sweep (there is no separate
+  worker role). Shared file state (firmware, config-history git repo) needs
+  ReadWriteMany storage for multi-replica — see `deploy/k8s/switchpilot.yaml`.
 - Postgres holds all state; `device_metrics` is pruned at 30 days
   (swap in TimescaleDB for long retention).
 - Poll intervals and worker concurrency are tunable via environment.

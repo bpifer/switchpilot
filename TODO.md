@@ -41,7 +41,7 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       and "what's plugged into what", on top of the CDP/LLDP auto-graph
       (`routes/topology.ts`).
 - [ ] **Test the riskiest untested code.** `Medium`. Backend `monitorService` (the
-      300+ line poll/refresh pipeline) and `jobService` (claim/retry/reaper) have
+      300+ line poll/refresh pipeline), `jobService` (claim/retry/reaper), and `scheduler.ts` have
       no tests despite being the most failure-prone code, while drivers/parsers/
       crypto/RBAC are well covered. Add unit tests there, then the largest untested
       frontend pages (`Compliance`, `Firmware`, `DeviceDetail`). (External review.)
@@ -75,6 +75,11 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       delete-and-recreate silently detaches every device using it. Add an in-place
       edit that re-encrypts only changed secrets and keeps devices attached.
       (External review.)
+- [ ] **Shared toast / mutation hook (frontend).** `Medium`. Every tab hand-rolls
+      its own busy/result state + try/catch (PortsTab, ConfigTab, and ~13 more),
+      and Jobs.tsx references a "409 toast" component that doesn't exist. Extract
+      one `useMutation`-style hook + a shared toast/banner for consistent error UX
+      and a few hundred fewer lines. (External review.)
 
 ## P4 - Later (large, risky, or niche)
 
@@ -148,6 +153,12 @@ unified auth - analytics/clients/poe/`/api/summary` switched from a hand-rolled
 access on those endpoints; k8s manifest now persists config-history on its own PVC
 and marks firmware + config-history `ReadWriteMany` (with a comment on the
 RWX-vs-replicas:1 tradeoff) so `replicas: 2` no longer diverges or wedges.
+
+**UX/docs review:** confirm step on the destructive one-click port actions
+(Disable/Bounce/PoE-cycle) so a stray click can't drop a link or power-cycle an
+AP/camera (Configure already had the preview modal); corrected the
+ARCHITECTURE.md "scaling to thousands" section to state current limits honestly
+and describe leader election instead of a non-existent `ROLE=worker` split.
 
 ## Reference
 
