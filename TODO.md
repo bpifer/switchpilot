@@ -55,8 +55,6 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
 - [ ] **Dry-run remediation + scheduled compliance remediation.** `Medium`. Drift
       already auto-remediates vs a pinned baseline; add a dry-run mode and optional
       scheduled remediation for compliance rules.
-- [ ] **PoE energy + cost.** `Medium`. Watts over time -> kWh -> dollar figure
-      (configurable rate). PoE trends already collected.
 - [ ] **DHCP/IPAM correlation.** `Medium`. Pull leases from MikroTik/pfSense/
       Pi-hole and correlate to clients.
 - [ ] **Secrets (CREDENTIAL_KEY) rotation.** `Medium`. Re-encrypt all stored
@@ -119,7 +117,8 @@ speed colors.
 **Homelab features:** Prometheus exporter; MQTT + Home Assistant; SFP/DDM optics;
 PoE power-cycle + Wake-on-LAN; PoE budget view + reverse link; more notification
 channels (Discord/ntfy/Gotify/Telegram/Pushover); installable PWA; config-history
-external git mirror (`CONFIG_HISTORY_REMOTE`).
+external git mirror (`CONFIG_HISTORY_REMOTE`); PoE energy + cost estimate from the
+poe_watts series (`/api/poe/energy`, `POE_RATE_PER_KWH`).
 
 **Change management & trust:** SSH host-key verification (TOFU pin/refuse/re-pin);
 post-change read-back validation (`portVerify`); preview/diff on structured edits

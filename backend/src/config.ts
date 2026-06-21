@@ -64,6 +64,9 @@ export const config = {
     port: parseInt(process.env.CERT_CHECK_PORT ?? '443', 10),
     warnDays: parseInt(process.env.CERT_EXPIRY_WARN_DAYS ?? '30', 10),
   },
+  // Electricity price per kWh (your currency) for the PoE energy/cost estimate.
+  // 0 = show energy only, no cost.
+  poeRatePerKwh: parseFloat(process.env.POE_RATE_PER_KWH ?? '0'),
   smtp: {
     host: process.env.SMTP_HOST ?? '',
     port: parseInt(process.env.SMTP_PORT ?? '587', 10),
