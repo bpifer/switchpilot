@@ -46,6 +46,17 @@ export async function audit(
   }
 }
 
+/** Prepare device command output for an audit `detail`: mask anything that looks
+ *  like a secret and cap the size so a large dump can't bloat the (hash-chained)
+ *  log. Heuristic - push output rarely echoes secrets, but be safe. */
+export function redactForAudit(output: string, max = 4000): string {
+  if (!output) return '';
+  const masked = output.replace(
+    /\b(password|secret|community|passphrase|psk|pre-shared-key|private-key|key)(\s+(?:\d+\s+)?)(\S+)/gi,
+    '$1$2[redacted]');
+  return masked.length > max ? `${masked.slice(0, max)}\n... [truncated, ${masked.length - max} more chars]` : masked;
+}
+
 export interface AuditVerifyResult {
   valid: boolean;
   checked: number;

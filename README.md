@@ -67,7 +67,8 @@ RBAC (Super Admin / Network Admin / Help Desk / Read Only), local + LDAP auth,
 TOTP MFA with single-use recovery codes, an AES-256-GCM credential vault,
 **SSH host-key pinning** (trust-on-first-use; a changed key is refused before
 authentication, so credentials are never sent to an impersonated switch),
-hash-chained tamper-evident audit log, and `sp_`-prefixed API keys for scripts.
+a hash-chained tamper-evident audit log (config changes also record the device's
+command output, secret-redacted), and `sp_`-prefixed API keys for scripts.
 A recent self-audit lives in [`docs/SECURITY-AUDIT.md`](docs/SECURITY-AUDIT.md).
 
 ---

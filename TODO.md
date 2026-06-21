@@ -18,10 +18,6 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       the single highest-value fix in the repo - not just in this list.)
 ## P2 - High value
 
-- [ ] **Capture command output in the audit log.** `Medium`. Config push +
-      firmware audit `{ lines }` (commands) but not device output. Store the
-      output (size-capped, secret-redacted) on the audit timeline for high-trust
-      ops.
 - [ ] **Unified per-device timeline.** `Medium`. Stitch audit log + alerts + git
       config history + jobs into one chronological feed. Data all exists; this is
       aggregation + a timeline component, no new collection.
@@ -148,7 +144,10 @@ and marks firmware + config-history `ReadWriteMany` (with a comment on the
 RWX-vs-replicas:1 tradeoff) so `replicas: 2` no longer diverges or wedges; an
 in-place credential edit endpoint (`PUT /api/credentials/:id` + a Devices.tsx
 edit form) that re-encrypts only changed secrets, so password rotation no longer
-means delete-and-detach.
+means delete-and-detach; and direct config pushes (config.push/rollback/restore,
+port.config) now capture the device's command output (secret-redacted, size-
+capped) into the tamper-evident audit detail, shown in an expandable audit-log
+row (job-based pushes already persisted output to `job_results`).
 
 **UX/docs review:** confirm step on the destructive one-click port actions
 (Disable/Bounce/PoE-cycle) so a stray click can't drop a link or power-cycle an

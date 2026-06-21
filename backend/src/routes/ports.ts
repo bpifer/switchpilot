@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
-import { audit } from '../audit.js';
+import { audit, redactForAudit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
 import { devicePushConfig, deviceExec, bouncePort, cableTest, setPortAdmin, pushPortConfig, getDevice, poeCyclePort } from '../services/deviceComms.js';
 import { bridgeVlanFiltering, isMikrotik, routerOsPortMacs, routerOsVlans, routerOsSfp } from '../services/routerosMonitor.js';
@@ -133,7 +133,7 @@ export default async function portRoutes(app: FastifyInstance) {
     // instead of trusting the optimistic table update. Best-effort: a read-back
     // failure must not fail the (already-applied) edit.
     const verified = await verifyPortConfig(id, port, b).catch(() => null);
-    await audit(me.username, 'port.config', `${id}/${port}`, { ...b, verified: verified?.ok ?? null }, req.ip);
+    await audit(me.username, 'port.config', `${id}/${port}`, { ...b, verified: verified?.ok ?? null, output: redactForAudit(output) }, req.ip);
     return { ok: true, output, warning, verified };
   });
 

@@ -59,14 +59,27 @@ export default function Users() {
           <AuditIntegrity />
           <Card title="Recent audit log">
             <ul className="max-h-[24rem] divide-y overflow-auto text-sm">
-              {audit.map(a => (
-                <li key={a.id} className="py-1.5">
-                  <span className="font-medium">{a.username}</span>{' '}
-                  <span className="text-gray-600">{a.action}</span>{' '}
-                  <span className="text-gray-400">{a.target}</span>
-                  <span className="float-right text-xs text-gray-400">{new Date(a.created_at).toLocaleString()}</span>
-                </li>
-              ))}
+              {audit.map(a => {
+                const detailText = formatDetail(a.detail);
+                const head = (
+                  <>
+                    <span className="font-medium">{a.username}</span>{' '}
+                    <span className="text-gray-600">{a.action}</span>{' '}
+                    <span className="text-gray-400">{a.target}</span>
+                    <span className="float-right text-xs text-gray-400">{new Date(a.created_at).toLocaleString()}</span>
+                  </>
+                );
+                return (
+                  <li key={a.id} className="py-1.5">
+                    {detailText ? (
+                      <details>
+                        <summary className="cursor-pointer">{head}</summary>
+                        <pre className="mt-1.5 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-slate-50 p-2 text-xs text-slate-600 ring-1 ring-slate-200">{detailText}</pre>
+                      </details>
+                    ) : head}
+                  </li>
+                );
+              })}
             </ul>
           </Card>
         </div>
@@ -75,6 +88,19 @@ export default function Users() {
       {showPolicy && <SecurityPolicy onClose={() => setShowPolicy(false)} />}
     </div>
   );
+}
+
+// Render an audit entry's detail for the expandable row: scalar fields as
+// `key: value`, and the captured device `output` as its own readable block.
+function formatDetail(detail: any): string {
+  if (!detail || typeof detail !== 'object') return String(detail ?? '');
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(detail)) {
+    if (k === 'output') continue;
+    parts.push(`${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`);
+  }
+  if (detail.output) parts.push(`output:\n${detail.output}`);
+  return parts.join('\n');
 }
 
 function AuditIntegrity() {

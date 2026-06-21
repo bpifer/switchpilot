@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import crypto from 'node:crypto';
 import { createTwoFilesPatch } from 'diff';
 import { query } from '../db.js';
-import { audit } from '../audit.js';
+import { audit, redactForAudit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
 import { deviceExec, devicePushConfig, setLoggingLevel, getDevice } from '../services/deviceComms.js';
 import { driverFor } from '../drivers/index.js';
@@ -66,7 +66,7 @@ export default async function configRoutes(app: FastifyInstance) {
     const { level } = req.body as any;
     const me = req.user as any;
     const output = await setLoggingLevel(id, level);
-    await audit(me.username, 'device.logging_level', id, { level }, req.ip);
+    await audit(me.username, 'device.logging_level', id, { level, output: redactForAudit(output) }, req.ip);
     return { ok: true, output };
   });
 
@@ -218,7 +218,7 @@ export default async function configRoutes(app: FastifyInstance) {
       const lines = content.split('\n')
         .filter((l: string) => l.trim() && !l.startsWith('!') && !/^(version|Building configuration|Current configuration)/.test(l));
       const output = await devicePushConfig(id, lines, true);
-      await audit(me.username, 'config.rollback', id, { sha }, req.ip);
+      await audit(me.username, 'config.rollback', id, { sha, output: redactForAudit(output) }, req.ip);
       return { ok: true, output };
     });
 
@@ -242,7 +242,7 @@ export default async function configRoutes(app: FastifyInstance) {
     // backup before change so every push is reversible
     await backupDevice(id, `${me.username} (pre-change)`);
     const output = await devicePushConfig(id, lines, save ?? true);
-    await audit(me.username, 'config.push', id, { lines }, req.ip);
+    await audit(me.username, 'config.push', id, { lines, output: redactForAudit(output) }, req.ip);
     return { ok: true, output };
   });
 
@@ -258,7 +258,7 @@ export default async function configRoutes(app: FastifyInstance) {
       const lines = rows[0].content.split('\n')
         .filter((l: string) => l.trim() && !l.startsWith('!') && !/^(version|Building configuration|Current configuration)/.test(l));
       const output = await devicePushConfig(id, lines, true);
-      await audit(me.username, 'config.restore', id, { backupId }, req.ip);
+      await audit(me.username, 'config.restore', id, { backupId, output: redactForAudit(output) }, req.ip);
       return { ok: true, output };
     });
 
