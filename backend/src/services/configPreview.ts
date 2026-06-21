@@ -89,10 +89,61 @@ export function classifyConfigLines(lines: string[], runningConfig: string, mgmt
   };
 }
 
+/**
+ * Vendor-aware management-plane self-lockout check: flags pushed lines that would
+ * cut the platform's own SSH/management access (disabling SSH, an inbound VTY
+ * ACL, resetting the device, dropping management in the firewall). Complements
+ * the interface-level guardrails in classifyConfigLines (which are IOS-syntax and
+ * cover the management *interface*). Pure; exported for tests. This is the
+ * self-lockout guard half of commit-confirm - surfaced in the preview today.
+ */
+export function detectMgmtLockout(lines: string[], vendor: string): string[] {
+  const warnings: string[] = [];
+  const clean = lines.map(l => l.trim()).filter(l => l && !l.startsWith('!') && !l.startsWith('#'));
+
+  if (vendor === 'mikrotik') {
+    for (const line of clean) {
+      const l = line.toLowerCase();
+      if (/\/system[\s/]+reset/.test(l)) {
+        warnings.push(`"${line}" resets the device to defaults - total loss of configuration and access.`);
+      } else if (/\/ip[\s/]+service/.test(l) && /\b(ssh|api)\b/.test(l) && /\bdisable\b|disabled=yes/.test(l)) {
+        warnings.push(`"${line}" disables an SSH/API management service - the platform connects over it and would lose access.`);
+      } else if (/\/ip[\s/]+firewall[\s/]+filter/.test(l) && /chain=input/.test(l) && /action=(drop|reject)/.test(l)) {
+        warnings.push(`"${line}" adds an input drop/reject firewall rule - if it matches the platform's source, management is blocked.`);
+      } else if (/\/user[\s/]+(remove|disable)/.test(l)) {
+        warnings.push(`"${line}" removes or disables a user account - make sure another admin login remains.`);
+      }
+    }
+    return warnings;
+  }
+
+  // Cisco (default): track line-vty context for the transport / access-class checks.
+  let inVty = false;
+  for (const line of clean) {
+    const l = line.toLowerCase();
+    if (/^line\b/.test(l)) { inVty = /^line vty\b/.test(l); continue; }
+    if (/^interface\b/.test(l) || l === 'exit' || l === 'end') { inVty = false; continue; }
+    if (/^no ip ssh\b/.test(l) || /^crypto key zeroize rsa\b/.test(l)) {
+      warnings.push(`"${line}" disables SSH - the platform connects over SSH and would lose access to this switch.`);
+    } else if (inVty && /^no transport input.*\bssh\b/.test(l)) {
+      warnings.push(`"${line}" removes SSH from the VTY transport - the platform would lose access.`);
+    } else if (inVty && /^transport input\b/.test(l) && !/\bssh\b/.test(l) && !/\ball\b/.test(l)) {
+      warnings.push(`"${line}" sets a VTY transport that excludes SSH - the platform would lose access.`);
+    } else if (inVty && /^access-class \S+ in\b/.test(l)) {
+      warnings.push(`"${line}" applies an inbound ACL to the VTYs - if it does not permit the platform's IP, SSH is blocked.`);
+    }
+  }
+  return warnings;
+}
+
 /** Fetch the device's running config + management IP, then classify the lines. */
 export async function previewConfigLines(deviceId: string, lines: string[]): Promise<ConfigPreview> {
-  const out = await deviceExec(deviceId, [driverFor(await getDevice(deviceId)).configCommand]);
+  const device = await getDevice(deviceId);
+  const driver = driverFor(device);
+  const out = await deviceExec(deviceId, [driver.configCommand]);
   const runningConfig = Object.values(out)[0] ?? '';
   const devRow = await query<{ ip: string }>('SELECT host(mgmt_ip) AS ip FROM devices WHERE id=$1', [deviceId]);
-  return classifyConfigLines(lines, runningConfig, devRow.rows[0]?.ip ?? '');
+  const preview = classifyConfigLines(lines, runningConfig, devRow.rows[0]?.ip ?? '');
+  preview.warnings.push(...detectMgmtLockout(lines, driver.vendor));
+  return preview;
 }

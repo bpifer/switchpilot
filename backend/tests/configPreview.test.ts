@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyConfigLines } from '../src/services/configPreview.js';
+import { classifyConfigLines, detectMgmtLockout } from '../src/services/configPreview.js';
 
 // A small running config: one trunk uplink (Gi0/0), one access port (Gi0/1),
 // and the management SVI (Vlan99 holds the mgmt IP).
@@ -79,5 +79,31 @@ describe('classifyConfigLines', () => {
       .warnings.some(w => /Deleting VLAN 10/.test(w))).toBe(true);
     expect(classifyConfigLines(['no username admin'], RUNNING, MGMT_IP)
       .warnings.some(w => /removes a login account/.test(w))).toBe(true);
+  });
+});
+
+describe('detectMgmtLockout (management-plane self-lockout guard)', () => {
+  it('flags disabling SSH, an SSH-excluding VTY transport, and an inbound VTY ACL (Cisco)', () => {
+    expect(detectMgmtLockout(['no ip ssh'], 'cisco').some(w => /disables SSH/.test(w))).toBe(true);
+    expect(detectMgmtLockout(['line vty 0 4', 'transport input telnet'], 'cisco').some(w => /excludes SSH/.test(w))).toBe(true);
+    expect(detectMgmtLockout(['line vty 0 4', 'access-class MGMT in'], 'cisco').some(w => /inbound ACL to the VTYs/.test(w))).toBe(true);
+  });
+
+  it('scopes the VTY checks to the VTYs, not the console', () => {
+    expect(detectMgmtLockout(['line con 0', 'transport input none'], 'cisco')).toEqual([]);
+  });
+
+  it('does not flag a normal Cisco access-port edit', () => {
+    expect(detectMgmtLockout(['interface GigabitEthernet0/1', 'switchport access vlan 20'], 'cisco')).toEqual([]);
+  });
+
+  it('flags RouterOS reset, SSH/API service disable, and an input drop rule', () => {
+    expect(detectMgmtLockout(['/system reset-configuration'], 'mikrotik').some(w => /resets the device/.test(w))).toBe(true);
+    expect(detectMgmtLockout(['/ip service set ssh disabled=yes'], 'mikrotik').some(w => /SSH\/API management service/.test(w))).toBe(true);
+    expect(detectMgmtLockout(['/ip firewall filter add chain=input action=drop'], 'mikrotik').some(w => /input drop\/reject/.test(w))).toBe(true);
+  });
+
+  it('does not flag a normal RouterOS port edit', () => {
+    expect(detectMgmtLockout(['/interface bridge port set [find interface=ether5] pvid=20'], 'mikrotik')).toEqual([]);
   });
 });

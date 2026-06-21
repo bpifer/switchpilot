@@ -18,7 +18,7 @@ orange). Per port: enable/disable, bounce, **PoE power-cycle** (reboot a frozen
 AP/camera without unplugging), cable test (Cisco TDR), access/trunk VLAN config
 (Cisco switchport and RouterOS bridge-VLAN), and **SFP optical diagnostics**
 (DDM: temperature, Tx/Rx power, vendor). Structured edits are **previewed**
-(a before/after diff with connectivity guardrails) before applying and **read
+(a before/after diff with connectivity and self-lockout guardrails) before applying and **read
 back** from the device afterward to confirm they landed.
 
 **Config management.** Scheduled and on-demand backups, each committed to a local

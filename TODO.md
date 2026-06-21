@@ -16,6 +16,11 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       an ACL line, a mgmt-path VLAN) and refuse or stage it behind auto-revert.
       (External review independently traced `configure()` and confirmed this is
       the single highest-value fix in the repo - not just in this list.)
+      PARTIAL: self-lockout *detection* is shipped (`detectMgmtLockout` warns in
+      the config-push preview for SSH-disable / VTY-ACL / `/system reset` /
+      input-drop-firewall lockouts, vendor-aware, unit-tested). Remaining is the
+      reload-in / `configure replace` / auto-revert orchestration, which needs a
+      switch in the loop to validate safely.
 ## P2 - High value
 
 - [ ] **Unified per-device timeline.** `Medium`. Stitch audit log + alerts + git
