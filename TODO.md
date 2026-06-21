@@ -57,9 +57,6 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       scheduled remediation for compliance rules.
 - [ ] **DHCP/IPAM correlation.** `Medium`. Pull leases from MikroTik/pfSense/
       Pi-hole and correlate to clients.
-- [ ] **Secrets (CREDENTIAL_KEY) rotation.** `Medium`. Re-encrypt all stored
-      credentials/MFA secrets old-key -> new-key with key versioning, so rotation
-      is non-destructive.
 - [ ] **Credential presets (reusable, admin-restricted).** `Medium`. Reusable
       credential sets to speed onboarding / bulk-add; restrict presets to admins.
 - [ ] **Shared toast / mutation hook (frontend).** `Medium`. Every tab hand-rolls
@@ -133,7 +130,10 @@ host-key fingerprint shown at onboarding; DR / upgrade-rollback runbook
 `cert_expiry`); per-device 30-day availability % (`device_availability` hourly
 rollup, shown in the device band); SNMP trap receiver (UDP/162 -> alerts for
 linkDown/Up, coldStart, authFailure; `snmpTrapService`, mirrors the syslog path,
-pure classifier unit-tested).
+pure classifier unit-tested); CREDENTIAL_KEY rotation (`npm run rotate-key`
+re-encrypts all device + MFA secrets old-key->new-key atomically; key-explicit
+crypto unit-tested - bulk transactional re-encryption, not format-versioned key
+coexistence).
 
 **Cross-tool (mikrotik-manager review):** Device Tools tab (ping/traceroute on
 both vendors, ip-scan on RouterOS, injection-safe, audited); NetFlow v5/v9 traffic
