@@ -28,10 +28,11 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
 - [ ] **Platform backup/restore workflow.** `Medium`. In-app DB export/import +
       config bundle (wraps the documented `pg_dump`/restore + git config repo) so
       the whole instance is recoverable, not just per-switch configs.
-- [ ] **NetFlow follow-ups.** `Medium`. Add IPFIX (v10) decode (close to v9), a
-      driver helper to auto-configure flow export (MikroTik `/ip traffic-flow`
-      target, Cisco flow record/exporter/monitor) instead of manual setup, and
-      validate end-to-end against the CRS326.
+- [ ] **NetFlow follow-ups.** `Medium`. IPFIX (v10) decode DONE (shares v9's IE
+      numbers + readV9Record; unit-tested). Remaining: a driver helper to
+      auto-configure flow export (MikroTik `/ip traffic-flow` target, Cisco flow
+      record/exporter/monitor) instead of manual setup, and validate end-to-end
+      against the CRS326.
 - [ ] **Topology upgrades.** `Medium`. Manual link drawing + persistence,
       orphan-node detection, and MNDP dedup, plus link-utilization + VLAN overlays
       and "what's plugged into what", on top of the CDP/LLDP auto-graph

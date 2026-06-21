@@ -66,6 +66,35 @@ function v9DataFlowset(records: Buffer[]): Buffer {
   return b;
 }
 
+// IPFIX (v10): 16-byte header, set id 2 = template / >=256 = data.
+function ipfixHeader(domainId = 7): Buffer {
+  const b = Buffer.alloc(16);
+  b.writeUInt16BE(10, 0);            // version
+  b.writeUInt32BE(domainId, 12);     // observationDomainID (length/seq left 0)
+  return b;
+}
+function ipfixTemplateSet(): Buffer {
+  const fields = [[8, 4], [12, 4], [7, 2], [11, 2], [4, 1], [1, 4], [2, 4]];
+  const b = Buffer.alloc(8 + fields.length * 4);
+  b.writeUInt16BE(2, 0);             // set id 2 = template
+  b.writeUInt16BE(b.length, 2);
+  b.writeUInt16BE(256, 4);           // template id
+  b.writeUInt16BE(fields.length, 6);
+  let o = 8;
+  for (const [t, l] of fields) { b.writeUInt16BE(t, o); b.writeUInt16BE(l, o + 2); o += 4; }
+  return b;
+}
+function ipfixDataSet(records: Buffer[]): Buffer {
+  const content = Buffer.concat(records);
+  const len = 4 + content.length;
+  const pad = (4 - (len % 4)) % 4;
+  const b = Buffer.alloc(len + pad);
+  b.writeUInt16BE(256, 0);           // data set id == template id
+  b.writeUInt16BE(len + pad, 2);
+  content.copy(b, 4);
+  return b;
+}
+
 // ---- tests -----------------------------------------------------------------
 describe('NetFlow v5 decode', () => {
   it('decodes fixed-layout v5 records', () => {
@@ -113,10 +142,31 @@ describe('NetFlow v9 decode (template-based)', () => {
   });
 });
 
+describe('IPFIX (v10) decode', () => {
+  it('decodes data when template + data share a packet (IE numbers match v9)', () => {
+    const pkt = Buffer.concat([ipfixHeader(), ipfixTemplateSet(), ipfixDataSet([
+      v9DataRecord('10.0.0.5', '140.82.121.3', 40000, 443, 6, 8000, 12),
+    ])]);
+    const flows = decodeNetflow(pkt, '10.0.0.1', new Map());
+    expect(flows).toHaveLength(1);
+    expect(flows[0]).toEqual({ srcIp: '10.0.0.5', dstIp: '140.82.121.3', srcPort: 40000, dstPort: 443, protocol: 6, bytes: 8000, packets: 12 });
+  });
+
+  it('caches the template across packets, keyed by observation domain', () => {
+    const cache: TemplateCache = new Map();
+    decodeNetflow(Buffer.concat([ipfixHeader(), ipfixTemplateSet()]), '10.0.0.1', cache);
+    const flows = decodeNetflow(
+      Buffer.concat([ipfixHeader(), ipfixDataSet([v9DataRecord('10.0.0.7', '1.1.1.1', 5000, 80, 6, 1234, 3)])]),
+      '10.0.0.1', cache);
+    expect(flows).toHaveLength(1);
+    expect(flows[0]).toMatchObject({ dstPort: 80, bytes: 1234 });
+  });
+});
+
 describe('decodeNetflow version guard', () => {
-  it('returns nothing for unsupported versions (v1/IPFIX/sFlow/garbage)', () => {
-    const ipfix = Buffer.alloc(20); ipfix.writeUInt16BE(10, 0);
-    expect(decodeNetflow(ipfix, '10.0.0.1', new Map())).toEqual([]);
+  it('returns nothing for unsupported versions or malformed packets (v1/sFlow/garbage)', () => {
+    const v1 = Buffer.alloc(20); v1.writeUInt16BE(1, 0);
+    expect(decodeNetflow(v1, '10.0.0.1', new Map())).toEqual([]);
     expect(decodeNetflow(Buffer.alloc(2), '10.0.0.1', new Map())).toEqual([]);
   });
 });
