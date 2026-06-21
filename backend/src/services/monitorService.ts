@@ -270,40 +270,58 @@ export async function refreshDevice(deviceId: string): Promise<void> {
   publishDevice(deviceId).catch(() => { /* mqtt best-effort */ });
 }
 
+export interface HealthAlert {
+  kind: string;
+  raise: boolean;                                 // true = raise, false = resolve
+  severity?: 'info' | 'warning' | 'critical';
+  message?: string;
+  trigger?: string;                               // automation trigger to fire on raise
+}
+
+const envOk = (s: string) => /^(ok|good|normal)$/i.test(s);
+
+/** Pure: decide which health alerts to raise or resolve from cpu/mem/env
+ *  readings. Exported for tests; evaluateHealthAlerts() applies them and fires
+ *  the matching automation triggers. */
+export function evaluateHealth(
+  hostname: string, cpu: number, mem: number,
+  env: { temperatureC: number | null; psu: { id: string; status: string }[]; fans: { id: string; status: string }[] }
+): HealthAlert[] {
+  const badPsu = env.psu.filter(p => !envOk(p.status) && !/not present/i.test(p.status));
+  const badFans = env.fans.filter(f => !envOk(f.status));
+  const tempHigh = env.temperatureC !== null && env.temperatureC >= 60;
+  return [
+    cpu >= 90
+      ? { kind: 'cpu_high', raise: true, severity: 'warning', message: `${hostname} CPU at ${cpu}% (5-minute average)`, trigger: 'cpu_high' }
+      : { kind: 'cpu_high', raise: false },
+    mem >= 90
+      ? { kind: 'mem_high', raise: true, severity: 'warning', message: `${hostname} memory at ${mem}%` }
+      : { kind: 'mem_high', raise: false },
+    tempHigh
+      ? { kind: 'temp_high', raise: true, severity: 'critical', message: `${hostname} temperature ${env.temperatureC}°C`, trigger: 'temp_high' }
+      : { kind: 'temp_high', raise: false },
+    badPsu.length
+      ? { kind: 'psu_fail', raise: true, severity: 'critical', message: `${hostname} power supply problem: ${badPsu.map(p => `PSU ${p.id} ${p.status}`).join(', ')}`, trigger: 'psu_fail' }
+      : { kind: 'psu_fail', raise: false },
+    badFans.length
+      ? { kind: 'fan_fail', raise: true, severity: 'critical', message: `${hostname} fan problem: ${badFans.map(f => `fan ${f.id} ${f.status}`).join(', ')}`, trigger: 'fan_fail' }
+      : { kind: 'fan_fail', raise: false },
+  ];
+}
+
 async function evaluateHealthAlerts(
   deviceId: string, hostname: string, cpu: number, mem: number,
   env: { temperatureC: number | null; psu: { id: string; status: string }[]; fans: { id: string; status: string }[] }
 ): Promise<void> {
-  if (cpu >= 90) await raiseAlert(deviceId, 'cpu_high', 'warning', `${hostname} CPU at ${cpu}% (5-minute average)`);
-  else await resolveAlert(deviceId, 'cpu_high');
-  if (cpu >= 90) await runAutomationTrigger('cpu_high', { deviceId, cpu });
-
-  if (mem >= 90) await raiseAlert(deviceId, 'mem_high', 'warning', `${hostname} memory at ${mem}%`);
-  else await resolveAlert(deviceId, 'mem_high');
-
-  if (env.temperatureC !== null && env.temperatureC >= 60) {
-    await raiseAlert(deviceId, 'temp_high', 'critical', `${hostname} temperature ${env.temperatureC}°C`);
-    await runAutomationTrigger('temp_high', { deviceId, temp: env.temperatureC });
-  } else {
-    await resolveAlert(deviceId, 'temp_high');
-  }
-
-  const badPsu = env.psu.filter(p => !/^(ok|good|normal)$/i.test(p.status) && !/not present/i.test(p.status));
-  if (badPsu.length) {
-    await raiseAlert(deviceId, 'psu_fail', 'critical',
-      `${hostname} power supply problem: ${badPsu.map(p => `PSU ${p.id} ${p.status}`).join(', ')}`);
-    await runAutomationTrigger('psu_fail', { deviceId });
-  } else {
-    await resolveAlert(deviceId, 'psu_fail');
-  }
-
-  const badFans = env.fans.filter(f => !/^(ok|good|normal)$/i.test(f.status));
-  if (badFans.length) {
-    await raiseAlert(deviceId, 'fan_fail', 'critical',
-      `${hostname} fan problem: ${badFans.map(f => `fan ${f.id} ${f.status}`).join(', ')}`);
-    await runAutomationTrigger('fan_fail', { deviceId });
-  } else {
-    await resolveAlert(deviceId, 'fan_fail');
+  for (const a of evaluateHealth(hostname, cpu, mem, env)) {
+    if (!a.raise) { await resolveAlert(deviceId, a.kind); continue; }
+    await raiseAlert(deviceId, a.kind, a.severity!, a.message!);
+    if (a.trigger) {
+      const payload = a.kind === 'cpu_high' ? { deviceId, cpu }
+        : a.kind === 'temp_high' ? { deviceId, temp: env.temperatureC ?? undefined }
+        : { deviceId };
+      await runAutomationTrigger(a.trigger, payload);
+    }
   }
 }
 

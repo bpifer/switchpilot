@@ -36,10 +36,11 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       and "what's plugged into what", on top of the CDP/LLDP auto-graph
       (`routes/topology.ts`).
 - [ ] **Test the riskiest untested code.** `Medium`. PARTIAL: `jobService` retry/
-      backoff now tested (pure `decideJobOutcome` + `backoffMs` extracted). Still
-      open: `monitorService` (the 300+ line poll/refresh pipeline), the `scheduler`
-      wiring, and the largest untested frontend pages (`Compliance`, `Firmware`,
-      `DeviceDetail`). drivers/parsers/crypto/RBAC already covered. (External review.)
+      backoff (`decideJobOutcome`/`backoffMs`) and `monitorService` health-alert
+      decisions (`evaluateHealth`) now have unit tests (pure logic extracted). Still
+      open: the rest of `monitorService.refreshDevice`, the `scheduler` wiring, and
+      the largest untested frontend pages (`Compliance`, `Firmware`, `DeviceDetail`).
+      (External review.)
 
 ## P3 - Nice to have
 
