@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
+import { toast } from '../components/Toast';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Button, StatusBadge, fmtUptime, Modal, Field, inputCls } from '../components/ui';
@@ -42,7 +43,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
   async function refresh() {
     setBusy(true);
     try { await api(`/api/devices/${id}/refresh`, { method: 'POST' }); reload(); }
-    catch (err: any) { alert(err.message); }
+    catch (err: any) { toast.error(err.message); }
     finally { setBusy(false); }
   }
 
@@ -269,7 +270,7 @@ function HostKeyStatus({ deviceId, fp, pinnedAt, canConfig, onChanged }: {
     if (!confirm('Re-pin this device\'s SSH host key?\n\nUse this only after a legitimate re-image or hardware swap — the platform will trust whatever key the device presents on the next connection.')) return;
     setBusy(true);
     try { await api(`/api/devices/${deviceId}/repin-host-key`, { method: 'POST' }); onChanged(); }
-    catch (e: any) { alert(e.message); }
+    catch (e: any) { toast.error(e.message); }
     finally { setBusy(false); }
   }
 

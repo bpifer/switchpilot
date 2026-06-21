@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, apiUpload } from '../api';
+import { toast } from '../components/Toast';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
@@ -122,7 +123,7 @@ export default function Firmware({ me }: { me: Me }) {
                               onClick={async () => {
                                 if (!confirm(`Delete ${img.filename} from SwitchPilot? Switches that already copied it are unaffected.`)) return;
                                 try { await api(`/api/firmware/${img.id}`, { method: 'DELETE' }); refetchImages(); }
-                                catch (err: any) { alert(err.message); }
+                                catch (err: any) { toast.error(err.message); }
                               }}>
                         delete
                       </button>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api';
+import { toast } from '../components/Toast';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
 
@@ -24,9 +25,9 @@ function Webhooks() {
     setTesting(id);
     try {
       const r = await api(`/api/webhooks/${id}/test`, { method: 'POST' });
-      alert(`Delivery result: ${r.lastStatus}`);
+      toast.info(`Delivery result: ${r.lastStatus}`);
       refetch();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err.message); }
     finally { setTesting(''); }
   }
 
@@ -129,7 +130,7 @@ function ApiKeys() {
       setNewToken(r.token);
       setCreating(false); setForm({ name: '', role: 'readonly' });
       refetch();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err.message); }
     finally { setBusy(false); }
   }
 

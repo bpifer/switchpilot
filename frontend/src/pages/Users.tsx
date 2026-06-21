@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { toast } from '../components/Toast';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card, Button, Modal, Field, inputCls, StatusBadge } from '../components/ui';
 
@@ -150,7 +151,7 @@ function SecurityPolicy({ onClose }: { onClose: () => void }) {
   async function save() {
     setBusy(true);
     try { await api('/api/security/policy', { method: 'PUT', body: p }); setSaved(true); }
-    catch (err: any) { alert(err.message); }
+    catch (err: any) { toast.error(err.message); }
     finally { setBusy(false); }
   }
 

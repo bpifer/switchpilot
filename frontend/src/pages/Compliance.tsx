@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { toast } from '../components/Toast';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
 import { useSiteScope, scoped } from '../context/SiteContext';
@@ -56,7 +57,7 @@ export default function Compliance({ me }: { me: Me }) {
   async function evaluate() {
     setEvaluating(true);
     try { await api('/api/compliance/evaluate', { method: 'POST' }); load(); }
-    catch (err: any) { alert(err.message); }
+    catch (err: any) { toast.error(err.message); }
     finally { setEvaluating(false); }
   }
 
@@ -201,7 +202,7 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
   async function remediate(ruleId: string) {
     setBusy(ruleId);
     try { await api('/api/compliance/remediate', { method: 'POST', body: { deviceId, ruleId } }); await load(); onChanged(); setPreview(null); }
-    catch (err: any) { alert(err.message); }
+    catch (err: any) { toast.error(err.message); }
     finally { setBusy(''); }
   }
 
@@ -216,7 +217,7 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
       if (r.password) setSecretPw(r.password);   // only returned when generated
       setEnableModal(false);
       await load(); onChanged();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err.message); }
     finally { setBusy(''); }
   }
 
@@ -227,7 +228,7 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
       const lines = c.remediation.split('\n').map(l => l.trim()).filter(Boolean);
       const r = await api(`/api/devices/${deviceId}/config/preview`, { method: 'POST', body: { lines } });
       setPreview({ rule: c, lines: r.lines, summary: r.summary, warnings: r.warnings ?? [] });
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err.message); }
     finally { setBusy(''); }
   }
 
@@ -236,7 +237,7 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
   async function checkNow() {
     setChecking(true);
     try { await api(`/api/compliance/evaluate?deviceId=${deviceId}&fresh=true`, { method: 'POST' }); await load(); onChanged(); }
-    catch (err: any) { alert(err.message); }
+    catch (err: any) { toast.error(err.message); }
     finally { setChecking(false); }
   }
 
@@ -437,14 +438,14 @@ function RulesManager({ onClose }: { onClose: () => void }) {
       if (editing.id) await api(`/api/compliance/rules/${editing.id}`, { method: 'PUT', body });
       else await api('/api/compliance/rules', { method: 'POST', body });
       setEditing(null); load();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err.message); }
     finally { setBusy(false); }
   }
 
   async function remove(id: string) {
     if (!confirm('Delete this rule and its results?')) return;
     try { await api(`/api/compliance/rules/${id}`, { method: 'DELETE' }); load(); }
-    catch (err: any) { alert(err.message); }
+    catch (err: any) { toast.error(err.message); }
   }
 
   return (

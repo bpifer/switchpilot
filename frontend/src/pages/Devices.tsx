@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { toast } from '../components/Toast';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, StatusBadge, Modal, Field, inputCls, fmtUptime } from '../components/ui';
@@ -88,7 +89,7 @@ export default function Devices({ me }: { me: Me }) {
                           onClick={async () => {
                             if (!confirm(`Remove ${d.hostname || d.mgmt_ip} from SwitchPilot?\n\nThis deletes its history (ports, metrics, backups, alerts) from the platform. The switch itself is not touched.`)) return;
                             try { await api(`/api/devices/${d.id}`, { method: 'DELETE' }); load(); }
-                            catch (err: any) { alert(err.message); }
+                            catch (err: any) { toast.error(err.message); }
                           }}>
                           remove
                         </button>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { toast } from '../components/Toast';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
@@ -189,14 +190,14 @@ function CatalogEditor({ onClose }: { onClose: () => void }) {
         }
       });
       setEditing(null); load();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err.message); }
     finally { setBusy(false); }
   }
 
   async function remove(prefix: string) {
     if (!confirm(`Delete lifecycle entry for "${prefix}"?`)) return;
     try { await api(`/api/lifecycle-catalog/${encodeURIComponent(prefix)}`, { method: 'DELETE' }); load(); }
-    catch (err: any) { alert(err.message); }
+    catch (err: any) { toast.error(err.message); }
   }
 
   return (

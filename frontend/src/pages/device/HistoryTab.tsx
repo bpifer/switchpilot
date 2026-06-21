@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../../api';
+import { toast } from '../../components/Toast';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import { Card, Button, Modal } from '../../components/ui';
 
@@ -15,8 +16,8 @@ export default function HistoryTab({ deviceId, canConfig }: { deviceId: string; 
     setRollingBack(sha);
     try {
       await api(`/api/devices/${deviceId}/config/rollback/${sha}`, { method: 'POST' });
-      alert('Rollback pushed to device.');
-    } catch (err: any) { alert(err.message); }
+      toast.success('Rollback pushed to device.');
+    } catch (err: any) { toast.error(err.message); }
     finally { setRollingBack(''); }
   }
 

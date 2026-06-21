@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../../api';
+import { toast } from '../../components/Toast';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import { Card, Button, Modal, Field, inputCls } from '../../components/ui';
 
@@ -18,7 +19,7 @@ export default function BackupsTab({ deviceId, canOperate, canConfig }: {
     try {
       await api(`/api/devices/${deviceId}/backups`, { method: 'POST', body: { reason, ticket } });
       setShowBackup(false); setReason(''); setTicket(''); refetch();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err.message); }
     finally { setBusy(false); }
   }
 
@@ -47,7 +48,7 @@ export default function BackupsTab({ deviceId, canOperate, canConfig }: {
                             onClick={async () => {
                               if (!confirm('Replay this backup onto the device? A pre-restore backup is taken first.')) return;
                               await api(`/api/devices/${deviceId}/restore/${b.id}`, { method: 'POST' });
-                              alert('Restore pushed.');
+                              toast.success('Restore pushed.');
                             }}>restore</button>
                   )}
                 </td>

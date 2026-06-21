@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import SecurityGate from './pages/SecurityGate';
 import ErrorBoundary from './components/ErrorBoundary';
 import CommandPalette from './components/CommandPalette';
+import { Toaster } from './components/Toast';
 import { LogoMark } from './components/Logo';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApiQuery } from './hooks/useApiQuery';
@@ -230,6 +231,7 @@ export default function App() {
   return (
     <SiteScopeProvider>
     <CommandPalette />
+    <Toaster />
     <div className="flex h-screen bg-slate-50">
       <aside className="flex w-60 shrink-0 flex-col bg-slate-900 text-white">
         {/* Logo */}

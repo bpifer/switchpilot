@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
+import { toast } from '../components/Toast';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card, StatusBadge, Modal, Button } from '../components/ui';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -66,7 +67,7 @@ export default function Jobs() {
   const clearFinished = async () => {
     if (!confirm('Remove all finished jobs (done, failed, cancelled) and their results? Running and pending jobs are kept.')) return;
     try { await api('/api/jobs/finished', { method: 'DELETE' }); await load(); }
-    catch (err: any) { alert(err.message); }
+    catch (err: any) { toast.error(err.message); }
   };
 
   return (

@@ -60,11 +60,12 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       Pi-hole and correlate to clients.
 - [ ] **Credential presets (reusable, admin-restricted).** `Medium`. Reusable
       credential sets to speed onboarding / bulk-add; restrict presets to admins.
-- [ ] **Shared toast / mutation hook (frontend).** `Medium`. Every tab hand-rolls
-      its own busy/result state + try/catch (PortsTab, ConfigTab, and ~13 more),
-      and Jobs.tsx references a "409 toast" component that doesn't exist. Extract
-      one `useMutation`-style hook + a shared toast/banner for consistent error UX
-      and a few hundred fewer lines. (External review.)
+- [ ] **Shared toast / mutation hook (frontend).** `Medium`. PARTIAL: a shared
+      toast store (`components/Toast`, `toast.error/success/info` + `<Toaster/>`)
+      now exists and all 22 browser `alert()` calls across 10 files were migrated
+      to it (consistent, non-blocking error/success UX; 409s now surface as a
+      toast). Still open: a `useMutation`-style hook to consolidate the per-tab
+      busy/try-catch state (PortsTab, ConfigTab, and ~13 more). (External review.)
 
 ## P4 - Later (large, risky, or niche)
 
