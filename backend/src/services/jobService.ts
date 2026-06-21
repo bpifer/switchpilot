@@ -32,9 +32,28 @@ function nextCronDate(expr: string): Date {
   return cronParser.parseExpression(expr).next().toDate();
 }
 
-/** Exponential backoff (capped) between retry attempts. */
-function backoffMs(attempt: number): number {
+/** Exponential backoff (capped) between retry attempts. Exported for tests. */
+export function backoffMs(attempt: number): number {
   return Math.min(5 * 60_000, 2 ** attempt * 1000); // 2s, 4s, 8s … cap 5m
+}
+
+export type JobOutcome =
+  | { action: 'reschedule'; at: Date }   // recurring job -> its next cron run
+  | { action: 'done' }                   // one-shot succeeded
+  | { action: 'retry'; runAfter: Date }  // one-shot failed, attempts remain
+  | { action: 'fail' };                  // one-shot failed, no attempts left
+
+/** Pure decision for what happens to a job after a run finishes. Exported for
+ *  tests; finishJob() applies it to the DB. */
+export function decideJobOutcome(
+  job: { cron?: string | null; attempts: number; max_attempts: number },
+  allOk: boolean,
+  now: number = Date.now()
+): JobOutcome {
+  if (job.cron) return { action: 'reschedule', at: nextCronDate(job.cron) };
+  if (allOk) return { action: 'done' };
+  if (job.attempts < job.max_attempts) return { action: 'retry', runAfter: new Date(now + backoffMs(job.attempts)) };
+  return { action: 'fail' };
 }
 
 export interface NewJob {
@@ -139,45 +158,41 @@ async function runClaimedJob(job: any): Promise<void> {
   await finishJob(job, allOk, lastError);
 }
 
-/** Transition a finished job: recurring → reschedule; failed → retry or give up. */
+/** Transition a finished job per decideJobOutcome(): recurring -> reschedule;
+ *  one-shot -> done, retry-with-backoff, or give up. */
 async function finishJob(job: any, allOk: boolean, lastError: string): Promise<void> {
   const jobId = job.id as string;
+  const outcome = decideJobOutcome(job, allOk);
 
-  if (job.cron) {
-    // Recurring jobs always return to pending for their next scheduled run.
-    const next = nextCronDate(job.cron);
-    await query(
-      `UPDATE jobs SET status='pending', started_at=NULL, finished_at=NULL,
-         locked_by=NULL, heartbeat_at=NULL, next_run_at=$2, run_after=$2,
-         last_error=$3, stage='' WHERE id=$1`,
-      [jobId, next, allOk ? '' : lastError]);
-    await publishEvent({ type: 'job_progress', data: { jobId, status: 'pending', recurring: true } });
-    return;
-  }
-
-  if (allOk) {
-    await query(
-      `UPDATE jobs SET status='done', finished_at=now(), locked_by=NULL, heartbeat_at=NULL, last_error='', stage='' WHERE id=$1`,
-      [jobId]);
-    await publishEvent({ type: 'job_progress', data: { jobId, status: 'done' } });
-    return;
-  }
-
-  // One-shot job failed on at least one device — retry with backoff if attempts remain.
-  const attempts = job.attempts as number;
-  const maxAttempts = job.max_attempts as number;
-  if (attempts < maxAttempts) {
-    const runAfter = new Date(Date.now() + backoffMs(attempts));
-    await query(
-      `UPDATE jobs SET status='pending', started_at=NULL, finished_at=NULL,
-         locked_by=NULL, heartbeat_at=NULL, run_after=$2, last_error=$3, stage='' WHERE id=$1`,
-      [jobId, runAfter, lastError]);
-    await publishEvent({ type: 'job_progress', data: { jobId, status: 'pending', retryAt: runAfter.toISOString(), attempt: attempts } });
-  } else {
-    await query(
-      `UPDATE jobs SET status='failed', finished_at=now(), locked_by=NULL, heartbeat_at=NULL, last_error=$2, stage='' WHERE id=$1`,
-      [jobId, lastError]);
-    await publishEvent({ type: 'job_progress', data: { jobId, status: 'failed', error: lastError } });
+  switch (outcome.action) {
+    case 'reschedule':
+      // Recurring jobs always return to pending for their next scheduled run.
+      await query(
+        `UPDATE jobs SET status='pending', started_at=NULL, finished_at=NULL,
+           locked_by=NULL, heartbeat_at=NULL, next_run_at=$2, run_after=$2,
+           last_error=$3, stage='' WHERE id=$1`,
+        [jobId, outcome.at, allOk ? '' : lastError]);
+      await publishEvent({ type: 'job_progress', data: { jobId, status: 'pending', recurring: true } });
+      return;
+    case 'done':
+      await query(
+        `UPDATE jobs SET status='done', finished_at=now(), locked_by=NULL, heartbeat_at=NULL, last_error='', stage='' WHERE id=$1`,
+        [jobId]);
+      await publishEvent({ type: 'job_progress', data: { jobId, status: 'done' } });
+      return;
+    case 'retry':
+      await query(
+        `UPDATE jobs SET status='pending', started_at=NULL, finished_at=NULL,
+           locked_by=NULL, heartbeat_at=NULL, run_after=$2, last_error=$3, stage='' WHERE id=$1`,
+        [jobId, outcome.runAfter, lastError]);
+      await publishEvent({ type: 'job_progress', data: { jobId, status: 'pending', retryAt: outcome.runAfter.toISOString(), attempt: job.attempts } });
+      return;
+    case 'fail':
+      await query(
+        `UPDATE jobs SET status='failed', finished_at=now(), locked_by=NULL, heartbeat_at=NULL, last_error=$2, stage='' WHERE id=$1`,
+        [jobId, lastError]);
+      await publishEvent({ type: 'job_progress', data: { jobId, status: 'failed', error: lastError } });
+      return;
   }
 }
 

@@ -148,5 +148,6 @@ cd backend  && npm test                  # Vitest, no hardware/DB needed
 
 The backend suite covers the Cisco and RouterOS parsers, drivers, the NetFlow
 decoder and SNMP-trap classifier, device-tool command building, the compliance
-evaluator, RBAC, and auth flows. CI typechecks both halves, runs the tests, and
+evaluator, job retry/backoff, credential-key crypto, RBAC, and auth flows. CI
+typechecks both halves, runs the tests, and
 builds both Docker images on every push.

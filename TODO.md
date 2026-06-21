@@ -35,11 +35,11 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       orphan-node detection, and MNDP dedup, plus link-utilization + VLAN overlays
       and "what's plugged into what", on top of the CDP/LLDP auto-graph
       (`routes/topology.ts`).
-- [ ] **Test the riskiest untested code.** `Medium`. Backend `monitorService` (the
-      300+ line poll/refresh pipeline), `jobService` (claim/retry/reaper), and `scheduler.ts` have
-      no tests despite being the most failure-prone code, while drivers/parsers/
-      crypto/RBAC are well covered. Add unit tests there, then the largest untested
-      frontend pages (`Compliance`, `Firmware`, `DeviceDetail`). (External review.)
+- [ ] **Test the riskiest untested code.** `Medium`. PARTIAL: `jobService` retry/
+      backoff now tested (pure `decideJobOutcome` + `backoffMs` extracted). Still
+      open: `monitorService` (the 300+ line poll/refresh pipeline), the `scheduler`
+      wiring, and the largest untested frontend pages (`Compliance`, `Firmware`,
+      `DeviceDetail`). drivers/parsers/crypto/RBAC already covered. (External review.)
 
 ## P3 - Nice to have
 
