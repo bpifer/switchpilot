@@ -23,9 +23,6 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       switch in the loop to validate safely.
 ## P2 - High value
 
-- [ ] **Unified per-device timeline.** `Medium`. Stitch audit log + alerts + git
-      config history + jobs into one chronological feed. Data all exists; this is
-      aggregation + a timeline component, no new collection.
 - [ ] **Platform backup/restore workflow.** `Medium`. In-app DB export/import +
       config bundle (wraps the documented `pg_dump`/restore + git config repo) so
       the whole instance is recoverable, not just per-switch configs.
@@ -126,7 +123,10 @@ external git mirror (`CONFIG_HISTORY_REMOTE`).
 
 **Change management & trust:** SSH host-key verification (TOFU pin/refuse/re-pin);
 post-change read-back validation (`portVerify`); preview/diff on structured edits
-(`configPreview`); fleet health score (`fleetHealth`).
+(`configPreview`) now with a vendor-aware self-lockout guard (`detectMgmtLockout`);
+fleet health score (`fleetHealth`); a per-device activity timeline
+(`/api/devices/:id/timeline` - config history + alerts + jobs + audited actions
+merged into one feed, with a device-detail Timeline tab).
 
 **Architecture, security & DR:** optional `/metrics` auth (`METRICS_TOKEN`);
 host-key fingerprint shown at onboarding; DR / upgrade-rollback runbook

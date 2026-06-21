@@ -54,7 +54,9 @@ endpoint with one click.
   page shows top talkers, a per-application breakdown, and bytes over time.
 
 **Also included.** On-box network tools (ping, traceroute, IP scan) run from the
-switch, topology from CDP/LLDP/MNDP, a PoE budget dashboard, Cisco lifecycle
+switch, topology from CDP/LLDP/MNDP, a PoE budget dashboard, a per-device
+activity timeline (config changes, alerts, jobs, and audited actions in one
+feed), Cisco lifecycle
 (EoS/EoL) tracking and ring-based firmware rollouts, scheduled and event-triggered
 automation, sites for grouping gear by location, an installable PWA for phone /
 rack use, and an optional off-box mirror of the config-history git repo for DR.
