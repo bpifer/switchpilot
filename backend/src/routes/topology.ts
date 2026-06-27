@@ -59,6 +59,11 @@ export default async function topologyRoutes(app: FastifyInstance) {
           protocol: link.protocol
         });
       }
+      // Flag managed devices with no discovered neighbor links (orphans): a
+      // possible monitoring gap, a standalone device, or CDP/LLDP not running.
+      const linked = new Set<string>();
+      for (const e of edges) { linked.add(e.source); linked.add(e.target); }
+      for (const n of nodes) if (n.managed && !linked.has(n.id)) n.orphan = true;
       return { nodes: [...nodes, ...externals.values()], edges };
     });
 

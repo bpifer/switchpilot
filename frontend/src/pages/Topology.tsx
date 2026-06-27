@@ -4,7 +4,7 @@ import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card, Button } from '../components/ui';
 import { useSiteScope, scoped } from '../context/SiteContext';
 
-interface Node { id: string; label: string; model: string; status: string; managed: boolean; ip: string; stackSize: number; }
+interface Node { id: string; label: string; model: string; status: string; managed: boolean; ip: string; stackSize: number; orphan?: boolean; }
 interface Edge { source: string; target: string; sourcePort: string; targetPort: string; protocol: string; }
 type Pos = { x: number; y: number };
 
@@ -98,6 +98,7 @@ export default function Topology() {
     !n.managed ? '#94a3b8' : n.status === 'online' ? '#16a34a' : n.status === 'offline' ? '#dc2626' : '#9ca3af';
   const hoverNode = graph.nodes.find(n => n.id === hover);
   const hoverPos = hover ? pos.get(hover) : null;
+  const orphans = graph.nodes.filter(n => n.managed && n.orphan).length;
 
   return (
     <div>
@@ -107,7 +108,7 @@ export default function Topology() {
         <Button variant="secondary" onClick={reset}>Reset</Button>
       </PageHeader>
       <div className="p-6">
-        <Card title={`Layer-2 map — ${graph.nodes.length} nodes, ${graph.edges.length} links (CDP/LLDP). Drag to pan, scroll to zoom, drag a node to move it.`}>
+        <Card title={`Layer-2 map — ${graph.nodes.length} nodes, ${graph.edges.length} links (CDP/LLDP)${orphans ? `, ${orphans} with no neighbors` : ''}. Drag to pan, scroll to zoom, drag a node to move it.`}>
           <div className="relative">
             <svg
               ref={svgRef}
@@ -149,7 +150,8 @@ export default function Topology() {
                        className="cursor-pointer">
                       {n.managed
                         ? <rect x={p.x - 17} y={p.y - 12} width="34" height="24" rx="5" fill={nodeFill(n)}
-                                stroke={hover === n.id ? '#0d7a5f' : 'transparent'} strokeWidth="2" />
+                                stroke={hover === n.id ? '#0d7a5f' : n.orphan ? '#f59e0b' : 'transparent'} strokeWidth="2"
+                                strokeDasharray={n.orphan && hover !== n.id ? '3 2' : undefined} />
                         : <circle cx={p.x} cy={p.y} r="10" fill={nodeFill(n)}
                                   stroke={hover === n.id ? '#0d7a5f' : 'transparent'} strokeWidth="2" />}
                       {n.stackSize > 1 && <text x={p.x} y={p.y + 4} fontSize="9" fill="white" textAnchor="middle">×{n.stackSize}</text>}
@@ -185,6 +187,10 @@ export default function Topology() {
               <Legend color="#16a34a" label="Online (managed)" />
               <Legend color="#dc2626" label="Offline" />
               <Legend color="#94a3b8" label="Neighbor (unmanaged)" round />
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-3 w-4 rounded-sm border-2 border-dashed border-amber-500" />
+                No neighbors (orphan)
+              </span>
             </div>
           </div>
         </Card>

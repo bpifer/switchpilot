@@ -33,10 +33,11 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       auto-configure flow export (MikroTik `/ip traffic-flow` target, Cisco flow
       record/exporter/monitor) instead of manual setup, and validate end-to-end
       against the CRS326.
-- [ ] **Topology upgrades.** `Medium`. Manual link drawing + persistence,
-      orphan-node detection, and MNDP dedup, plus link-utilization + VLAN overlays
-      and "what's plugged into what", on top of the CDP/LLDP auto-graph
-      (`routes/topology.ts`).
+- [ ] **Topology upgrades.** `Medium`. PARTIAL: orphan-node detection shipped
+      (managed devices with no discovered neighbors are flagged on the map +
+      counted). Still open: manual link drawing + persistence, MNDP dedup,
+      link-utilization + VLAN overlays, and "what's plugged into what", on the
+      CDP/LLDP auto-graph (`routes/topology.ts`).
 - [ ] **Test the riskiest untested code.** `Medium`. PARTIAL: `jobService` retry/
       backoff (`decideJobOutcome`/`backoffMs`) and `monitorService` health-alert
       decisions (`evaluateHealth`) now have unit tests (pure logic extracted). Still
