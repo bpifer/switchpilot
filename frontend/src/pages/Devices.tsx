@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../api';
+import { api, getToken } from '../api';
 import { toast } from '../components/Toast';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
@@ -19,9 +19,25 @@ export default function Devices({ me }: { me: Me }) {
   const { data: sites = [] } = useApiQuery<any[]>('/api/sites');
   const { data: credentials = [], refetch: reloadCreds } = useApiQuery<any[]>('/api/credentials', { enabled: canEdit });
 
+  // Download every device's latest config backup as one text file. Auth header
+  // can't ride an <a href>, so fetch with the token and trigger a blob download.
+  async function downloadBundle() {
+    try {
+      const res = await fetch('/api/config-bundle', { headers: { authorization: `Bearer ${getToken()}` } });
+      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as any).error ?? res.statusText);
+      const url = URL.createObjectURL(new Blob([await res.text()], { type: 'text/plain' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `switchpilot-configs-${new Date().toISOString().slice(0, 10)}.txt`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: any) { toast.error(err.message); }
+  }
+
   return (
     <div>
       <PageHeader title="Devices">
+        {canEdit && <Button variant="secondary" onClick={downloadBundle}>Download configs</Button>}
         {canEdit && <Button variant="secondary" onClick={() => setShowCred(true)}>Credentials</Button>}
         {canEdit && <Button onClick={() => setShowAdd(true)}>+ Add switch</Button>}
       </PageHeader>

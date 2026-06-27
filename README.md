@@ -23,7 +23,8 @@ back** from the device afterward to confirm they landed.
 
 **Config management.** Scheduled and on-demand backups, each committed to a local
 git repo with author and reason. Browse the per-device history, diff any two
-versions, and roll back (Cisco). Drift detection against a pinned baseline.
+versions, roll back (Cisco), and download the whole fleet's latest configs as one
+file. Drift detection against a pinned baseline.
 
 **Compliance.** Per-vendor rule packs (line/regex checks) scored per device and
 across the fleet, with one-click remediation. Ships with Cisco CIS-style and

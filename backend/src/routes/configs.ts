@@ -106,6 +106,24 @@ export default async function configRoutes(app: FastifyInstance) {
       return rows[0];
     });
 
+  // Fleet backup: every device's latest config backup as one downloadable text
+  // file. netadmin-only (Cisco running-config can contain secrets) and audited.
+  app.get('/api/config-bundle', { preHandler: requireRole('netadmin'), schema: { tags: ['configs'] } },
+    async (req, reply) => {
+      const me = req.user as any;
+      const { rows } = await query<{ hostname: string; mgmt_ip: string; content: string; created_at: string }>(`
+        SELECT DISTINCT ON (cb.device_id) d.hostname, host(d.mgmt_ip) AS mgmt_ip, cb.content, cb.created_at
+        FROM config_backups cb JOIN devices d ON d.id = cb.device_id
+        ORDER BY cb.device_id, cb.created_at DESC`);
+      const body = rows.map(r =>
+        `# ===== ${r.hostname || r.mgmt_ip} (${r.mgmt_ip}) - backed up ${new Date(r.created_at).toISOString()} =====\n${r.content}\n`
+      ).join('\n');
+      await audit(me.username, 'config.bundle.download', '', { devices: rows.length }, req.ip);
+      reply.header('content-type', 'text/plain; charset=utf-8');
+      reply.header('content-disposition', `attachment; filename="switchpilot-configs-${new Date().toISOString().slice(0, 10)}.txt"`);
+      return body || '# No config backups yet.\n';
+    });
+
   app.post('/api/devices/:id/backups', {
     preHandler: requireRole('helpdesk'),
     schema: {

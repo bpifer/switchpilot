@@ -23,9 +23,11 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       switch in the loop to validate safely.
 ## P2 - High value
 
-- [ ] **Platform backup/restore workflow.** `Medium`. In-app DB export/import +
-      config bundle (wraps the documented `pg_dump`/restore + git config repo) so
-      the whole instance is recoverable, not just per-switch configs.
+- [ ] **Platform backup/restore workflow.** `Medium`. PARTIAL: fleet config-bundle
+      download shipped (`/api/config-bundle` - every device's latest config in one
+      file, netadmin, audited; "Download configs" on the Devices page). Still open:
+      an in-app DB export/import path (the `pg_dump`/restore is documented in the DR
+      runbook for now).
 - [ ] **NetFlow follow-ups.** `Medium`. IPFIX (v10) decode DONE (shares v9's IE
       numbers + readV9Record; unit-tested). Remaining: a driver helper to
       auto-configure flow export (MikroTik `/ip traffic-flow` target, Cisco flow
