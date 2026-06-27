@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "rotate-key": "node dist/scripts/rotateCredentialKey.js",
+    "show-credential": "node dist/scripts/showDeviceCredential.js",
     "test": "vitest run",
     "lint": "tsc --noEmit"
   },

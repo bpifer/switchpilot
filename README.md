@@ -69,7 +69,8 @@ rack use, and an optional off-box mirror of the config-history git repo for DR.
 
 RBAC (Super Admin / Network Admin / Help Desk / Read Only), local + LDAP auth,
 TOTP MFA with single-use recovery codes, an AES-256-GCM credential vault (with
-key rotation via `npm run rotate-key`),
+key rotation via `npm run rotate-key` and owner password recovery via
+`npm run show-credential`),
 **SSH host-key pinning** (trust-on-first-use; a changed key is refused before
 authentication, so credentials are never sent to an impersonated switch),
 a hash-chained tamper-evident audit log (config changes also record the device's

@@ -19,6 +19,21 @@ assume the Docker Compose deployment (service names `db`, `api`; volumes
 > passwords are unrecoverable** (you re-enter them). `JWT_SECRET` changing just
 > logs everyone out.
 
+**Recovering a stored device password.** As long as you still have
+`CREDENTIAL_KEY` and the database, you can read back the plaintext SSH login
+SwitchPilot uses for a device - useful if you've lost the switch's own password
+but it is still onboarded:
+
+```bash
+docker compose exec api npm run show-credential -- 192.168.10.41   # by mgmt IP
+docker compose exec api npm run show-credential -- core-switch     # by hostname
+docker compose exec api npm run show-credential                    # list devices
+```
+
+It decrypts with the running `CREDENTIAL_KEY`, so it exposes nothing a key-holder
+could not already decrypt; it just prints the login to stdout. Run it in a
+private shell.
+
 ## Backup
 
 Run on the host (a nightly cron is recommended):
