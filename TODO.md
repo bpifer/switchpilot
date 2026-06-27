@@ -53,8 +53,6 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       extract a `ciscoMonitor.ts` mirroring `routerosMonitor.ts`. The real
       remaining Cisco coupling (PLAN-multi-vendor #4) and the key architectural
       debt, but no user-facing payoff, so not urgent.
-- [ ] **Visual rack view** (U layout of devices). `Medium`. Pure frontend;
-      homelab-loved.
 - [ ] **Dry-run remediation + scheduled compliance remediation.** `Medium`. Drift
       already auto-remediates vs a pinned baseline; add a dry-run mode and optional
       scheduled remediation for compliance rules.
@@ -119,7 +117,8 @@ speed colors.
 PoE power-cycle + Wake-on-LAN; PoE budget view + reverse link; more notification
 channels (Discord/ntfy/Gotify/Telegram/Pushover); installable PWA; config-history
 external git mirror (`CONFIG_HISTORY_REMOTE`); PoE energy + cost estimate from the
-poe_watts series (`/api/poe/energy`, `POE_RATE_PER_KWH`).
+poe_watts series (`/api/poe/energy`, `POE_RATE_PER_KWH`); visual rack view (place
+devices by rack + U in device Settings, migration 026; `/rack` renders the U layout).
 
 **Change management & trust:** SSH host-key verification (TOFU pin/refuse/re-pin);
 post-change read-back validation (`portVerify`); preview/diff on structured edits

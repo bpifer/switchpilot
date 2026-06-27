@@ -69,7 +69,9 @@ export default function DeviceDetail({ me }: { me: Me }) {
       {showSettings && (
         <DeviceSettingsModal
           deviceId={id!} sites={sites}
-          current={{ siteId: device.site_id ?? '', location: device.location ?? '' }}
+          current={{ siteId: device.site_id ?? '', location: device.location ?? '',
+                     rackName: device.rack_name ?? '', rackUnit: device.rack_unit != null ? String(device.rack_unit) : '',
+                     rackHeight: device.rack_height != null ? String(device.rack_height) : '1' }}
           onClose={() => setShowSettings(false)}
           onSaved={() => { setShowSettings(false); refetchDevice(); }}
         />
@@ -148,12 +150,15 @@ export default function DeviceDetail({ me }: { me: Me }) {
 function DeviceSettingsModal({ deviceId, sites, current, onClose, onSaved }: {
   deviceId: string;
   sites: { id: string; name: string }[];
-  current: { siteId: string; location: string };
+  current: { siteId: string; location: string; rackName: string; rackUnit: string; rackHeight: string };
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [siteId, setSiteId] = useState(current.siteId);
   const [location, setLocation] = useState(current.location);
+  const [rackName, setRackName] = useState(current.rackName);
+  const [rackUnit, setRackUnit] = useState(current.rackUnit);
+  const [rackHeight, setRackHeight] = useState(current.rackHeight);
   const [logLevel, setLogLevel] = useState('');   // '' = leave unchanged
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -164,7 +169,11 @@ function DeviceSettingsModal({ deviceId, sites, current, onClose, onSaved }: {
       await api(`/api/devices/${deviceId}`, {
         method: 'PATCH',
         // siteId '' clears the assignment (nullable on the backend)
-        body: { siteId: siteId || null, location }
+        body: {
+          siteId: siteId || null, location,
+          rackName, rackUnit: rackUnit ? parseInt(rackUnit, 10) : null,
+          rackHeight: parseInt(rackHeight, 10) || 1,
+        }
       });
       // Syslog level is a config push, only sent when explicitly chosen
       if (logLevel) {
@@ -187,6 +196,19 @@ function DeviceSettingsModal({ deviceId, sites, current, onClose, onSaved }: {
         <input className={inputCls} value={location} onChange={e => setLocation(e.target.value)}
                placeholder="e.g. IDF-2, rack 4" />
       </Field>
+      <div className="grid grid-cols-3 gap-3">
+        <Field label="Rack">
+          <input className={inputCls} value={rackName} onChange={e => setRackName(e.target.value)} placeholder="e.g. Rack A" />
+        </Field>
+        <Field label="Position (U)">
+          <input type="number" min={1} max={60} className={inputCls} value={rackUnit}
+                 onChange={e => setRackUnit(e.target.value)} placeholder="bottom U" />
+        </Field>
+        <Field label="Height (U)">
+          <input type="number" min={1} max={20} className={inputCls} value={rackHeight}
+                 onChange={e => setRackHeight(e.target.value)} />
+        </Field>
+      </div>
       <Field label="Syslog level (pushed to the switch)">
         <select className={inputCls} value={logLevel} onChange={e => setLogLevel(e.target.value)}>
           <option value="">Leave unchanged</option>
