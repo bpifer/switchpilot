@@ -140,7 +140,9 @@ crypto unit-tested - bulk transactional re-encryption, not format-versioned key
 coexistence).
 
 **Cross-tool (mikrotik-manager review):** Device Tools tab (ping/traceroute on
-both vendors, ip-scan on RouterOS, injection-safe, audited); NetFlow v5/v9 traffic
+both vendors, ip-scan on RouterOS, injection-safe, audited; RouterOS tools
+validated live on a CRS326, their continuously-refreshing output collapsed to the
+final frame); NetFlow v5/v9 traffic
 analytics (UDP collector + Traffic page; IPFIX/auto-config tracked in P2).
 
 **Code review (session-traced):** `trustProxy: true` on Fastify so `req.ip` is the

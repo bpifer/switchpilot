@@ -50,3 +50,50 @@ describe('device tools - target validation (injection guard)', () => {
       .toThrow(/invalid tool target/i);
   });
 });
+
+describe('device tools - RouterOS output cleanup (validated against a CRS326)', () => {
+  const ros = routerosDriver();
+
+  // RouterOS re-prints the whole table each interval, so a bounded capture stacks
+  // several frames. These fixtures are trimmed from real CRS326 7.12.1 output.
+  it('collapses a refreshing traceroute to its most complete frame', () => {
+    const raw = [
+      'Columns: ADDRESS, LOSS, SENT, LAST, AVG, BEST, WORST, STD-DEV',
+      '1  192.168.10.1  0%  1  0.4ms  0.4  0.4  0.4  0',
+      '',
+      'Columns: ADDRESS, LOSS, SENT, LAST, AVG, BEST, WORST, STD-DEV',
+      '1  192.168.10.1  0%  2  0.2ms  0.3  0.2  0.4  0.1',
+      '2  108.39.138.1  0%  2  0.8ms  1.9  0.8  3    1.1',
+      '',
+      'Columns: ADDRESS, LOSS, SENT, LAST, AVG, BEST, WORST, STD-DEV',
+      '1  192.168.10.1     0%  3  0.2ms  0.3  0.2  0.4  0.1',
+      '2  108.39.138.1     0%  3  0.8ms  1.5  0.8  3    1',
+      '5  204.148.170.134  0%  2  9.3ms  9.4  9.3  9.4  0.1',
+      '8  8.8.8.8          0%  2  10ms   10   10   10   0',
+    ].join('\n');
+    const out = ros.cleanToolOutput!('traceroute', raw);
+    expect((out.match(/^Columns:/gm) || []).length).toBe(1);       // one frame, not three
+    expect(out).toContain('8.8.8.8');                              // the final hop survived
+    expect(out).toContain('204.148.170.134');
+    expect(out.split('\n').filter(l => l.trim()).length).toBe(5);  // header + 4 hops
+  });
+
+  it('collapses a refreshing ip-scan to one frame', () => {
+    const raw = [
+      'Columns: ADDRESS, TIME', 'ADDRESS        TIME', '192.168.10.41  1ms', '',
+      'Columns: ADDRESS, TIME', 'ADDRESS        TIME', '192.168.10.41  1ms',
+    ].join('\n');
+    const out = ros.cleanToolOutput!('ip-scan', raw);
+    expect((out.match(/^Columns:/gm) || []).length).toBe(1);
+    expect(out).toContain('192.168.10.41');
+  });
+
+  it('passes append-only ping output through untouched', () => {
+    const raw = '  SEQ HOST          SIZE TTL TIME   STATUS\n    0 192.168.10.1  56  64  371us\n    sent=4 received=4 packet-loss=0%';
+    expect(ros.cleanToolOutput!('ping', raw)).toBe(raw);
+  });
+
+  it('cisco has no streaming cleanup (its tools are append-only)', () => {
+    expect(ciscoDriver('ios').cleanToolOutput).toBeUndefined();
+  });
+});

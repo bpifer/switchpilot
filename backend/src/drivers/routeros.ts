@@ -238,6 +238,18 @@ export function routerosDriver(): DeviceDriver {
       }
     },
 
+    // RouterOS re-prints the whole traceroute/ip-scan table every interval, so a
+    // time-bounded capture stacks many copies. Keep the most complete frame (most
+    // non-empty lines; latest wins ties), which is also robust to a final frame
+    // truncated when the channel closed. Ping is append-only, so it passes through.
+    cleanToolOutput(tool: DeviceToolId, raw: string): string {
+      if (tool === 'ping') return raw;
+      const frames = raw.split(/(?=^Columns:)/m).map(f => f.trim()).filter(Boolean);
+      if (frames.length <= 1) return raw.trim();
+      const lines = (f: string) => f.split('\n').filter(l => l.trim()).length;
+      return frames.reduce((best, f) => (lines(f) >= lines(best) ? f : best), frames[0]);
+    },
+
     loggingTrap(level) {
       return loggingRules(TOPICS_FOR_LEVEL[level] ?? TOPICS_FOR_LEVEL.informational);
     },

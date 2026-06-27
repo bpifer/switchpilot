@@ -211,7 +211,12 @@ export async function runDeviceTool(
     tool === 'ping'          ? Math.min(opts.count, 10) * 1500 + 6000 :
     tool === 'ip-scan'       ? 12000 :
     driver.os === 'routeros' ? 12000 : 45000;   // traceroute
-  return withDeviceSession(target, async session =>
-    session.execBounded ? session.execBounded(cmd, maxMs) : session.exec(cmd, maxMs)
-  );
+  return withDeviceSession(target, async session => {
+    const raw = session.execBounded
+      ? await session.execBounded(cmd, maxMs)
+      : await session.exec(cmd, maxMs);
+    // RouterOS streaming tools re-print their table each interval; collapse the
+    // stacked frames to the final one (driver-owned, vendor-specific).
+    return driver.cleanToolOutput ? driver.cleanToolOutput(tool, raw) : raw;
+  });
 }

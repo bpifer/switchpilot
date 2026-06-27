@@ -92,4 +92,10 @@ export interface DeviceDriver {
   /** Build the CLI command for a diagnostic tool. Re-guards the target and
    *  throws (400) on bad input or (501) for a tool not in `tools`. */
   toolCommand(tool: DeviceToolId, opts: DeviceToolOpts): string;
+
+  /** Optional post-processing of a tool's raw device output. RouterOS streams
+   *  traceroute/ip-scan as a whole-table re-print every interval, so a bounded
+   *  capture stacks many copies; this collapses them to the final frame. Omitted
+   *  by drivers whose tools emit append-only output. */
+  cleanToolOutput?(tool: DeviceToolId, raw: string): string;
 }
