@@ -17,7 +17,9 @@ SFP/fiber cages, ports colored by live link speed (10G blue, 1G green, 10/100
 orange). Per port: enable/disable, bounce, **PoE power-cycle** (reboot a frozen
 AP/camera without unplugging), cable test (Cisco TDR), access/trunk VLAN config
 (Cisco switchport and RouterOS bridge-VLAN), and **SFP optical diagnostics**
-(DDM: temperature, Tx/Rx power, vendor). Structured edits are **previewed**
+(DDM: temperature, Tx/Rx power, vendor). Ports can be bundled into a
+**link-aggregation group** (LACP or static - Cisco EtherChannel, RouterOS bonding).
+Structured edits are **previewed**
 (a before/after diff with connectivity and self-lockout guardrails) before applying and **read
 back** from the device afterward to confirm they landed. A config push that would
 cut SwitchPilot's own management path (disable SSH, lock the VTYs, reset the

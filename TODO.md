@@ -150,6 +150,13 @@ re-encrypts all device + MFA secrets old-key->new-key atomically; key-explicit
 crypto unit-tested - bulk transactional re-encryption, not format-versioned key
 coexistence).
 
+**Port aggregation:** link-aggregation groups (LACP/static) from 2+ ports - Cisco
+EtherChannel (`channel-group N mode active|on`) and RouterOS bridge-aware bonding
+(`/interface bonding`: derive bridge, pull members, create bond, re-add); create +
+delete validated end-to-end on a CRS326; netadmin + audited; a "Create LAG" panel
+on the Ports tab. (RouterOS bonds are CPU-forwarded on the switch chip; delete UI
++ listing existing LAGs is a follow-up.)
+
 **Cross-tool (mikrotik-manager review):** Device Tools tab (ping/traceroute on
 both vendors, ip-scan on RouterOS, injection-safe, audited; RouterOS tools
 validated live on a CRS326, their continuously-refreshing output collapsed to the

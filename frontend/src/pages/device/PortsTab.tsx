@@ -52,7 +52,88 @@ export default function PortsTab({ deviceId, ports, canOperate, onChanged }: {
         <PortDetail key={port.name} deviceId={deviceId} port={port}
                     canOperate={canOperate} onChanged={onChanged} />
       )}
+
+      {canOperate && <LagPanel deviceId={deviceId} ports={ports} onChanged={onChanged} />}
     </div>
+  );
+}
+
+// Create a link-aggregation group (port-channel / bond) from >= 2 member ports.
+function LagPanel({ deviceId, ports, onChanged }: { deviceId: string; ports: Port[]; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [lagId, setLagId] = useState('');
+  const [mode, setMode] = useState<'lacp' | 'static'>('lacp');
+  const [members, setMembers] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState('');
+  const isRos = ports.some(p => /^(ether|sfp-)/i.test(p.name));
+
+  const toggle = (name: string) =>
+    setMembers(m => (m.includes(name) ? m.filter(x => x !== name) : [...m, name]));
+
+  async function create() {
+    setBusy(true); setResult('');
+    try {
+      const r = await api<{ output?: string }>(`/api/devices/${deviceId}/lag`,
+        { method: 'POST', body: { id: lagId.trim(), members, mode } });
+      setResult(r.output || `LAG ${lagId} created.`);
+      setMembers([]); setLagId('');
+      onChanged();
+    } catch (err: any) {
+      setResult(`Error: ${err.message}`);
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <Card title="Link aggregation (LAG)">
+      {!open ? (
+        <Button variant="secondary" onClick={() => setOpen(true)}>Create a LAG / port-channel</Button>
+      ) : (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={isRos ? 'Bond name' : 'Channel-group #'}>
+              <input className={inputCls} value={lagId} onChange={e => setLagId(e.target.value)}
+                     placeholder={isRos ? 'bond1' : '1'} />
+            </Field>
+            <Field label="Mode">
+              <select className={inputCls} value={mode} onChange={e => setMode(e.target.value as any)}>
+                <option value="lacp">LACP (active)</option>
+                <option value="static">Static (always on)</option>
+              </select>
+            </Field>
+          </div>
+          <div>
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Member ports ({members.length} selected, need 2+)
+            </div>
+            <div className="grid max-h-48 grid-cols-3 gap-1 overflow-auto sm:grid-cols-4 lg:grid-cols-6">
+              {ports.map(p => (
+                <label key={p.name}
+                       className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs ${members.includes(p.name) ? 'border-brand-300 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600'}`}>
+                  <input type="checkbox" checked={members.includes(p.name)} onChange={() => toggle(p.name)} />
+                  <span className="truncate font-mono">{p.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          {isRos && (
+            <p className="text-xs text-amber-600">
+              On a RouterOS switch chip a bond can be CPU-forwarded (no hardware offload) - fine for 1G links, a bottleneck on 10G SFP+.
+            </p>
+          )}
+          <p className="text-xs text-slate-400">
+            The members are bundled into one logical link. Configure the device on the other end to match (same LACP/static mode).
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => { setOpen(false); setResult(''); }}>Cancel</Button>
+            <Button onClick={create} disabled={busy || members.length < 2 || !lagId.trim()}>
+              {busy ? 'Creating…' : 'Create LAG'}
+            </Button>
+          </div>
+          {result && <pre className="max-h-40 overflow-auto rounded-lg bg-gray-900 p-3 text-xs text-green-300">{result}</pre>}
+        </div>
+      )}
+    </Card>
   );
 }
 
