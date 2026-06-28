@@ -2,6 +2,7 @@
 // All operations go through the SSH pool: one cached session per device with a
 // 90s idle TTL, so back-to-back UI actions and sweeps reuse the handshake.
 import { query } from '../db.js';
+import { config } from '../config.js';
 import { audit } from '../audit.js';
 import { decryptSecret } from '../crypto/secrets.js';
 import { type SshTarget } from '../cisco/sshClient.js';
@@ -219,4 +220,19 @@ export async function runDeviceTool(
     // stacked frames to the final one (driver-owned, vendor-specific).
     return driver.cleanToolOutput ? driver.cleanToolOutput(tool, raw) : raw;
   });
+}
+
+/** Point a device's NetFlow/IPFIX export at the platform collector. Resolves the
+ *  collector host from PLATFORM_URL (same as the baseline) and the port from
+ *  NETFLOW_PORT, then pushes the driver-generated, idempotent config. */
+export async function configureFlowExport(deviceId: string): Promise<string> {
+  const host = (process.env.PLATFORM_URL ?? '').match(/^https?:\/\/([^:/]+)/)?.[1];
+  if (!host) {
+    throw Object.assign(
+      new Error('PLATFORM_URL is not set, so the NetFlow collector host is unknown. Set it to a URL the switch can reach.'),
+      { statusCode: 400 });
+  }
+  const device = await getDevice(deviceId);
+  const lines = driverFor(device).flowExportLines({ host, port: config.netflow.port });
+  return pushLines(device, lines, true);
 }

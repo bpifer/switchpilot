@@ -28,11 +28,14 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       file, netadmin, audited; "Download configs" on the Devices page). Still open:
       an in-app DB export/import path (the `pg_dump`/restore is documented in the DR
       runbook for now).
-- [ ] **NetFlow follow-ups.** `Medium`. IPFIX (v10) decode DONE (shares v9's IE
-      numbers + readV9Record; unit-tested). Remaining: a driver helper to
-      auto-configure flow export (MikroTik `/ip traffic-flow` target, Cisco flow
-      record/exporter/monitor) instead of manual setup, and validate end-to-end
-      against the CRS326.
+- [ ] **NetFlow follow-ups.** `Medium`. IPFIX (v10) decode DONE. RouterOS
+      auto-export DONE: `driver.flowExportLines` + `POST /api/devices/:id/flow-export`
+      (netadmin, audited) push an idempotent `/ip traffic-flow` target at the
+      collector; the target syntax was verified against a live CRS326 7.12.1
+      (`dst-address`, `version=9`). Remaining: Cisco Flexible-NetFlow auto-config
+      (record/exporter/monitor + per-interface apply, still 501), a frontend
+      button to trigger it, and an end-to-end flow-capture test once a device is
+      exporting to the collector.
 - [ ] **Topology upgrades.** `Medium`. PARTIAL: orphan-node detection shipped
       (managed devices with no discovered neighbors are flagged on the map +
       counted). Still open: manual link drawing + persistence, MNDP dedup,

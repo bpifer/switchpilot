@@ -1,7 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
 import { requireRole } from '../auth/rbac.js';
+import { audit, redactForAudit } from '../audit.js';
 import { config } from '../config.js';
+import { configureFlowExport } from '../services/deviceComms.js';
 
 // Detailed flow data is short-lived; offer short ranges with sensible buckets.
 // The interval/bucket strings come from this fixed allowlist (never user input),
@@ -70,5 +72,17 @@ export default async function trafficRoutes(app: FastifyInstance) {
          WHERE bucket > now() - interval '${interval}' ${filter}
          GROUP BY 1 ORDER BY 1`, params);
       return rows;
+    });
+
+  // Point a device's flow export (NetFlow/IPFIX) at this collector. Idempotent;
+  // netadmin-only since it writes device config. RouterOS validated; Cisco -> 501.
+  app.post<{ Params: { id: string } }>('/api/devices/:id/flow-export',
+    { preHandler: requireRole('netadmin'), schema: { tags: ['traffic'] } },
+    async (req) => {
+      const me = req.user as any;
+      const output = await configureFlowExport(req.params.id);
+      await audit(me.username, 'device.flow_export.enable', req.params.id,
+        { output: redactForAudit(output), port: config.netflow.port }, req.ip);
+      return { ok: true, output };
     });
 }

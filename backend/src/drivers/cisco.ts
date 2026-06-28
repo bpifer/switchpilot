@@ -2,7 +2,7 @@
 // command strings that used to live in deviceComms, the ports route, and the
 // configs route - behavior is unchanged.
 import { expandInterfaceName } from '../cisco/parsers.js';
-import type { DeviceDriver, PortConfigOpts, BaselineOpts, BaselinePlan, DeviceToolId, DeviceToolOpts } from './types.js';
+import type { DeviceDriver, PortConfigOpts, BaselineOpts, BaselinePlan, DeviceToolId, DeviceToolOpts, FlowExportOpts } from './types.js';
 import { assertToolTarget } from './types.js';
 
 export function ciscoDriver(os: string): DeviceDriver {
@@ -113,6 +113,13 @@ export function ciscoDriver(os: string): DeviceDriver {
         default:
           throw Object.assign(new Error(`${tool} is not supported on Cisco`), { statusCode: 501 });
       }
+    },
+
+    flowExportLines(_opts: FlowExportOpts): string[] {
+      // Flexible NetFlow needs a flow record + exporter + monitor plus the
+      // monitor applied per-interface (interface enumeration), and it is not yet
+      // hardware-validated. Tracked in TODO (NetFlow follow-ups).
+      throw Object.assign(new Error('NetFlow auto-export is not yet supported on Cisco'), { statusCode: 501 });
     },
 
     loggingTrap(level) {

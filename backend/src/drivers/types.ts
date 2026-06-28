@@ -29,6 +29,14 @@ export interface BaselinePlan {
   notes: string[];
 }
 
+/** Inputs for pointing a device's NetFlow/IPFIX export at the platform collector. */
+export interface FlowExportOpts {
+  /** Collector host (the SwitchPilot platform), resolved from PLATFORM_URL. */
+  host: string;
+  /** Collector UDP port (NETFLOW_PORT). */
+  port: number;
+}
+
 /** Diagnostic tools a driver can run from the platform. Read-only and
  *  non-config: they execute on the device but change nothing. */
 export type DeviceToolId = 'ping' | 'traceroute' | 'ip-scan';
@@ -98,4 +106,9 @@ export interface DeviceDriver {
    *  capture stacks many copies; this collapses them to the final frame. Omitted
    *  by drivers whose tools emit append-only output. */
   cleanToolOutput?(tool: DeviceToolId, raw: string): string;
+
+  /** Config lines that point the device's NetFlow/IPFIX export at the platform
+   *  collector, idempotently (safe to re-run). Throws unsupported (501) on a
+   *  vendor not yet validated for it. */
+  flowExportLines(opts: FlowExportOpts): string[];
 }

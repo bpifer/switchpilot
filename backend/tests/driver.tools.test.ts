@@ -97,3 +97,23 @@ describe('device tools - RouterOS output cleanup (validated against a CRS326)', 
     expect(ciscoDriver('ios').cleanToolOutput).toBeUndefined();
   });
 });
+
+describe('NetFlow auto-export - config building', () => {
+  it('RouterOS points traffic-flow at the collector idempotently (validated v7 syntax)', () => {
+    expect(routerosDriver().flowExportLines({ host: '192.168.10.250', port: 2055 })).toEqual([
+      '/ip traffic-flow target remove [find dst-address=192.168.10.250]',
+      '/ip traffic-flow target add dst-address=192.168.10.250 port=2055 version=9',
+      '/ip traffic-flow set enabled=yes interfaces=all',
+    ]);
+  });
+
+  it('RouterOS re-guards the collector host against CLI metacharacters', () => {
+    expect(() => routerosDriver().flowExportLines({ host: '1.2.3.4; /system reset', port: 2055 }))
+      .toThrow(/invalid tool target/i);
+  });
+
+  it('Cisco flow-export is not yet supported (501)', () => {
+    expect(() => ciscoDriver('ios').flowExportLines({ host: '10.0.0.1', port: 2055 }))
+      .toThrow(/not yet supported on Cisco/i);
+  });
+});

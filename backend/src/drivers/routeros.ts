@@ -3,7 +3,7 @@
 // See docs/PLAN-multi-vendor.md. Port VLAN config uses bridge-VLAN filtering
 // (pvid + per-VLAN tagged/untagged membership), validated against a CRS326.
 // Cable test still throws (per-model TDR, inline output doesn't fit run/show).
-import type { DeviceDriver, PortConfigOpts, BaselineOpts, BaselinePlan, DeviceToolId, DeviceToolOpts } from './types.js';
+import type { DeviceDriver, PortConfigOpts, BaselineOpts, BaselinePlan, DeviceToolId, DeviceToolOpts, FlowExportOpts } from './types.js';
 import { assertToolTarget } from './types.js';
 
 // ---- bridge VLAN scripting -------------------------------------------------
@@ -248,6 +248,18 @@ export function routerosDriver(): DeviceDriver {
       if (frames.length <= 1) return raw.trim();
       const lines = (f: string) => f.split('\n').filter(l => l.trim()).length;
       return frames.reduce((best, f) => (lines(f) >= lines(best) ? f : best), frames[0]);
+    },
+
+    flowExportLines({ host, port }: FlowExportOpts): string[] {
+      assertToolTarget(host);   // host reaches the CLI; reuse the metachar guard
+      // Idempotent: drop any prior target to this collector, re-add, enable on
+      // all interfaces. version=9 matches the platform's v9 decoder. Param names
+      // verified against RouterOS 7.12.1 (dst-address is canonical).
+      return [
+        `/ip traffic-flow target remove [find dst-address=${host}]`,
+        `/ip traffic-flow target add dst-address=${host} port=${port} version=9`,
+        '/ip traffic-flow set enabled=yes interfaces=all',
+      ];
     },
 
     loggingTrap(level) {
