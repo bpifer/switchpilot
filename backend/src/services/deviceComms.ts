@@ -7,7 +7,7 @@ import { audit } from '../audit.js';
 import { decryptSecret } from '../crypto/secrets.js';
 import { type SshTarget } from '../cisco/sshClient.js';
 import { makeHostVerifier } from '../cisco/hostKey.js';
-import { withDeviceSession } from '../cisco/sshPool.js';
+import { withDeviceSession, evictDevice } from '../cisco/sshPool.js';
 import type { SnmpTarget } from '../cisco/snmpClient.js';
 import { driverFor, type PortConfigOpts, type DeviceToolId } from '../drivers/index.js';
 
@@ -235,4 +235,57 @@ export async function configureFlowExport(deviceId: string): Promise<string> {
   const device = await getDevice(deviceId);
   const lines = driverFor(device).flowExportLines({ host, port: config.netflow.port });
   return pushLines(device, lines, true);
+}
+
+export interface RevertResult { outcome: 'confirmed' | 'reverting'; output: string; }
+
+/** Push config under a commit-confirm net: arm an auto-revert, apply the change,
+ *  then confirm the platform can still reach the device - disarming on success,
+ *  or letting the device auto-revert if the change cut us off. RouterOS only. */
+export async function pushConfigWithRevert(
+  deviceId: string, lines: string[], seconds: number
+): Promise<RevertResult> {
+  const device = await getDevice(deviceId);
+  const driver = driverFor(device);
+  if (!driver.supportsCommitConfirm) {
+    throw Object.assign(new Error(`Commit-confirm is not supported on ${driver.vendor}`), { statusCode: 501 });
+  }
+  const token = `spcc${Date.now().toString(36)}`;   // alphanumeric backup/scheduler name
+  const target = await sshTargetFor(device);
+
+  // Arm the revert first, so even a disconnect mid-apply still auto-reverts.
+  await withDeviceSession(target, session => session.configure(driver.armRevertLines({ token, seconds })));
+
+  let output: string;
+  try {
+    output = await withDeviceSession(target, session => session.configure(lines));
+  } catch (err) {
+    // The change likely cut our own session; the revert is armed and will fire.
+    evictDevice(target);
+    return { outcome: 'reverting', output: `apply error (device will auto-revert): ${(err as Error).message}` };
+  }
+
+  // Verify reachability with fresh handshakes (a cut mgmt path must actually fail,
+  // not reuse a cached socket), leaving a margin before the revert fires.
+  const reachable = await reachableWithin(target, driver.probeCommand, Math.max((seconds - 10) * 1000, 10_000));
+  if (!reachable) return { outcome: 'reverting', output };
+
+  // Confirmed reachable - cancel the scheduled revert and delete its snapshot.
+  await withDeviceSession(target, session => session.configure(driver.disarmRevertLines(token)));
+  return { outcome: 'confirmed', output };
+}
+
+/** Probe the device CLI repeatedly until it responds or the budget elapses,
+ *  forcing a fresh connection each attempt. */
+async function reachableWithin(target: SshTarget, probe: string, budgetMs: number): Promise<boolean> {
+  const start = Date.now();
+  for (let attempt = 0; Date.now() - start < budgetMs; attempt++) {
+    if (attempt) await new Promise(r => setTimeout(r, 3000));
+    evictDevice(target);   // drop any cached session so we truly re-handshake
+    try {
+      await withDeviceSession(target, session => session.exec(probe));
+      return true;
+    } catch { /* not back yet - retry within the budget */ }
+  }
+  return false;
 }

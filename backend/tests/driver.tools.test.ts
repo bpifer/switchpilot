@@ -117,3 +117,34 @@ describe('NetFlow auto-export - config building', () => {
       .toThrow(/not yet supported on Cisco/i);
   });
 });
+
+describe('commit-confirm - revert line building', () => {
+  const ros = routerosDriver();
+
+  it('RouterOS arms a backup + scheduled restore (verified CRS326 7.12.1 syntax)', () => {
+    expect(ros.supportsCommitConfirm).toBe(true);
+    expect(ros.armRevertLines({ token: 'spcc123', seconds: 120 })).toEqual([
+      '/file remove [find name~"spcc"]',
+      '/system backup save name=spcc123 dont-encrypt=yes',
+      '/system scheduler add name=spcc123 interval=120s on-event="/system backup load name=spcc123 password=\\"\\""',
+    ]);
+  });
+
+  it('RouterOS disarm removes the scheduler and deletes the snapshot', () => {
+    expect(ros.disarmRevertLines('spcc123')).toEqual([
+      '/system scheduler remove [find name=spcc123]',
+      '/file remove [find name~"spcc123"]',
+    ]);
+  });
+
+  it('rejects a non-alphanumeric revert token (injection guard)', () => {
+    expect(() => ros.armRevertLines({ token: 'x; /system reset', seconds: 60 })).toThrow(/invalid revert token/i);
+    expect(() => ros.disarmRevertLines('a b')).toThrow(/invalid revert token/i);
+  });
+
+  it('Cisco does not support commit-confirm yet (501)', () => {
+    const cisco = ciscoDriver('ios');
+    expect(cisco.supportsCommitConfirm).toBe(false);
+    expect(() => cisco.armRevertLines({ token: 'spcc123', seconds: 120 })).toThrow(/not yet supported on Cisco/i);
+  });
+});

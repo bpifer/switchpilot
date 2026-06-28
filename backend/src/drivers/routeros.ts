@@ -3,8 +3,8 @@
 // See docs/PLAN-multi-vendor.md. Port VLAN config uses bridge-VLAN filtering
 // (pvid + per-VLAN tagged/untagged membership), validated against a CRS326.
 // Cable test still throws (per-model TDR, inline output doesn't fit run/show).
-import type { DeviceDriver, PortConfigOpts, BaselineOpts, BaselinePlan, DeviceToolId, DeviceToolOpts, FlowExportOpts } from './types.js';
-import { assertToolTarget } from './types.js';
+import type { DeviceDriver, PortConfigOpts, BaselineOpts, BaselinePlan, DeviceToolId, DeviceToolOpts, FlowExportOpts, RevertGuardOpts } from './types.js';
+import { assertToolTarget, assertRevertToken } from './types.js';
 
 // ---- bridge VLAN scripting -------------------------------------------------
 // Access/trunk assignment is read-modify-write: a port must be removed from the
@@ -259,6 +259,34 @@ export function routerosDriver(): DeviceDriver {
         `/ip traffic-flow target remove [find dst-address=${host}]`,
         `/ip traffic-flow target add dst-address=${host} port=${port} version=9`,
         '/ip traffic-flow set enabled=yes interfaces=all',
+      ];
+    },
+
+    supportsCommitConfirm: true,
+    probeCommand: '/system identity print',
+
+    armRevertLines({ token, seconds }: RevertGuardOpts): string[] {
+      assertRevertToken(token);
+      // Snapshot to a binary backup, then schedule a one-shot restore that reboots
+      // and reverts EVERYTHING after `seconds`. The backup predates the scheduler,
+      // so a fired revert also clears this scheduler + the unconfirmed change.
+      // Verified end-to-end on a CRS326 7.12.1: the scheduler first runs at
+      // creation+interval, and `backup load` needs `password=""` even for an
+      // unencrypted backup - without it the scheduled command errors silently and
+      // never reverts. The leading sweep clears a snapshot a prior fired revert
+      // left behind (the file survives the config restore; device flash is small).
+      return [
+        '/file remove [find name~"spcc"]',
+        `/system backup save name=${token} dont-encrypt=yes`,
+        `/system scheduler add name=${token} interval=${seconds}s on-event="/system backup load name=${token} password=\\"\\""`,
+      ];
+    },
+
+    disarmRevertLines(token: string): string[] {
+      assertRevertToken(token);
+      return [
+        `/system scheduler remove [find name=${token}]`,
+        `/file remove [find name~"${token}"]`,
       ];
     },
 

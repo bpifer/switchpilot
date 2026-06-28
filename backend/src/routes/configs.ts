@@ -4,7 +4,7 @@ import { createTwoFilesPatch } from 'diff';
 import { query } from '../db.js';
 import { audit, redactForAudit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
-import { deviceExec, devicePushConfig, setLoggingLevel, getDevice } from '../services/deviceComms.js';
+import { deviceExec, devicePushConfig, setLoggingLevel, getDevice, pushConfigWithRevert } from '../services/deviceComms.js';
 import { driverFor } from '../drivers/index.js';
 import { isMikrotik } from '../services/routerosMonitor.js';
 
@@ -250,13 +250,15 @@ export default async function configRoutes(app: FastifyInstance) {
         properties: {
           lines: { type: 'array', items: { type: 'string' }, minItems: 1 },
           save: { type: 'boolean', default: true },
-          force: { type: 'boolean', default: false }
+          force: { type: 'boolean', default: false },
+          confirm: { type: 'boolean', default: false },
+          confirmSeconds: { type: 'integer', minimum: 60, maximum: 600, default: 120 }
         }
       }
     }
   }, async (req, reply) => {
     const { id } = req.params as any;
-    const { lines, save, force } = req.body as any;
+    const { lines, save, force, confirm, confirmSeconds } = req.body as any;
     const me = req.user as any;
 
     // Server-side self-lockout gate: refuse a push that looks like it would cut
@@ -274,6 +276,16 @@ export default async function configRoutes(app: FastifyInstance) {
 
     // backup before change so every push is reversible
     await backupDevice(id, `${me.username} (pre-change)`);
+
+    // Commit-confirm: apply under an auto-revert net that restores the device if
+    // the platform can no longer reach it afterward (RouterOS only; Cisco -> 501).
+    if (confirm) {
+      const res = await pushConfigWithRevert(id, lines, confirmSeconds ?? 120);
+      await audit(me.username, 'config.push', id,
+        { lines, output: redactForAudit(res.output), commitConfirm: res.outcome, ...(lockout.length ? { forcedLockout: lockout } : {}) }, req.ip);
+      return { ok: res.outcome === 'confirmed', outcome: res.outcome, output: res.output };
+    }
+
     const output = await devicePushConfig(id, lines, save ?? true);
     await audit(me.username, 'config.push', id,
       { lines, output: redactForAudit(output), ...(lockout.length ? { forcedLockout: lockout } : {}) }, req.ip);

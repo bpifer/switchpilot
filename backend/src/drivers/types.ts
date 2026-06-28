@@ -61,6 +61,22 @@ export function assertToolTarget(target: string): void {
   }
 }
 
+/** Inputs for arming a commit-confirm auto-revert. */
+export interface RevertGuardOpts {
+  /** Unique, charset-safe name for the snapshot + scheduled revert. */
+  token: string;
+  /** Seconds before an unconfirmed change auto-reverts. */
+  seconds: number;
+}
+
+/** A revert token names a backup file and scheduler entry on the device, so it
+ *  must be strictly alphanumeric before it reaches the CLI. */
+export function assertRevertToken(token: string): void {
+  if (!/^[A-Za-z0-9]{4,40}$/.test(token)) {
+    throw Object.assign(new Error('Invalid revert token'), { statusCode: 400 });
+  }
+}
+
 export interface DeviceDriver {
   readonly vendor: string;        // 'cisco'
   readonly os: string;            // ios | iosxe | nxos | routeros
@@ -111,4 +127,15 @@ export interface DeviceDriver {
    *  collector, idempotently (safe to re-run). Throws unsupported (501) on a
    *  vendor not yet validated for it. */
   flowExportLines(opts: FlowExportOpts): string[];
+
+  /** Whether this driver supports commit-confirm (arm/disarm auto-revert). */
+  readonly supportsCommitConfirm: boolean;
+  /** A trivial command proving the device CLI still responds (reachability probe). */
+  readonly probeCommand: string;
+  /** Lines that arm an auto-revert: snapshot current state and schedule a full
+   *  restore in `seconds` unless disarmed. Throws unsupported (501) when the
+   *  driver does not support commit-confirm. */
+  armRevertLines(opts: RevertGuardOpts): string[];
+  /** Lines that cancel the armed revert and clean up its snapshot. */
+  disarmRevertLines(token: string): string[];
 }
