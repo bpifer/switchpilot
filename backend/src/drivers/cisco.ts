@@ -2,8 +2,15 @@
 // command strings that used to live in deviceComms, the ports route, and the
 // configs route - behavior is unchanged.
 import { expandInterfaceName } from '../cisco/parsers.js';
-import type { DeviceDriver, PortConfigOpts, BaselineOpts, BaselinePlan, DeviceToolId, DeviceToolOpts, FlowExportOpts, RevertGuardOpts } from './types.js';
+import type { DeviceDriver, PortConfigOpts, BaselineOpts, BaselinePlan, DeviceToolId, DeviceToolOpts, FlowExportOpts, RevertGuardOpts, LagOpts } from './types.js';
 import { assertToolTarget } from './types.js';
+
+/** Cisco channel-group / Port-channel id is a small integer. */
+function assertChannelId(id: string): void {
+  if (!/^\d{1,4}$/.test(id)) {
+    throw Object.assign(new Error('Cisco channel-group id must be a number (1-4096)'), { statusCode: 400 });
+  }
+}
 
 export function ciscoDriver(os: string): DeviceDriver {
   const nxos = os === 'nxos';
@@ -133,6 +140,23 @@ export function ciscoDriver(os: string): DeviceDriver {
 
     disarmRevertLines(_token: string): string[] {
       throw Object.assign(new Error('Commit-confirm is not yet supported on Cisco'), { statusCode: 501 });
+    },
+
+    supportsLag: true,
+
+    lagCreateLines({ id, members, mode }: LagOpts): string[] {
+      assertChannelId(id);
+      if (members.length < 2) throw Object.assign(new Error('A LAG needs at least 2 member ports'), { statusCode: 400 });
+      const m = mode === 'lacp' ? 'active' : 'on';   // LACP (active) vs static (on)
+      return members.flatMap(p => [`interface ${expandInterfaceName(p)}`, `channel-group ${id} mode ${m}`]);
+    },
+
+    lagDeleteLines({ id, members }: LagOpts): string[] {
+      assertChannelId(id);
+      return [
+        ...members.flatMap(p => [`interface ${expandInterfaceName(p)}`, `no channel-group ${id}`]),
+        `no interface Port-channel ${id}`,
+      ];
     },
 
     loggingTrap(level) {

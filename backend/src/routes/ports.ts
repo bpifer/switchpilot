@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
 import { audit, redactForAudit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
-import { devicePushConfig, deviceExec, bouncePort, cableTest, setPortAdmin, pushPortConfig, getDevice, poeCyclePort } from '../services/deviceComms.js';
+import { devicePushConfig, deviceExec, bouncePort, cableTest, setPortAdmin, pushPortConfig, getDevice, poeCyclePort, createLag, deleteLag } from '../services/deviceComms.js';
 import { bridgeVlanFiltering, isMikrotik, routerOsPortMacs, routerOsVlans, routerOsSfp } from '../services/routerosMonitor.js';
 import { expandInterfaceName, parseMacTable, parseVlanBrief } from '../cisco/parsers.js';
 import { driverFor } from '../drivers/index.js';
@@ -178,6 +178,45 @@ export default async function portRoutes(app: FastifyInstance) {
       await audit(me.username, 'port.cabletest', `${id}/${port}`, {}, req.ip);
       return { result };
     });
+
+  // ----- Link aggregation (LAG / port-channel / bond) -----
+  app.post('/api/devices/:id/lag', {
+    preHandler: requireRole('netadmin'),
+    schema: {
+      tags: ['ports'],
+      body: {
+        type: 'object', required: ['id', 'members'],
+        properties: {
+          id: { type: 'string', pattern: '^[A-Za-z0-9+\\-]{1,32}$' },
+          members: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 16 },
+          mode: { type: 'string', enum: ['lacp', 'static'], default: 'lacp' }
+        }
+      }
+    }
+  }, async (req) => {
+    const { id } = req.params as any;
+    const { id: lagId, members, mode = 'lacp' } = req.body as any;
+    const me = req.user as any;
+    const output = await createLag(id, { id: lagId, members, mode });
+    await audit(me.username, 'port.lag.create', id, { lagId, members, mode, output: redactForAudit(output) }, req.ip);
+    return { ok: true, output };
+  });
+
+  // members are needed to detach Cisco channel-groups (RouterOS derives them from the bond).
+  app.post('/api/devices/:id/lag/:lagId/delete', {
+    preHandler: requireRole('netadmin'),
+    schema: {
+      tags: ['ports'],
+      body: { type: 'object', properties: { members: { type: 'array', items: { type: 'string' }, maxItems: 16, default: [] } } }
+    }
+  }, async (req) => {
+    const { id, lagId } = req.params as any;
+    const { members = [] } = req.body as any;
+    const me = req.user as any;
+    const output = await deleteLag(id, { id: lagId, members });
+    await audit(me.username, 'port.lag.delete', id, { lagId, members, output: redactForAudit(output) }, req.ip);
+    return { ok: true, output };
+  });
 
   // ----- VLANs -----
   app.get('/api/devices/:id/vlans', { preHandler: requireRole('readonly'), schema: { tags: ['vlans'] } },

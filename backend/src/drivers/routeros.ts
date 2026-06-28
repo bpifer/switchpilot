@@ -3,7 +3,7 @@
 // See docs/PLAN-multi-vendor.md. Port VLAN config uses bridge-VLAN filtering
 // (pvid + per-VLAN tagged/untagged membership), validated against a CRS326.
 // Cable test still throws (per-model TDR, inline output doesn't fit run/show).
-import type { DeviceDriver, PortConfigOpts, BaselineOpts, BaselinePlan, DeviceToolId, DeviceToolOpts, FlowExportOpts, RevertGuardOpts } from './types.js';
+import type { DeviceDriver, PortConfigOpts, BaselineOpts, BaselinePlan, DeviceToolId, DeviceToolOpts, FlowExportOpts, RevertGuardOpts, LagOpts } from './types.js';
 import { assertToolTarget, assertRevertToken } from './types.js';
 
 // ---- bridge VLAN scripting -------------------------------------------------
@@ -287,6 +287,38 @@ export function routerosDriver(): DeviceDriver {
       return [
         `/system scheduler remove [find name=${token}]`,
         `/file remove [find name~"${token}"]`,
+      ];
+    },
+
+    supportsLag: true,
+
+    lagCreateLines({ id, members, mode }: LagOpts): string[] {
+      if (members.length < 2) throw Object.assign(new Error('A LAG needs at least 2 member ports'), { statusCode: 400 });
+      rosPort(id); members.forEach(rosPort);
+      // Bridge-aware: derive the bridge from the first member, pull all members out
+      // of the bridge, create the bond, then add the bond back to the bridge.
+      // 802.3ad = LACP, balance-xor = static. (Bonds are CPU-forwarded on switch
+      // chips that do not HW-offload them.) Sequence validated on a CRS326 7.12.1.
+      const rosMode = mode === 'lacp' ? '802.3ad' : 'balance-xor';
+      const removes = members.map(m => `/interface bridge port remove [find interface=${m}]`).join('; ');
+      return [
+        `:local br [/interface bridge port get [find interface=${members[0]}] bridge]; ` +
+        `${removes}; ` +
+        `/interface bonding add name=${id} slaves=${members.join(',')} mode=${rosMode}; ` +
+        `/interface bridge port add bridge=$br interface=${id}`,
+      ];
+    },
+
+    lagDeleteLines({ id }: LagOpts): string[] {
+      rosPort(id);
+      // Derive the bridge + slaves from the bond, drop the bond, return each slave
+      // to the bridge it came from.
+      return [
+        `:local br [/interface bridge port get [find interface=${id}] bridge]; ` +
+        `:local sl [/interface bonding get [find name=${id}] slaves]; ` +
+        `/interface bridge port remove [find interface=${id}]; ` +
+        `/interface bonding remove [find name=${id}]; ` +
+        `:foreach s in=$sl do={ /interface bridge port add bridge=$br interface=$s }`,
       ];
     },
 

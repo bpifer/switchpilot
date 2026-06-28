@@ -289,3 +289,23 @@ async function reachableWithin(target: SshTarget, probe: string, budgetMs: numbe
   }
   return false;
 }
+
+/** Create a link-aggregation group from member ports (driver-generated). */
+export async function createLag(
+  deviceId: string, opts: { id: string; members: string[]; mode: 'lacp' | 'static' }
+): Promise<string> {
+  const device = await getDevice(deviceId);
+  const driver = driverFor(device);
+  if (!driver.supportsLag) throw Object.assign(new Error(`LAG is not supported on ${driver.vendor}`), { statusCode: 501 });
+  return pushLines(device, driver.lagCreateLines(opts), true);
+}
+
+/** Remove a LAG and return its members to normal switching (driver-generated). */
+export async function deleteLag(
+  deviceId: string, opts: { id: string; members: string[] }
+): Promise<string> {
+  const device = await getDevice(deviceId);
+  const driver = driverFor(device);
+  if (!driver.supportsLag) throw Object.assign(new Error(`LAG is not supported on ${driver.vendor}`), { statusCode: 501 });
+  return pushLines(device, driver.lagDeleteLines({ ...opts, mode: 'lacp' }), true);
+}

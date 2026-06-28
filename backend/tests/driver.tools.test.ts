@@ -148,3 +148,42 @@ describe('commit-confirm - revert line building', () => {
     expect(() => cisco.armRevertLines({ token: 'spcc123', seconds: 120 })).toThrow(/not yet supported on Cisco/i);
   });
 });
+
+describe('LAG / port-channel - config building', () => {
+  it('RouterOS bond is bridge-aware (sequence validated on a CRS326)', () => {
+    const [line] = routerosDriver().lagCreateLines({ id: 'bond1', members: ['ether1', 'ether2'], mode: 'lacp' });
+    expect(line).toContain(':local br [/interface bridge port get [find interface=ether1] bridge]');
+    expect(line).toContain('/interface bridge port remove [find interface=ether1]');
+    expect(line).toContain('/interface bridge port remove [find interface=ether2]');
+    expect(line).toContain('/interface bonding add name=bond1 slaves=ether1,ether2 mode=802.3ad');
+    expect(line).toContain('/interface bridge port add bridge=$br interface=bond1');
+  });
+
+  it('RouterOS static bond uses balance-xor; delete restores slaves to the bridge', () => {
+    expect(routerosDriver().lagCreateLines({ id: 'bond1', members: ['ether1', 'ether2'], mode: 'static' })[0])
+      .toContain('mode=balance-xor');
+    const [del] = routerosDriver().lagDeleteLines({ id: 'bond1', members: [], mode: 'lacp' });
+    expect(del).toContain(':local sl [/interface bonding get [find name=bond1] slaves]');
+    expect(del).toContain('/interface bonding remove [find name=bond1]');
+    expect(del).toContain(':foreach s in=$sl do={ /interface bridge port add bridge=$br interface=$s }');
+  });
+
+  it('Cisco EtherChannel sets channel-group on each member (LACP active)', () => {
+    const lines = ciscoDriver('ios').lagCreateLines({ id: '1', members: ['Gi1/0/1', 'Gi1/0/2'], mode: 'lacp' });
+    expect(lines.filter(l => l === 'channel-group 1 mode active')).toHaveLength(2);
+    expect(lines.filter(l => l.startsWith('interface '))).toHaveLength(2);
+  });
+
+  it('Cisco static uses mode on; delete removes the group + Port-channel', () => {
+    expect(ciscoDriver('ios').lagCreateLines({ id: '2', members: ['Gi1/0/1', 'Gi1/0/2'], mode: 'static' }))
+      .toContain('channel-group 2 mode on');
+    const del = ciscoDriver('ios').lagDeleteLines({ id: '2', members: ['Gi1/0/1'], mode: 'static' });
+    expect(del).toContain('no channel-group 2');
+    expect(del).toContain('no interface Port-channel 2');
+  });
+
+  it('rejects a LAG with fewer than 2 members and a non-numeric Cisco id', () => {
+    expect(() => routerosDriver().lagCreateLines({ id: 'bond1', members: ['ether1'], mode: 'lacp' })).toThrow(/at least 2/i);
+    expect(() => ciscoDriver('ios').lagCreateLines({ id: 'x', members: ['Gi1/0/1', 'Gi1/0/2'], mode: 'lacp' })).toThrow(/must be a number/i);
+  });
+});

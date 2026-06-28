@@ -77,6 +77,16 @@ export function assertRevertToken(token: string): void {
   }
 }
 
+/** Inputs for creating a link-aggregation group (port-channel / bond). */
+export interface LagOpts {
+  /** RouterOS bond name (e.g. "bond1") or Cisco channel-group id (e.g. "1"). */
+  id: string;
+  /** Member port names (>= 2). */
+  members: string[];
+  /** LACP (active negotiation) or static (always-on). */
+  mode: 'lacp' | 'static';
+}
+
 export interface DeviceDriver {
   readonly vendor: string;        // 'cisco'
   readonly os: string;            // ios | iosxe | nxos | routeros
@@ -138,4 +148,11 @@ export interface DeviceDriver {
   armRevertLines(opts: RevertGuardOpts): string[];
   /** Lines that cancel the armed revert and clean up its snapshot. */
   disarmRevertLines(token: string): string[];
+
+  /** Whether this driver supports link aggregation (LAG / port-channel / bond). */
+  readonly supportsLag: boolean;
+  /** Lines to create a LAG (LACP or static) from member ports. */
+  lagCreateLines(opts: LagOpts): string[];
+  /** Lines to remove a LAG and return its members to normal switching. */
+  lagDeleteLines(opts: LagOpts): string[];
 }
