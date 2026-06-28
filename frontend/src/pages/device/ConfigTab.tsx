@@ -11,6 +11,7 @@ export default function ConfigTab({ deviceId, canConfig }: { deviceId: string; c
   const [pushOut, setPushOut] = useState('');
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [busy, setBusy] = useState(false);
+  const [safeApply, setSafeApply] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -42,8 +43,12 @@ export default function ConfigTab({ deviceId, canConfig }: { deviceId: string; c
   async function doPush(force: boolean) {
     setBusy(true);
     try {
-      const r = await api(`/api/devices/${deviceId}/config/push`, { method: 'POST', body: { lines: lines(), force } });
-      setPushOut(r.output || 'Applied successfully (config backed up before change).');
+      const r = await api(`/api/devices/${deviceId}/config/push`, {
+        method: 'POST', body: { lines: lines(), force, confirm: safeApply, confirmSeconds: 120 }
+      });
+      setPushOut(r.outcome === 'reverting'
+        ? 'Applied, but the platform lost contact with the device afterward - it will auto-revert to the pre-change config. Re-check connectivity and try again.'
+        : (r.output || 'Applied successfully (config backed up before change).'));
       setPreview(null);
     } catch (err: any) {
       // 409 = server-side self-lockout guard. Surface the specifics and let the
@@ -80,6 +85,10 @@ export default function ConfigTab({ deviceId, canConfig }: { deviceId: string; c
           <textarea className="h-64 w-full rounded border p-2 font-mono text-xs"
                     placeholder={'interface GigabitEthernet1/0/10\n description Printer\n switchport access vlan 20'}
                     value={pushLines} onChange={e => setPushLines(e.target.value)} />
+          <label className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+            <input type="checkbox" checked={safeApply} onChange={e => setSafeApply(e.target.checked)} />
+            Safe apply: auto-revert in ~2&nbsp;min if the platform loses access after the change (RouterOS)
+          </label>
           <div className="mt-2 flex items-center justify-between">
             <span className="text-xs text-slate-400">Preview shows what changes and flags risky lines before applying.</span>
             <Button onClick={runPreview} disabled={!pushLines.trim() || busy}>

@@ -20,9 +20,13 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       `/config/push` runs `detectMgmtLockout` (vendor-aware: SSH-disable / VTY-ACL
       / `/system reset` / input-drop-firewall / account removal) and refuses with
       409 unless `force:true`; the block and any forced override are audited, and
-      the Config tab offers an explicit "push anyway" confirm. Remaining is the
-      reload-in / `configure replace` / auto-revert orchestration, which needs a
-      switch in the loop to validate safely.
+      the Config tab offers an explicit "push anyway" confirm. **RouterOS
+      commit-confirm is DONE, validated end-to-end on a CRS326**: "safe apply"
+      (`POST /config/push {confirm:true}`) arms a device-side backup + a scheduled
+      `/system backup load name=X password=""` that auto-reverts unless the platform
+      re-confirms reachability (`pushConfigWithRevert` / `armRevertLines`). Remaining:
+      the Cisco half (`reload in` + `reload cancel`/`write` over the shell channel,
+      with the confirm prompt) - needs the Cisco test switch to validate.
 ## P2 - High value
 
 - [ ] **Platform backup/restore workflow.** `Medium`. PARTIAL: fleet config-bundle

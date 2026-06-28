@@ -21,7 +21,9 @@ AP/camera without unplugging), cable test (Cisco TDR), access/trunk VLAN config
 (a before/after diff with connectivity and self-lockout guardrails) before applying and **read
 back** from the device afterward to confirm they landed. A config push that would
 cut SwitchPilot's own management path (disable SSH, lock the VTYs, reset the
-device) is **refused server-side unless you explicitly override it**.
+device) is **refused server-side unless you explicitly override it**, and on
+RouterOS an optional **"safe apply" arms a device-side auto-revert** that restores
+the previous config if the platform loses contact with the switch after the change.
 
 **Config management.** Scheduled and on-demand backups, each committed to a local
 git repo with author and reason. Browse the per-device history, diff any two
