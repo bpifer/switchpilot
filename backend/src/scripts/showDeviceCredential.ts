@@ -12,6 +12,7 @@
 // argument, lists the devices that have a credential attached.
 import { pool } from '../db.js';
 import { decryptSecret } from '../crypto/secrets.js';
+import { audit } from '../audit.js';
 
 async function main(): Promise<void> {
   const needle = process.argv[2]?.trim();
@@ -28,7 +29,7 @@ async function main(): Promise<void> {
     }
 
     const { rows } = await pool.query(
-      `SELECT host(d.mgmt_ip) AS ip, d.hostname, c.name AS credential,
+      `SELECT d.id, host(d.mgmt_ip) AS ip, d.hostname, c.name AS credential,
               c.ssh_username, c.ssh_password_enc, c.enable_password_enc,
               c.snmp_version, c.snmp_community_enc
          FROM devices d JOIN credentials c ON c.id = d.credential_id
@@ -53,6 +54,17 @@ async function main(): Promise<void> {
       if (r.snmp_community_enc) console.log(`SNMP (${r.snmp_version}) community : ${dec(r.snmp_community_enc)}`);
     }
     console.log('');
+
+    // Leave a paper trail in the hash-chained audit log of who pulled a plaintext
+    // credential and when. Exec access can bypass this, but a normal run records
+    // it; audit() swallows its own errors, so it never suppresses the output above.
+    // Set AUDIT_ACTOR=<name> to attribute the run to a person.
+    const actor = process.env.AUDIT_ACTOR || process.env.USER || 'break-glass-cli';
+    for (const r of rows) {
+      await audit(actor, 'credential.reveal', r.id,
+        { device: r.hostname || r.ip, via: 'show-credential' }, 'cli');
+    }
+    console.error(`(recorded ${rows.length} credential reveal(s) in the audit log as "${actor}")`);
   } finally {
     await pool.end();
   }
