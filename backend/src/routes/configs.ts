@@ -13,7 +13,7 @@ import { isMikrotik } from '../services/routerosMonitor.js';
 const ROUTEROS_RESTORE_MSG = 'Config restore/rollback is not supported on RouterOS yet: a /export cannot be replayed line by line. Use /import on the device.';
 import { backupDevice } from '../services/configService.js';
 import { gitLog, gitShow, gitDiff } from '../services/configVersioning.js';
-import { previewConfigLines } from '../services/configPreview.js';
+import { previewConfigLines, detectMgmtLockout } from '../services/configPreview.js';
 
 /** Fetch hostname + site name for a device, for git path resolution. */
 async function deviceGitContext(id: string): Promise<{ hostname: string; site: string | null } | null> {
@@ -249,18 +249,34 @@ export default async function configRoutes(app: FastifyInstance) {
         type: 'object', required: ['lines'],
         properties: {
           lines: { type: 'array', items: { type: 'string' }, minItems: 1 },
-          save: { type: 'boolean', default: true }
+          save: { type: 'boolean', default: true },
+          force: { type: 'boolean', default: false }
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const { id } = req.params as any;
-    const { lines, save } = req.body as any;
+    const { lines, save, force } = req.body as any;
     const me = req.user as any;
+
+    // Server-side self-lockout gate: refuse a push that looks like it would cut
+    // SwitchPilot's own SSH path (SSH disable, VTY transport/ACL, /system reset,
+    // mgmt firewall drop, account removal) unless explicitly forced. This is the
+    // enforcement the preview's advisory warnings always implied; vendor-aware.
+    const lockout = detectMgmtLockout(lines, driverFor(await getDevice(id)).vendor);
+    if (lockout.length && !force) {
+      await audit(me.username, 'config.push.blocked', id, { lines, warnings: lockout }, req.ip);
+      return reply.code(409).send({
+        error: 'Refused: this push looks like it would lock SwitchPilot out of the device.',
+        detail: { warnings: lockout, hint: 'Re-send with "force": true to push anyway.' }
+      });
+    }
+
     // backup before change so every push is reversible
     await backupDevice(id, `${me.username} (pre-change)`);
     const output = await devicePushConfig(id, lines, save ?? true);
-    await audit(me.username, 'config.push', id, { lines, output: redactForAudit(output) }, req.ip);
+    await audit(me.username, 'config.push', id,
+      { lines, output: redactForAudit(output), ...(lockout.length ? { forcedLockout: lockout } : {}) }, req.ip);
     return { ok: true, output };
   });
 

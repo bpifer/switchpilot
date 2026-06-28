@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../../api';
+import { api, ApiError } from '../../api';
 import { Card, Button } from '../../components/ui';
 import ConfigPreviewModal, { type PreviewData } from '../../components/ConfigPreviewModal';
 
@@ -39,15 +39,27 @@ export default function ConfigTab({ deviceId, canConfig }: { deviceId: string; c
     finally { setBusy(false); }
   }
 
-  async function apply() {
+  async function doPush(force: boolean) {
     setBusy(true);
     try {
-      const r = await api(`/api/devices/${deviceId}/config/push`, { method: 'POST', body: { lines: lines() } });
+      const r = await api(`/api/devices/${deviceId}/config/push`, { method: 'POST', body: { lines: lines(), force } });
       setPushOut(r.output || 'Applied successfully (config backed up before change).');
       setPreview(null);
-    } catch (err: any) { setPushOut(`Error: ${err.message}`); }
-    finally { setBusy(false); }
+    } catch (err: any) {
+      // 409 = server-side self-lockout guard. Surface the specifics and let the
+      // user explicitly override (the preview already showed these warnings).
+      if (err instanceof ApiError && err.status === 409 && !force) {
+        const warns: string[] = (err.detail as any)?.warnings ?? [];
+        if (window.confirm(`${err.message}\n\n${warns.join('\n')}\n\nPush anyway? This may cut off management access.`)) {
+          return doPush(true);
+        }
+        setPushOut('Push cancelled by the self-lockout guard.');
+      } else {
+        setPushOut(`Error: ${err.message}`);
+      }
+    } finally { setBusy(false); }
   }
+  const apply = () => doPush(false);
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
