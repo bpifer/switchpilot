@@ -187,7 +187,7 @@ export default function App() {
       // keep the global bell count fresh the moment an alert fires
       queryClient.invalidateQueries({ queryKey: ['/api/summary'] });
     }
-  });
+  }, !!me);
 
   useEffect(() => {
     if (!getToken()) { setLoading(false); return; }

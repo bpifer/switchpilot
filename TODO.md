@@ -34,10 +34,12 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       auto-export DONE: `driver.flowExportLines` + `POST /api/devices/:id/flow-export`
       (netadmin, audited) push an idempotent `/ip traffic-flow` target at the
       collector; the target syntax was verified against a live CRS326 7.12.1
-      (`dst-address`, `version=9`). Remaining: Cisco Flexible-NetFlow auto-config
-      (record/exporter/monitor + per-interface apply, still 501), a frontend
-      button to trigger it, and an end-to-end flow-capture test once a device is
-      exporting to the collector.
+      (`dst-address`, `version=9`). Remaining: (1) **live end-to-end test** - apply
+      `flowExportLines` to the CRS326 pointed at the LXC collector and confirm
+      `flow_records` populate (needs `NETFLOW_ENABLED=true` + udp/2055 reachable
+      from the switch); (2) a frontend button to trigger flow-export per device;
+      (3) Cisco Flexible-NetFlow auto-config (record/exporter/monitor +
+      per-interface apply, still 501).
 - [ ] **Topology upgrades.** `Medium`. PARTIAL: orphan-node detection shipped
       (managed devices with no discovered neighbors are flagged on the map +
       counted). Still open: manual link drawing + persistence, MNDP dedup,

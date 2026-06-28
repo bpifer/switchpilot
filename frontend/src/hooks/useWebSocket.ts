@@ -21,20 +21,28 @@ export type WsStatus = 'connecting' | 'live' | 'down';
  * Opens a WebSocket connection to /ws and calls onEvent for each message.
  * Automatically reconnects on disconnect. Cleans up on unmount.
  * Returns a live connection status for surfacing in the UI.
+ *
+ * Pass `enabled=false` until the user is authenticated: the effect re-runs when
+ * it flips true, so the socket connects right after login instead of sticking on
+ * "connecting" until a page refresh (the token isn't present at first mount).
  */
-export function useWebSocket(onEvent: (e: WsEvent) => void): WsStatus {
+export function useWebSocket(onEvent: (e: WsEvent) => void, enabled = true): WsStatus {
   const handlerRef = useRef(onEvent);
   handlerRef.current = onEvent;
   const [status, setStatus] = useState<WsStatus>('connecting');
 
   useEffect(() => {
+    if (!enabled) return;        // not authenticated yet - don't open the socket
     let ws: WebSocket;
     let retryTimer: ReturnType<typeof setTimeout>;
     let stopped = false;
     let retryMs = 2000;
 
     async function connect() {
-      if (!getToken() || stopped) return;
+      if (stopped) return;
+      // Token may not be in place for a beat right after login; wait for it
+      // rather than giving up silently (which left the status stuck).
+      if (!getToken()) { retryTimer = setTimeout(connect, 1500); return; }
       // Exchange the session JWT for a 30-second single-purpose nonce so the
       // real token never appears in the URL (or proxy access logs).
       let nonce: string;
@@ -70,7 +78,7 @@ export function useWebSocket(onEvent: (e: WsEvent) => void): WsStatus {
       clearTimeout(retryTimer);
       ws?.close();
     };
-  }, []);
+  }, [enabled]);
 
   return status;
 }
