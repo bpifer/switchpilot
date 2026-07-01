@@ -278,12 +278,16 @@ export async function pushConfigWithRevert(
 /** Probe the device CLI repeatedly until it responds or the budget elapses,
  *  forcing a fresh connection each attempt. */
 async function reachableWithin(target: SshTarget, probe: string, budgetMs: number): Promise<boolean> {
+  // Short per-probe timeout so a dead device fails fast: the default readyTimeout
+  // is 15s, which would swamp the 3s retry cadence. The pool key ignores
+  // timeoutMs, so this still reuses/evicts the same device entry.
+  const probeTarget = { ...target, timeoutMs: 4000 };
   const start = Date.now();
   for (let attempt = 0; Date.now() - start < budgetMs; attempt++) {
     if (attempt) await new Promise(r => setTimeout(r, 3000));
-    evictDevice(target);   // drop any cached session so we truly re-handshake
+    evictDevice(probeTarget);   // drop any cached session so we truly re-handshake
     try {
-      await withDeviceSession(target, session => session.exec(probe));
+      await withDeviceSession(probeTarget, session => session.exec(probe, 4000));
       return true;
     } catch { /* not back yet - retry within the budget */ }
   }

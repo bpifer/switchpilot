@@ -51,8 +51,10 @@ export async function audit(
  *  log. Heuristic - push output rarely echoes secrets, but be safe. */
 export function redactForAudit(output: string, max = 4000): string {
   if (!output) return '';
+  // Separator may be whitespace (Cisco `password 7 xxx`) or `=`/`:` (RouterOS
+  // `password=xxx`, `key: xxx`), so both dialects get redacted.
   const masked = output.replace(
-    /\b(password|secret|community|passphrase|psk|pre-shared-key|private-key|key)(\s+(?:\d+\s+)?)(\S+)/gi,
+    /\b(password|secret|community|passphrase|psk|pre-shared-key|private-key|key)([\s=:]+(?:\d+\s+)?)(\S+)/gi,
     '$1$2[redacted]');
   return masked.length > max ? `${masked.slice(0, max)}\n... [truncated, ${masked.length - max} more chars]` : masked;
 }

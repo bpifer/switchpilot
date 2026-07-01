@@ -8,6 +8,12 @@ describe('redactForAudit', () => {
     expect(redactForAudit('enable secret 5 $1$abc$xyz')).toContain('secret 5 [redacted]');
   });
 
+  it('masks =/: separated secrets (RouterOS syntax)', () => {
+    expect(redactForAudit('/user add name=admin password=hunter2')).toContain('password=[redacted]');
+    expect(redactForAudit('add name=wg key=0x1234abcd')).toContain('key=[redacted]');
+    expect(redactForAudit('community: public')).toContain('community: [redacted]');
+  });
+
   it('leaves non-secret device output intact', () => {
     const out = 'interface Gi1/0/1\n switchport access vlan 20';
     expect(redactForAudit(out)).toBe(out);

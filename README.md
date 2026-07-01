@@ -123,7 +123,7 @@ switch management network can reach.
 | `NETFLOW_ENABLED` | `true` starts the UDP NetFlow/IPFIX collector (Traffic page) |
 | `CONFIG_HISTORY_REMOTE` | optional git remote to mirror config history to (off-box DR) |
 | `METRICS_TOKEN` | optional bearer token guarding `GET /metrics` |
-| `ALLOWED_ORIGINS` | CORS allow-list (set this in production) |
+| `ALLOWED_ORIGINS` | CORS allow-list; if unset in production the API blocks cross-origin (fail-closed) |
 | `ENABLE_API_DOCS` | `false` to hide the Swagger UI at `/docs` |
 | `SMTP_HOST`, `SLACK_WEBHOOK_URL`, `TEAMS_WEBHOOK_URL`, `DISCORD_WEBHOOK_URL`, `NTFY_URL`, `GOTIFY_URL`, `TELEGRAM_BOT_TOKEN`, `PUSHOVER_TOKEN` | alert channels (each optional) |
 | `LDAP_URL` | optional directory auth |

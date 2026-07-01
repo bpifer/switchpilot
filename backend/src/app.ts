@@ -84,8 +84,14 @@ export async function buildApp(): Promise<FastifyInstance> {
   // Security headers. CSP is disabled here because the API serves JSON + the
   // Swagger UI (which uses inline scripts); the SPA is served by its own nginx.
   await app.register(helmet, { contentSecurityPolicy: false });
+  // Explicit allow-list when set. Unset = reflect any origin in dev, but FAIL
+  // CLOSED in production (block cross-origin) rather than reflecting every origin
+  // with credentials. A same-origin dashboard is unaffected either way.
+  if (config.allowedOrigins === null && config.nodeEnv === 'production') {
+    app.log.warn('ALLOWED_ORIGINS is unset in production; blocking cross-origin requests. Set it to your dashboard origin(s).');
+  }
   await app.register(cors, {
-    origin: config.allowedOrigins ?? true,   // explicit list in prod; reflect any origin in dev
+    origin: config.allowedOrigins ?? (config.nodeEnv === 'production' ? false : true),
     credentials: true
   });
   await app.register(rateLimit, { max: 300, timeWindow: '1 minute' });

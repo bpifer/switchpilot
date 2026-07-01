@@ -188,7 +188,7 @@ export default async function portRoutes(app: FastifyInstance) {
         type: 'object', required: ['id', 'members'],
         properties: {
           id: { type: 'string', pattern: '^[A-Za-z0-9+\\-]{1,32}$' },
-          members: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 16 },
+          members: { type: 'array', items: { type: 'string', pattern: '^[A-Za-z0-9+/.-]{1,32}$' }, minItems: 2, maxItems: 16 },
           mode: { type: 'string', enum: ['lacp', 'static'], default: 'lacp' }
         }
       }
