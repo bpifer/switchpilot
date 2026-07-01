@@ -29,7 +29,24 @@ export interface DeviceSession {
   execBounded?(command: string, durationMs: number): Promise<string>;
   configure(lines: string[], timeoutMs?: number): Promise<string>;
   saveConfig(cmd?: string): Promise<string>;
+  /** Arm a commit-confirm revert timer. Present on Cisco sessions that need
+   *  interactive prompt handling for `reload in N`; RouterOS handles this via
+   *  driver-generated config lines in armRevertLines() instead. */
+  armRevert?(seconds: number): Promise<string>;
+  /** Cancel an armed revert and return to the device prompt. Paired with armRevert. */
+  disarmRevert?(): Promise<string>;
   close(): void;
+}
+
+/** Pure: given the buffered output from the device after `reload in N`, return
+ *  the string to send next, or null if no recognized prompt is present yet.
+ *  Exported so the state machine can be unit-tested without mocking ssh2. */
+export function reloadInResponse(output: string): string | null {
+  // Check [yes/no] first -- if both appear (shouldn't in practice) the Save
+  // prompt comes before the Proceed prompt and must be answered first.
+  if (/\[yes\/no\]/i.test(output)) return 'no\n';
+  if (/\[confirm\]/i.test(output)) return '\n';
+  return null;
 }
 
 const PROMPT = /[\w\-./:()]+[#>]\s?$/m;
@@ -143,6 +160,37 @@ export class CiscoSshSession {
     // IOS returns "[OK]", NX-OS returns "Copy complete."
     const out = await this.waitFor(/\[OK\]|Copy complete|#\s?$/m, 60000);
     return out;
+  }
+
+  /** Issue `reload in N` and answer its interactive prompts to arm a scheduled
+   *  revert, leaving startup-config unchanged (it is the rollback point).
+   *  The session stays alive; the reload fires only if disarmRevert is never
+   *  called before the timer expires.
+   *
+   *  Prompt sequence (validated on C9300 IOS-XE 17.3):
+   *    [optional] "Save? [yes/no]:"  -> "no"  (skip if running == startup)
+   *               "Proceed? [confirm]" -> Enter */
+  async armRevert(seconds: number): Promise<string> {
+    const minutes = Math.max(1, Math.ceil(seconds / 60));
+    this.buffer = '';
+    this.stream.write(`reload in ${minutes}\n`);
+    // Wait for the first interactive prompt. If config is already in sync with
+    // startup the Save? step is skipped and [confirm] appears immediately.
+    const first = await this.waitFor(/\[yes\/no\]|\[confirm\]/i, 15000);
+    if (/\[yes\/no\]/i.test(first)) {
+      this.buffer = '';
+      this.stream.write('no\n');
+      await this.waitFor(/\[confirm\]/i, 10000);
+    }
+    this.buffer = '';
+    this.stream.write('\n');
+    return this.waitForPrompt(15000);
+  }
+
+  /** Cancel the scheduled reload armed by armRevert. Call this after confirming
+   *  the device is still reachable; follow with saveConfig to persist the change. */
+  async disarmRevert(): Promise<string> {
+    return this.exec('reload cancel');
   }
 
   /**

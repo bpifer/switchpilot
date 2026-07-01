@@ -142,10 +142,13 @@ describe('commit-confirm - revert line building', () => {
     expect(() => ros.disarmRevertLines('a b')).toThrow(/invalid revert token/i);
   });
 
-  it('Cisco does not support commit-confirm yet (501)', () => {
+  it('Cisco supports commit-confirm via session-level reload (supportsCommitConfirm=true)', () => {
     const cisco = ciscoDriver('ios');
-    expect(cisco.supportsCommitConfirm).toBe(false);
-    expect(() => cisco.armRevertLines({ token: 'spcc123', seconds: 120 })).toThrow(/not yet supported on Cisco/i);
+    expect(cisco.supportsCommitConfirm).toBe(true);
+    // CiscoSshSession.armRevert/disarmRevert handle the interactive `reload in N`
+    // prompts at the session level; these driver methods are intentionally unused.
+    expect(() => cisco.armRevertLines({ token: 'spcc123', seconds: 120 })).toThrow(/session level/i);
+    expect(() => cisco.disarmRevertLines('spcc123')).toThrow(/session level/i);
   });
 });
 

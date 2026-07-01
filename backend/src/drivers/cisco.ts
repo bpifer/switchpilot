@@ -136,17 +136,18 @@ export function ciscoDriver(os: string): DeviceDriver {
       throw Object.assign(new Error('NetFlow auto-export is not yet supported on Cisco'), { statusCode: 501 });
     },
 
-    supportsCommitConfirm: false,
+    supportsCommitConfirm: true,
     probeCommand: 'show clock',
 
     armRevertLines(_opts: RevertGuardOpts): string[] {
-      // Cisco commit-confirm is `reload in N` + `reload cancel`/`write` with a
-      // confirm prompt over the shell channel - not yet built/validated. Tracked.
-      throw Object.assign(new Error('Commit-confirm is not yet supported on Cisco'), { statusCode: 501 });
+      // Cisco commit-confirm is handled at the session level via
+      // CiscoSshSession.armRevert() (interactive `reload in N` prompts).
+      // This driver method is intentionally unused on Cisco.
+      throw Object.assign(new Error('Cisco commit-confirm is handled at the session level, not via config lines'), { statusCode: 501 });
     },
 
     disarmRevertLines(_token: string): string[] {
-      throw Object.assign(new Error('Commit-confirm is not yet supported on Cisco'), { statusCode: 501 });
+      throw Object.assign(new Error('Cisco commit-confirm is handled at the session level, not via config lines'), { statusCode: 501 });
     },
 
     supportsLag: true,

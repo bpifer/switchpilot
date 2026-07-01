@@ -7,31 +7,18 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
 
 ## P1 - Next up (highest value, do first)
 
-- [ ] **Transactional / commit-confirm pushes (+ self-lockout guard).** `Hard`.
-      The #1 trust gap and biggest safety win. `configure()` aborts mid-push on
-      `% Invalid` but does NOT roll back already-applied lines, and there is no
-      "apply -> verify reachability -> auto-revert if the session drops." Add IOS
-      `reload in` + confirm (or `configure replace`); and before applying, detect
-      a change that would drop the platform's own mgmt session (uplink/mgmt port,
-      an ACL line, a mgmt-path VLAN) and refuse or stage it behind auto-revert.
-      (External review independently traced `configure()` and confirmed this is
-      the single highest-value fix in the repo - not just in this list.)
-      PARTIAL: self-lockout *detection* is shipped AND now enforced server-side -
-      `/config/push` runs `detectMgmtLockout` (vendor-aware: SSH-disable / VTY-ACL
-      / `/system reset` / input-drop-firewall / account removal) and refuses with
-      409 unless `force:true`; the block and any forced override are audited, and
-      the Config tab offers an explicit "push anyway" confirm. **RouterOS
-      commit-confirm is DONE, validated end-to-end on a CRS326**: "safe apply"
-      (`POST /config/push {confirm:true}`) arms a device-side backup + a scheduled
-      `/system backup load name=X password=""` that auto-reverts unless the platform
-      re-confirms reachability (`pushConfigWithRevert` / `armRevertLines`). Remaining:
-      the Cisco half. **Mechanics now validated on a C9300 (IOS-XE 17.3):**
-      `reload in <n>` -> "Save? [yes/no]:" (answer `no`) -> "Proceed with reload?
-      [confirm]" (Enter); apply the unsaved change; then `reload cancel` + `write
-      memory` if reachable, else the scheduled reload fires and boots startup-config
-      (reverting). Still to build: `CiscoSshSession` handling for those two prompts
-      (the driver "lines" model does not fit `reload in`); end-to-end needs an
-      SSH-reachable Cisco (console validated command mechanics only).
+- [x] **Transactional / commit-confirm pushes (+ self-lockout guard).** `Hard`. **DONE.**
+      Self-lockout detection enforced server-side (409 + `force:true`). RouterOS
+      commit-confirm validated end-to-end on a CRS326 (backup + scheduler). Cisco
+      commit-confirm built and validated end-to-end on a C9300 (IOS-XE 17.3) over
+      live SSH: `CiscoSshSession.armRevert(seconds)` issues `reload in N`, handles
+      the Save?/Proceed? interactive prompts (skipping Save? when running==startup),
+      and `disarmRevert()` issues `reload cancel`; `pushConfigWithRevert` branches
+      on `session.armRevert` (Cisco) vs `driver.armRevertLines` (RouterOS); Cisco
+      `supportsCommitConfirm` is now `true`. A `reloadInResponse()` pure function
+      makes the prompt state machine unit-testable without mocking ssh2 (4 tests
+      in `cisco.session.test.ts`). Validated: arm -> show reload shows "scheduled"
+      -> cancel -> show reload shows "No reload scheduled". 253 tests pass.
 ## P2 - High value
 
 - [ ] **Platform backup/restore workflow.** `Medium`. PARTIAL: fleet config-bundle

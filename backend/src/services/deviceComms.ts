@@ -254,7 +254,15 @@ export async function pushConfigWithRevert(
   const target = await sshTargetFor(device);
 
   // Arm the revert first, so even a disconnect mid-apply still auto-reverts.
-  await withDeviceSession(target, session => session.configure(driver.armRevertLines({ token, seconds })));
+  // Cisco: interactive `reload in N` prompts handled by CiscoSshSession.armRevert.
+  // RouterOS: driver generates CLI lines for its backup + scheduler approach.
+  await withDeviceSession(target, async session => {
+    if (session.armRevert) {
+      await session.armRevert(seconds);
+    } else {
+      await session.configure(driver.armRevertLines({ token, seconds }));
+    }
+  });
 
   let output: string;
   try {
@@ -270,8 +278,17 @@ export async function pushConfigWithRevert(
   const reachable = await reachableWithin(target, driver.probeCommand, Math.max((seconds - 10) * 1000, 10_000));
   if (!reachable) return { outcome: 'reverting', output };
 
-  // Confirmed reachable - cancel the scheduled revert and delete its snapshot.
-  await withDeviceSession(target, session => session.configure(driver.disarmRevertLines(token)));
+  // Confirmed reachable - cancel the scheduled revert and persist the change.
+  // Cisco: `reload cancel` then `write memory`. RouterOS: remove backup + scheduler.
+  await withDeviceSession(target, async session => {
+    if (session.disarmRevert) {
+      await session.disarmRevert();
+      const saveCommand = driver.saveCommand;
+      if (saveCommand) await session.saveConfig(saveCommand);
+    } else {
+      await session.configure(driver.disarmRevertLines(token));
+    }
+  });
   return { outcome: 'confirmed', output };
 }
 
