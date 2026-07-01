@@ -339,7 +339,7 @@ export default function App() {
           <Route path="/topology" element={<Topology />} />
           <Route path="/rack" element={<Rack />} />
           <Route path="/analytics" element={<Analytics />} />
-          <Route path="/traffic" element={<Traffic />} />
+          <Route path="/traffic" element={<Traffic me={me} />} />
           <Route path="/clients" element={<Clients />} />
           {/* Locate was folded into the Clients search; keep the old path working */}
           <Route path="/locate" element={<Navigate to="/clients" replace />} />

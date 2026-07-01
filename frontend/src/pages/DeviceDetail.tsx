@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
-import { toast } from '../components/Toast';
+import { useAction } from '../hooks/useAction';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Button, StatusBadge, fmtUptime, Modal, Field, inputCls } from '../components/ui';
@@ -27,12 +27,12 @@ export default function DeviceDetail({ me }: { me: Me }) {
   const tab: DeviceTab = tabParam && TABS.includes(tabParam) ? tabParam : 'ports';
   const setTab = (t: DeviceTab) =>
     setSearchParams(prev => { prev.set('tab', t); return prev; }, { replace: true });
-  const [busy, setBusy] = useState(false);
   const [showProvision, setShowProvision] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
   const canOperate = me.role !== 'readonly';
   const canConfig = me.role === 'superadmin' || me.role === 'netadmin';
+  const { run, busy } = useAction();
 
   const { data: device, refetch: refetchDevice } = useApiQuery<any>(`/api/devices/${id}`, { refetchInterval: 60000 });
   const { data: sites = [] } = useApiQuery<{ id: string; name: string }[]>('/api/sites');
@@ -40,12 +40,10 @@ export default function DeviceDetail({ me }: { me: Me }) {
   const { data: avail } = useApiQuery<{ pct: number | null }>(`/api/analytics/device/${id}/availability?days=30`, { refetchInterval: 300000 });
   const reload = () => { refetchDevice(); refetchPorts(); };
 
-  async function refresh() {
-    setBusy(true);
-    try { await api(`/api/devices/${id}/refresh`, { method: 'POST' }); reload(); }
-    catch (err: any) { toast.error(err.message); }
-    finally { setBusy(false); }
-  }
+  const refresh = () => run(async () => {
+    await api(`/api/devices/${id}/refresh`, { method: 'POST' });
+    reload();
+  });
 
   if (!device) return <div className="p-6 text-gray-400">Loading…</div>;
 
@@ -285,15 +283,15 @@ function ProvisionModal({ deviceId, onClose }: { deviceId: string; onClose: () =
 function HostKeyStatus({ deviceId, fp, pinnedAt, canConfig, onChanged }: {
   deviceId: string; fp?: string; pinnedAt?: string | null; canConfig: boolean; onChanged: () => void;
 }) {
-  const [busy, setBusy] = useState(false);
+  const { run, busy } = useAction();
   const pinned = !!fp;
 
-  async function repin() {
+  function repin() {
     if (!confirm('Re-pin this device\'s SSH host key?\n\nUse this only after a legitimate re-image or hardware swap — the platform will trust whatever key the device presents on the next connection.')) return;
-    setBusy(true);
-    try { await api(`/api/devices/${deviceId}/repin-host-key`, { method: 'POST' }); onChanged(); }
-    catch (e: any) { toast.error(e.message); }
-    finally { setBusy(false); }
+    run(async () => {
+      await api(`/api/devices/${deviceId}/repin-host-key`, { method: 'POST' });
+      onChanged();
+    });
   }
 
   return (

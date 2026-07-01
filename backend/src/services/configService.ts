@@ -4,6 +4,7 @@ import { deviceExec, devicePushConfig, getDevice } from './deviceComms.js';
 import { driverFor } from '../drivers/index.js';
 import { raiseAlert } from './alertService.js';
 import { commitConfig } from './configVersioning.js';
+import { previewConfigLines, type ConfigPreview } from './configPreview.js';
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
@@ -60,16 +61,29 @@ export async function backupDevice(
   return { id: rows[0].id, changed: true };
 }
 
+/** Turn a stored config (backup/baseline/git snapshot) into lines that can be
+ *  replayed through `configure terminal`: drop blanks, comments, and the
+ *  headers IOS prints around a running-config dump. Shared by drift
+ *  remediation, restore, and rollback so they replay identically. */
+export function replayableLines(content: string): string[] {
+  return content.split('\n')
+    .filter(l => l.trim() && !l.startsWith('!') && !/^(version|Building configuration|Current configuration)/.test(l));
+}
+
+async function baselineFor(deviceId: string): Promise<{ auto_remediate: boolean; content: string } | null> {
+  const { rows } = await query(
+    `SELECT b.auto_remediate, cb.content, cb.sha256
+     FROM config_baselines b JOIN config_backups cb ON cb.id=b.backup_id
+     WHERE b.device_id=$1`, [deviceId]);
+  return rows[0] ?? null;
+}
+
 /**
  * Compare current running config to the device baseline.
  * Returns true if drift detected. Auto-remediates when the baseline says so.
  */
 export async function checkDrift(deviceId: string): Promise<boolean> {
-  const { rows } = await query(
-    `SELECT b.auto_remediate, cb.content, cb.sha256
-     FROM config_baselines b JOIN config_backups cb ON cb.id=b.backup_id
-     WHERE b.device_id=$1`, [deviceId]);
-  const baseline = rows[0];
+  const baseline = await baselineFor(deviceId);
   if (!baseline) return false;
 
   const cmd = driverFor(await getDevice(deviceId)).configCommand;
@@ -81,10 +95,21 @@ export async function checkDrift(deviceId: string): Promise<boolean> {
     'Running configuration has drifted from the assigned baseline');
 
   if (baseline.auto_remediate) {
-    const lines = baseline.content.split('\n')
-      .filter((l: string) => l.trim() && !l.startsWith('!') && !/^(version|Building configuration|Current configuration)/.test(l));
-    await devicePushConfig(deviceId, lines, true);
+    await devicePushConfig(deviceId, replayableLines(baseline.content), true);
     await raiseAlert(deviceId, 'config_drift', 'info', 'Baseline configuration automatically restored');
   }
   return true;
+}
+
+/** Dry run of baseline remediation: classify the lines a remediation WOULD
+ *  replay against the live running config, without pushing anything. Shows
+ *  exactly what auto-remediate (or a manual restore-to-baseline) would do. */
+export async function driftRemediationPreview(
+  deviceId: string
+): Promise<ConfigPreview & { lines_total: number; auto_remediate: boolean }> {
+  const baseline = await baselineFor(deviceId);
+  if (!baseline) throw Object.assign(new Error('Device has no baseline set'), { statusCode: 404 });
+  const lines = replayableLines(baseline.content);
+  const preview = await previewConfigLines(deviceId, lines);
+  return { ...preview, lines_total: lines.length, auto_remediate: baseline.auto_remediate };
 }

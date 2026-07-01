@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import { toast } from '../components/Toast';
+import { useAction } from '../hooks/useAction';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
 import { useSiteScope, scoped } from '../context/SiteContext';
@@ -47,19 +47,17 @@ function scoreColor(pct: number): string {
 }
 
 export default function Compliance({ me }: { me: Me }) {
-  const [evaluating, setEvaluating] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const canEdit = me.role === 'superadmin' || me.role === 'netadmin';
+  const { run, busy: evaluating } = useAction();
 
   const { data: summary = null, isLoading: loading, refetch: load } =
     useApiQuery<Summary>(scoped('/api/compliance/summary', useSiteScope().siteId), { refetchInterval: 60000 });
 
-  async function evaluate() {
-    setEvaluating(true);
-    try { await api('/api/compliance/evaluate', { method: 'POST' }); load(); }
-    catch (err: any) { toast.error(err.message); }
-    finally { setEvaluating(false); }
-  }
+  const evaluate = () => run(async () => {
+    await api('/api/compliance/evaluate', { method: 'POST' });
+    load();
+  });
 
   const pct = (p: number, t: number) => t ? Math.round(p / t * 100) : 0;
 
@@ -189,57 +187,48 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
   deviceId: string; canEdit: boolean; onClose: () => void; onChanged: () => void;
 }) {
   const [checks, setChecks] = useState<DeviceCheck[]>([]);
-  const [busy, setBusy] = useState('');
-  const [checking, setChecking] = useState(false);
   const [preview, setPreview] = useState<{ rule: DeviceCheck; lines: any[]; summary: any; warnings: string[] } | null>(null);
   const [secretPw, setSecretPw] = useState('');
   const [enableModal, setEnableModal] = useState(false);
   const [cisOnly, setCisOnly] = useState(false);
+  const { run, busy, isBusy } = useAction();
 
   const load = () => api<DeviceCheck[]>(`/api/compliance/device/${deviceId}`).then(setChecks).catch(() => setChecks([]));
   useEffect(() => { load(); }, []);
 
-  async function remediate(ruleId: string) {
-    setBusy(ruleId);
-    try { await api('/api/compliance/remediate', { method: 'POST', body: { deviceId, ruleId } }); await load(); onChanged(); setPreview(null); }
-    catch (err: any) { toast.error(err.message); }
-    finally { setBusy(''); }
-  }
+  const remediate = (ruleId: string) => run(async () => {
+    await api('/api/compliance/remediate', { method: 'POST', body: { deviceId, ruleId } });
+    await load(); onChanged(); setPreview(null);
+  }, { key: ruleId });
 
   // Special remediation: push an enable secret (generated or operator-supplied),
   // store it on the device credential, and reveal a generated value once.
-  async function setEnableSecret(password?: string) {
-    setBusy('enable-secret');
-    try {
-      const r = await api(`/api/devices/${deviceId}/remediate/enable-secret`, {
-        method: 'POST', body: password ? { password } : {}
-      });
-      if (r.password) setSecretPw(r.password);   // only returned when generated
-      setEnableModal(false);
-      await load(); onChanged();
-    } catch (err: any) { toast.error(err.message); }
-    finally { setBusy(''); }
-  }
+  const setEnableSecret = (password?: string) => run(async () => {
+    const r = await api(`/api/devices/${deviceId}/remediate/enable-secret`, {
+      method: 'POST', body: password ? { password } : {}
+    });
+    if (r.password) setSecretPw(r.password);   // only returned when generated
+    setEnableModal(false);
+    await load(); onChanged();
+  }, { key: 'enable-secret' });
 
-  // Dry run: show what the remediation would change before touching the device
-  async function previewRemediation(c: DeviceCheck) {
-    setBusy(c.rule_id);
-    try {
-      const lines = c.remediation.split('\n').map(l => l.trim()).filter(Boolean);
-      const r = await api(`/api/devices/${deviceId}/config/preview`, { method: 'POST', body: { lines } });
-      setPreview({ rule: c, lines: r.lines, summary: r.summary, warnings: r.warnings ?? [] });
-    } catch (err: any) { toast.error(err.message); }
-    finally { setBusy(''); }
-  }
+  // Dry run: show what the remediation would change before touching the device.
+  // Server-side so template substitutions ({platform_host}) match what a real
+  // remediation would actually push.
+  const previewRemediation = (c: DeviceCheck) => run(async () => {
+    const r = await api('/api/compliance/remediate', {
+      method: 'POST', body: { deviceId, ruleId: c.rule_id, dryRun: true }
+    });
+    setPreview({ rule: c, lines: r.lines, summary: r.summary, warnings: r.warnings ?? [] });
+  }, { key: c.rule_id });
 
   // Pull the running config and re-evaluate against it, so the results reflect
   // the device as it is now (including manual changes made outside SwitchPilot).
-  async function checkNow() {
-    setChecking(true);
-    try { await api(`/api/compliance/evaluate?deviceId=${deviceId}&fresh=true`, { method: 'POST' }); await load(); onChanged(); }
-    catch (err: any) { toast.error(err.message); }
-    finally { setChecking(false); }
-  }
+  const checkNow = () => run(async () => {
+    await api(`/api/compliance/evaluate?deviceId=${deviceId}&fresh=true`, { method: 'POST' });
+    await load(); onChanged();
+  }, { key: 'check-now' });
+  const checking = isBusy('check-now');
 
   const hasCis = checks.some(c => c.benchmark === 'CIS');
   const shown = cisOnly ? checks.filter(c => c.benchmark === 'CIS') : checks;
@@ -307,18 +296,18 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
             {c.passed && c.detail && <p className="mt-1 truncate font-mono text-xs text-green-700/70">{c.detail}</p>}
             {canEdit && c.passed === false && c.remediation && (
               <div className="mt-2 flex items-center justify-end gap-2">
-                <Button variant="secondary" onClick={() => previewRemediation(c)} disabled={busy === c.rule_id}>
-                  {busy === c.rule_id ? '…' : 'Preview'}
+                <Button variant="secondary" onClick={() => previewRemediation(c)} disabled={busy}>
+                  {isBusy(c.rule_id) ? '…' : 'Preview'}
                 </Button>
-                <Button variant="secondary" onClick={() => remediate(c.rule_id)} disabled={busy === c.rule_id}>
-                  {busy === c.rule_id ? 'Remediating…' : 'Remediate'}
+                <Button variant="secondary" onClick={() => remediate(c.rule_id)} disabled={busy}>
+                  {isBusy(c.rule_id) ? 'Remediating…' : 'Remediate'}
                 </Button>
               </div>
             )}
             {canEdit && c.passed === false && /enable secret/i.test(c.name) && (
               <div className="mt-2 flex justify-end">
-                <Button variant="secondary" onClick={() => setEnableModal(true)} disabled={busy === 'enable-secret'}>
-                  {busy === 'enable-secret' ? 'Setting…' : 'Set enable secret'}
+                <Button variant="secondary" onClick={() => setEnableModal(true)} disabled={busy}>
+                  {isBusy('enable-secret') ? 'Setting…' : 'Set enable secret'}
                 </Button>
               </div>
             )}
@@ -329,7 +318,7 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
 
       {enableModal && (
         <EnableSecretModal
-          busy={busy === 'enable-secret'}
+          busy={isBusy('enable-secret')}
           onClose={() => setEnableModal(false)}
           onSubmit={pw => setEnableSecret(pw)}
         />
@@ -339,7 +328,7 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
         <ConfigPreviewModal
           title={`Preview: ${preview.rule.name}`}
           data={{ lines: preview.lines, warnings: preview.warnings, summary: preview.summary }}
-          busy={busy === preview.rule.rule_id}
+          busy={isBusy(preview.rule.rule_id)}
           applyLabel="Apply remediation"
           onApply={() => remediate(preview.rule.rule_id)}
           onClose={() => setPreview(null)}
@@ -417,7 +406,7 @@ function RulesManager({ onClose }: { onClose: () => void }) {
   const [rules, setRules] = useState<Rule[]>([]);
   const [sites, setSites] = useState<{ id: string; name: string }[]>([]);
   const [editing, setEditing] = useState<Partial<Rule> | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { run, busy } = useAction();
 
   const load = () => api<Rule[]>('/api/compliance/rules').then(setRules).catch(() => setRules([]));
   useEffect(() => {
@@ -425,28 +414,25 @@ function RulesManager({ onClose }: { onClose: () => void }) {
     api<{ id: string; name: string }[]>('/api/sites').then(setSites).catch(() => setSites([]));
   }, []);
 
-  async function save() {
+  const save = () => {
     if (!editing?.name?.trim() || !editing?.pattern?.trim()) return;
-    setBusy(true);
     const body = {
       name: editing.name, description: editing.description ?? '',
       severity: editing.severity ?? 'warning', match_type: editing.match_type ?? 'line_present',
       pattern: editing.pattern, remediation: editing.remediation ?? '',
       siteId: editing.site_id || null, enabled: editing.enabled ?? true
     };
-    try {
+    run(async () => {
       if (editing.id) await api(`/api/compliance/rules/${editing.id}`, { method: 'PUT', body });
       else await api('/api/compliance/rules', { method: 'POST', body });
       setEditing(null); load();
-    } catch (err: any) { toast.error(err.message); }
-    finally { setBusy(false); }
-  }
+    });
+  };
 
-  async function remove(id: string) {
+  const remove = (id: string) => {
     if (!confirm('Delete this rule and its results?')) return;
-    try { await api(`/api/compliance/rules/${id}`, { method: 'DELETE' }); load(); }
-    catch (err: any) { toast.error(err.message); }
-  }
+    run(async () => { await api(`/api/compliance/rules/${id}`, { method: 'DELETE' }); load(); });
+  };
 
   return (
     <Modal title="Compliance rules" onClose={onClose}>

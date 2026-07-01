@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { evaluateRule, type ComplianceRule } from '../src/services/complianceService.js';
+import { evaluateRule, buildRemediationLines, type ComplianceRule } from '../src/services/complianceService.js';
 import { RUNNING_CONFIG_COMPLIANT, RUNNING_CONFIG_NONCOMPLIANT } from './fixtures/cisco.js';
 
 function rule(partial: Partial<ComplianceRule>): ComplianceRule {
@@ -45,5 +45,38 @@ describe('evaluateRule', () => {
     const res = evaluateRule(r, RUNNING_CONFIG_COMPLIANT);
     expect(res.passed).toBe(false);
     expect(res.detail).toMatch(/invalid regex/i);
+  });
+});
+
+describe('buildRemediationLines', () => {
+  it('splits a multi-line remediation into trimmed, non-empty lines', () => {
+    expect(buildRemediationLines({ remediation: ' aaa new-model \n\n  login block-for 120 attempts 3 within 60  \n' }))
+      .toEqual(['aaa new-model', 'login block-for 120 attempts 3 within 60']);
+  });
+
+  it('substitutes {platform_host} from PLATFORM_URL', () => {
+    const prev = process.env.PLATFORM_URL;
+    process.env.PLATFORM_URL = 'https://sp.example.net:8443';
+    try {
+      expect(buildRemediationLines({ remediation: 'logging host {platform_host}' }))
+        .toEqual(['logging host sp.example.net']);
+    } finally {
+      if (prev === undefined) delete process.env.PLATFORM_URL; else process.env.PLATFORM_URL = prev;
+    }
+  });
+
+  it('refuses {platform_host} when PLATFORM_URL is unset', () => {
+    const prev = process.env.PLATFORM_URL;
+    delete process.env.PLATFORM_URL;
+    try {
+      expect(() => buildRemediationLines({ remediation: 'logging host {platform_host}' }))
+        .toThrow(/PLATFORM_URL/);
+    } finally {
+      if (prev !== undefined) process.env.PLATFORM_URL = prev;
+    }
+  });
+
+  it('refuses a rule with no remediation configured', () => {
+    expect(() => buildRemediationLines({ remediation: '  \n ' })).toThrow(/no remediation/i);
   });
 });

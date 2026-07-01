@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api';
+import { useAction } from '../hooks/useAction';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
@@ -8,9 +9,15 @@ export default function Templates({ me }: { me: Me }) {
   const [editing, setEditing] = useState<any | null>(null);
   const [deploying, setDeploying] = useState<any | null>(null);
   const canEdit = me.role === 'superadmin' || me.role === 'netadmin';
+  const { run, isBusy } = useAction();
 
   const { data: templates = [], refetch: load } = useApiQuery<any[]>('/api/templates');
   const { data: devices = [] } = useApiQuery<any[]>('/api/devices');
+
+  const remove = (t: any) => {
+    if (!confirm(`Delete template "${t.name}"?`)) return;
+    run(async () => { await api(`/api/templates/${t.id}`, { method: 'DELETE' }); load(); }, { key: t.id });
+  };
 
   return (
     <div>
@@ -26,9 +33,9 @@ export default function Templates({ me }: { me: Me }) {
             <div className="flex gap-2">
               {canEdit && <Button onClick={() => setDeploying(t)}>Deploy</Button>}
               {canEdit && <Button variant="secondary" onClick={() => setEditing(t)}>Edit</Button>}
-              {canEdit && <Button variant="danger" onClick={async () => {
-                if (confirm(`Delete template "${t.name}"?`)) { await api(`/api/templates/${t.id}`, { method: 'DELETE' }); load(); }
-              }}>Delete</Button>}
+              {canEdit && <Button variant="danger" disabled={isBusy(t.id)} onClick={() => remove(t)}>
+                {isBusy(t.id) ? 'Deleting…' : 'Delete'}
+              </Button>}
             </div>
           </Card>
         ))}

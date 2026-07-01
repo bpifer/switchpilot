@@ -75,7 +75,9 @@ export default async function trafficRoutes(app: FastifyInstance) {
     });
 
   // Point a device's flow export (NetFlow/IPFIX) at this collector. Idempotent;
-  // netadmin-only since it writes device config. RouterOS validated; Cisco -> 501.
+  // netadmin-only since it writes device config. RouterOS validated on hardware;
+  // Cisco IOS/IOS-XE builds Flexible NetFlow (unit-tested, awaiting live
+  // validation); NX-OS -> 501.
   app.post<{ Params: { id: string } }>('/api/devices/:id/flow-export',
     { preHandler: requireRole('netadmin'), schema: { tags: ['traffic'] } },
     async (req) => {

@@ -129,11 +129,54 @@ export function ciscoDriver(os: string): DeviceDriver {
       }
     },
 
-    flowExportLines(_opts: FlowExportOpts): string[] {
-      // Flexible NetFlow needs a flow record + exporter + monitor plus the
-      // monitor applied per-interface (interface enumeration), and it is not yet
-      // hardware-validated. Tracked in TODO (NetFlow follow-ups).
-      throw Object.assign(new Error('NetFlow auto-export is not yet supported on Cisco'), { statusCode: 501 });
+    flowExportLines({ host, port, interfaces }: FlowExportOpts): string[] {
+      // Flexible NetFlow: flow record + exporter + monitor, then the monitor
+      // attached input-side on each physical Ethernet port (FNF has no global
+      // "all interfaces" switch like RouterOS traffic-flow). The record's field
+      // set is exactly what the platform's v9 decoder extracts: src/dst IPv4,
+      // L4 ports, protocol, byte/packet counters. Built per IOS-XE syntax and
+      // unit-tested; not yet hardware-validated (TODO: NetFlow follow-ups).
+      // Re-running is safe: IOS-XE refuses to edit an in-use record with a
+      // "% ... is in use" warning, leaving the identical config in place.
+      if (nxos) {
+        // NX-OS needs `feature netflow` and has its own record grammar.
+        throw Object.assign(new Error('NetFlow auto-export is not yet supported on NX-OS'), { statusCode: 501 });
+      }
+      assertToolTarget(host);   // host reaches the CLI; reuse the metachar guard
+      const physical = (interfaces ?? [])
+        .filter(p => /^[A-Za-z0-9./-]{1,48}$/.test(p))   // skip malformed rows rather than abort
+        .map(p => ciscoIface(p))
+        // Physical Ethernet only: no Port-channels (FNF monitors attach to the
+        // members, which this list already includes), VLANs, or subinterfaces.
+        .filter(name => /^(FastEthernet|GigabitEthernet|TwoGigabitEthernet|TenGigabitEthernet|FortyGigabitEthernet|HundredGigE)[\d/]+$/.test(name));
+      if (!physical.length) {
+        throw Object.assign(new Error(
+          'No physical Ethernet ports are known for this device yet, so the flow monitor cannot be attached. Refresh the device first.'),
+          { statusCode: 400 });
+      }
+      return [
+        'flow record SWITCHPILOT',
+        'match ipv4 protocol',
+        'match ipv4 source address',
+        'match ipv4 destination address',
+        'match transport source-port',
+        'match transport destination-port',
+        'collect counter bytes long',
+        'collect counter packets long',
+        'collect timestamp absolute first',
+        'collect timestamp absolute last',
+        'flow exporter SWITCHPILOT',
+        `destination ${host}`,
+        `transport udp ${port}`,
+        'export-protocol netflow-v9',
+        'template data timeout 60',
+        'flow monitor SWITCHPILOT',
+        'exporter SWITCHPILOT',
+        'record SWITCHPILOT',
+        'cache timeout active 60',
+        'cache timeout inactive 15',
+        ...physical.flatMap(name => [`interface ${name}`, 'ip flow monitor SWITCHPILOT input']),
+      ];
     },
 
     supportsCommitConfirm: true,

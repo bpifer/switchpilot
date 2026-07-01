@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../../api';
-import { toast } from '../../components/Toast';
+import { useAction } from '../../hooks/useAction';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import { Card, Button, Modal, Field, inputCls } from '../../components/ui';
 
@@ -12,16 +12,24 @@ export default function BackupsTab({ deviceId, canOperate, canConfig }: {
   const [showBackup, setShowBackup] = useState(false);
   const [reason, setReason] = useState('');
   const [ticket, setTicket] = useState('');
-  const [busy, setBusy] = useState(false);
+  const { run, busy, isBusy } = useAction();
 
-  async function takeBackup() {
-    setBusy(true);
-    try {
-      await api(`/api/devices/${deviceId}/backups`, { method: 'POST', body: { reason, ticket } });
-      setShowBackup(false); setReason(''); setTicket(''); refetch();
-    } catch (err: any) { toast.error(err.message); }
-    finally { setBusy(false); }
-  }
+  const takeBackup = () => run(async () => {
+    await api(`/api/devices/${deviceId}/backups`, { method: 'POST', body: { reason, ticket } });
+    setShowBackup(false); setReason(''); setTicket(''); refetch();
+  });
+
+  const showDiff = (backupId: string) => run(async () => {
+    setDiff((await api(`/api/devices/${deviceId}/diff?from=${backupId}&to=live`)).diff);
+  }, { key: `diff:${backupId}` });
+
+  const restore = (backupId: string) => {
+    if (!confirm('Replay this backup onto the device? A pre-restore backup is taken first.')) return;
+    run(async () => {
+      await api(`/api/devices/${deviceId}/restore/${backupId}`, { method: 'POST' });
+      refetch();   // the pre-restore snapshot appears in the list
+    }, { key: `restore:${backupId}`, success: 'Restore pushed.' });
+  };
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -39,17 +47,15 @@ export default function BackupsTab({ deviceId, canOperate, canConfig }: {
                 <td className="font-mono text-xs text-slate-600">{b.ticket || '-'}</td>
                 <td>{(b.size / 1024).toFixed(1)} KB</td>
                 <td className="space-x-2 text-right">
-                  <button className="text-xs text-brand-600 hover:underline"
-                          onClick={async () => setDiff((await api(`/api/devices/${deviceId}/diff?from=${b.id}&to=live`)).diff)}>
-                    diff vs live
+                  <button className="text-xs text-brand-600 hover:underline disabled:opacity-50"
+                          disabled={busy} onClick={() => showDiff(b.id)}>
+                    {isBusy(`diff:${b.id}`) ? 'diffing…' : 'diff vs live'}
                   </button>
                   {canConfig && (
-                    <button className="text-xs text-red-600 hover:underline"
-                            onClick={async () => {
-                              if (!confirm('Replay this backup onto the device? A pre-restore backup is taken first.')) return;
-                              await api(`/api/devices/${deviceId}/restore/${b.id}`, { method: 'POST' });
-                              toast.success('Restore pushed.');
-                            }}>restore</button>
+                    <button className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                            disabled={busy} onClick={() => restore(b.id)}>
+                      {isBusy(`restore:${b.id}`) ? 'restoring…' : 'restore'}
+                    </button>
                   )}
                 </td>
               </tr>

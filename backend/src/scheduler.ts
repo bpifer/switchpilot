@@ -11,24 +11,15 @@ import { gitGc, pushMirror } from './services/configVersioning.js';
 import { checkDeviceCert } from './services/certCheck.js';
 import { evaluateAllCompliance } from './services/complianceService.js';
 import { isLeader } from './leader.js';
+import { forEachLimit } from './util/concurrency.js';
 import type { DeviceRow } from './services/deviceComms.js';
 
 const CONCURRENCY = 8;
 
 async function eachDevice(fn: (d: DeviceRow) => Promise<void>, label: string): Promise<void> {
   const { rows } = await query<DeviceRow>('SELECT * FROM devices WHERE monitor_enabled');
-  const queue = [...rows];
-  const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
-    while (queue.length) {
-      const device = queue.shift()!;
-      try {
-        await fn(device);
-      } catch (err) {
-        console.warn(`${label} failed for ${device.hostname || device.mgmt_ip}: ${(err as Error).message}`);
-      }
-    }
-  });
-  await Promise.all(workers);
+  await forEachLimit(rows, CONCURRENCY, fn, (device, err) =>
+    console.warn(`${label} failed for ${device.hostname || device.mgmt_ip}: ${err.message}`));
 }
 
 export function startScheduler(): void {

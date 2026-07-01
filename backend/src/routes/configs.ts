@@ -11,9 +11,27 @@ import { isMikrotik } from '../services/routerosMonitor.js';
 // A RouterOS /export is not replayable line-by-line (section headers + `add`
 // lines need /import), so block restore/rollback rather than half-apply it.
 const ROUTEROS_RESTORE_MSG = 'Config restore/rollback is not supported on RouterOS yet: a /export cannot be replayed line by line. Use /import on the device.';
-import { backupDevice } from '../services/configService.js';
+import { backupDevice, driftRemediationPreview, replayableLines } from '../services/configService.js';
 import { gitLog, gitShow, gitDiff } from '../services/configVersioning.js';
 import { previewConfigLines, detectMgmtLockout } from '../services/configPreview.js';
+
+/** Replay a stored config snapshot onto a device: refuse RouterOS (an /export
+ *  is not replayable line by line), snapshot the current state first so the
+ *  operation is itself reversible, push, and audit. Shared by restore (from a
+ *  backup) and rollback (from git history). */
+async function replayConfig(opts: {
+  deviceId: string; content: string; username: string; ip: string;
+  preReason: string; auditAction: string; auditDetail: Record<string, unknown>;
+}): Promise<string> {
+  if (isMikrotik(await getDevice(opts.deviceId))) {
+    throw Object.assign(new Error(ROUTEROS_RESTORE_MSG), { statusCode: 400 });
+  }
+  await backupDevice(opts.deviceId, opts.username, { reason: opts.preReason });
+  const output = await devicePushConfig(opts.deviceId, replayableLines(opts.content), true);
+  await audit(opts.username, opts.auditAction, opts.deviceId,
+    { ...opts.auditDetail, output: redactForAudit(output) }, opts.ip);
+  return output;
+}
 
 /** Fetch hostname + site name for a device, for git path resolution. */
 async function deviceGitContext(id: string): Promise<{ hostname: string; site: string | null } | null> {
@@ -226,17 +244,15 @@ export default async function configRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { id, sha } = req.params as any;
       const me = req.user as any;
-      if (isMikrotik(await getDevice(id))) return reply.code(400).send({ error: ROUTEROS_RESTORE_MSG });
       const ctx = await deviceGitContext(id);
       if (!ctx) return reply.code(404).send({ error: 'Device not found' });
       const content = await gitShow(sha, ctx.hostname, ctx.site);
       if (!content) return reply.code(404).send({ error: 'Commit not found' });
-      // snapshot current state first so the rollback is itself reversible
-      await backupDevice(id, me.username, { reason: `pre-rollback to ${sha.slice(0, 8)}` });
-      const lines = content.split('\n')
-        .filter((l: string) => l.trim() && !l.startsWith('!') && !/^(version|Building configuration|Current configuration)/.test(l));
-      const output = await devicePushConfig(id, lines, true);
-      await audit(me.username, 'config.rollback', id, { sha, output: redactForAudit(output) }, req.ip);
+      const output = await replayConfig({
+        deviceId: id, content, username: me.username, ip: req.ip,
+        preReason: `pre-rollback to ${sha.slice(0, 8)}`,
+        auditAction: 'config.rollback', auditDetail: { sha }
+      });
       return { ok: true, output };
     });
 
@@ -249,7 +265,10 @@ export default async function configRoutes(app: FastifyInstance) {
         type: 'object', required: ['lines'],
         properties: {
           lines: { type: 'array', items: { type: 'string' }, minItems: 1 },
-          save: { type: 'boolean', default: true },
+          save: {
+            type: 'boolean', default: true,
+            description: 'Persist to startup config. Ignored when confirm=true: a confirmed change is always persisted (and an unconfirmed one auto-reverts).'
+          },
           force: { type: 'boolean', default: false },
           confirm: { type: 'boolean', default: false },
           confirmSeconds: { type: 'integer', minimum: 60, maximum: 600, default: 120 }
@@ -265,12 +284,15 @@ export default async function configRoutes(app: FastifyInstance) {
     // SwitchPilot's own SSH path (SSH disable, VTY transport/ACL, /system reset,
     // mgmt firewall drop, account removal) unless explicitly forced. This is the
     // enforcement the preview's advisory warnings always implied; vendor-aware.
+    // Commit-confirm counts as accepting the risk: its auto-revert net is exactly
+    // the safety mechanism for a change that might cut management, so confirm=true
+    // passes the gate without also requiring force (the warnings are still audited).
     const lockout = detectMgmtLockout(lines, driverFor(await getDevice(id)).vendor);
-    if (lockout.length && !force) {
+    if (lockout.length && !force && !confirm) {
       await audit(me.username, 'config.push.blocked', id, { lines, warnings: lockout }, req.ip);
       return reply.code(409).send({
         error: 'Refused: this push looks like it would lock SwitchPilot out of the device.',
-        detail: { warnings: lockout, hint: 'Re-send with "force": true to push anyway.' }
+        detail: { warnings: lockout, hint: 'Re-send with "force": true to push anyway, or "confirm": true to push under an auto-revert net.' }
       });
     }
 
@@ -297,14 +319,12 @@ export default async function configRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { id, backupId } = req.params as any;
       const me = req.user as any;
-      if (isMikrotik(await getDevice(id))) return reply.code(400).send({ error: ROUTEROS_RESTORE_MSG });
       const { rows } = await query('SELECT content FROM config_backups WHERE id=$1 AND device_id=$2', [backupId, id]);
       if (!rows[0]) return reply.code(404).send({ error: 'Backup not found' });
-      await backupDevice(id, `${me.username} (pre-restore)`);
-      const lines = rows[0].content.split('\n')
-        .filter((l: string) => l.trim() && !l.startsWith('!') && !/^(version|Building configuration|Current configuration)/.test(l));
-      const output = await devicePushConfig(id, lines, true);
-      await audit(me.username, 'config.restore', id, { backupId, output: redactForAudit(output) }, req.ip);
+      const output = await replayConfig({
+        deviceId: id, content: rows[0].content, username: me.username, ip: req.ip,
+        preReason: 'pre-restore', auditAction: 'config.restore', auditDetail: { backupId }
+      });
       return { ok: true, output };
     });
 
@@ -335,6 +355,17 @@ export default async function configRoutes(app: FastifyInstance) {
     async (req) => {
       const { rows } = await query('SELECT * FROM config_baselines WHERE device_id=$1', [(req.params as any).id]);
       return rows[0] ?? null;
+    });
+
+  // Dry run of baseline remediation: what would a restore-to-baseline (manual
+  // or auto_remediate) actually push, given the LIVE running config? Changes
+  // nothing on the device; helpdesk to match /config/preview. RouterOS devices
+  // 400 here the same way restore does (an /export is not replayable).
+  app.post('/api/devices/:id/baseline/dry-run', { preHandler: requireRole('helpdesk'), schema: { tags: ['configs'] } },
+    async (req, reply) => {
+      const { id } = req.params as any;
+      if (isMikrotik(await getDevice(id))) return reply.code(400).send({ error: ROUTEROS_RESTORE_MSG });
+      return driftRemediationPreview(id);
     });
 }
 

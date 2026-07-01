@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
-import { evaluateAllCompliance, evaluateDevice, remediate } from '../services/complianceService.js';
+import { evaluateAllCompliance, evaluateDevice, remediate, remediatePreview } from '../services/complianceService.js';
 import { backupDevice } from '../services/configService.js';
 import { devicePushConfig } from '../services/deviceComms.js';
 import { encryptSecret } from '../crypto/secrets.js';
@@ -160,19 +160,26 @@ export default async function complianceRoutes(app: FastifyInstance) {
     });
 
   // ----- Remediate: push a rule's fix lines to a device -----
+  // dryRun=true classifies the fix against the live running config (new /
+  // already-present / removes + lockout warnings) without pushing anything.
   app.post('/api/compliance/remediate', {
     preHandler: requireRole('netadmin'),
     schema: {
       tags: ['compliance'],
       body: {
         type: 'object', required: ['deviceId', 'ruleId'],
-        properties: { deviceId: { type: 'string' }, ruleId: { type: 'string' } }
+        properties: {
+          deviceId: { type: 'string' },
+          ruleId: { type: 'string' },
+          dryRun: { type: 'boolean', default: false }
+        }
       }
     }
   }, async (req, reply) => {
     const me = req.user as any;
-    const { deviceId, ruleId } = req.body as any;
+    const { deviceId, ruleId, dryRun } = req.body as any;
     try {
+      if (dryRun) return { ok: true, dryRun: true, ...await remediatePreview(deviceId, ruleId) };
       const output = await remediate(deviceId, ruleId, me.username);
       await audit(me.username, 'compliance.remediate', deviceId, { ruleId }, req.ip);
       return { ok: true, output };

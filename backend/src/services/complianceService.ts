@@ -3,6 +3,8 @@
 import { query } from '../db.js';
 import { devicePushConfig } from './deviceComms.js';
 import { backupDevice } from './configService.js';
+import { previewConfigLines } from './configPreview.js';
+import { forEachLimit } from '../util/concurrency.js';
 
 export interface ComplianceRule {
   id: string;
@@ -105,23 +107,14 @@ export async function evaluateDevice(deviceId: string): Promise<{ evaluated: num
 
 /** Evaluate every monitored device. Called by the scheduler. */
 export async function evaluateAllCompliance(concurrency = 8): Promise<void> {
-  const { rows } = await query('SELECT id FROM devices WHERE monitor_enabled');
-  const queue = [...rows];
-  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
-    while (queue.length) {
-      const d = queue.shift()!;
-      await evaluateDevice(d.id).catch(err => console.warn(`compliance eval failed for ${d.id}: ${err.message}`));
-    }
-  });
-  await Promise.all(workers);
+  const { rows } = await query<{ id: string }>('SELECT id FROM devices WHERE monitor_enabled');
+  await forEachLimit(rows, concurrency, d => evaluateDevice(d.id).then(() => {}),
+    (d, err) => console.warn(`compliance eval failed for ${d.id}: ${err.message}`));
 }
 
-/** Push a rule's remediation lines to a device, then re-evaluate it. */
-export async function remediate(deviceId: string, ruleId: string, by: string): Promise<string> {
-  const { rows } = await query<ComplianceRule>('SELECT * FROM compliance_rules WHERE id=$1', [ruleId]);
-  const rule = rows[0];
-  if (!rule) throw new Error('Rule not found');
-
+/** Resolve a rule's remediation template into pushable config lines.
+ *  Pure apart from the PLATFORM_URL env read; exported for tests. */
+export function buildRemediationLines(rule: Pick<ComplianceRule, 'remediation'>): string[] {
   // {platform_host} lets the seeded syslog rule target this deployment
   const platformHost = (process.env.PLATFORM_URL ?? '').match(/^https?:\/\/([^:/]+)/)?.[1];
   let remediation = rule.remediation;
@@ -131,6 +124,27 @@ export async function remediate(deviceId: string, ruleId: string, by: string): P
   }
   const lines = remediation.split('\n').map(l => l.trim()).filter(Boolean);
   if (!lines.length) throw new Error('Rule has no remediation configured');
+  return lines;
+}
+
+async function ruleById(ruleId: string): Promise<ComplianceRule> {
+  const { rows } = await query<ComplianceRule>('SELECT * FROM compliance_rules WHERE id=$1', [ruleId]);
+  if (!rows[0]) throw new Error('Rule not found');
+  return rows[0];
+}
+
+/** Dry run: classify a rule's remediation lines against the device's live
+ *  running config without pushing anything. */
+export async function remediatePreview(deviceId: string, ruleId: string) {
+  const rule = await ruleById(ruleId);
+  const preview = await previewConfigLines(deviceId, buildRemediationLines(rule));
+  return { rule: rule.name, ...preview };
+}
+
+/** Push a rule's remediation lines to a device, then re-evaluate it. */
+export async function remediate(deviceId: string, ruleId: string, by: string): Promise<string> {
+  const rule = await ruleById(ruleId);
+  const lines = buildRemediationLines(rule);
 
   await backupDevice(deviceId, by, { reason: `pre-remediation: ${rule.name}` });
   const output = await devicePushConfig(deviceId, lines, true);

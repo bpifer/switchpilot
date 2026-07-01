@@ -158,12 +158,7 @@ export async function refreshDevice(deviceId: string): Promise<void> {
 
     const portRows = ifaces.map(i => {
       const err = errByPort.get(i.name);
-      const prev = prevByName.get(i.name);
-      const flapped = !!prev && prev.oper_status !== 'unknown' && prev.oper_status !== i.status;
-      const windowExpired = !!prev?.last_flap_at &&
-        Date.now() - new Date(prev.last_flap_at).getTime() > 3600_000;
-      const flapCount = flapped ? (windowExpired ? 1 : (prev?.flap_count_1h ?? 0) + 1) : (windowExpired ? 0 : prev?.flap_count_1h ?? 0);
-      const lastFlapAt = flapped ? new Date().toISOString() : prev?.last_flap_at ?? null;
+      const { flapped, flapCount, lastFlapAt } = decidePortFlap(prevByName.get(i.name), i.status);
       return { i, err, flapped, flapCount, lastFlapAt };
     });
 
@@ -270,6 +265,27 @@ export async function refreshDevice(deviceId: string): Promise<void> {
   publishDevice(deviceId).catch(() => { /* mqtt best-effort */ });
 }
 
+export interface PortFlapPrev {
+  oper_status: string;
+  flap_count_1h: number;
+  last_flap_at: string | null;
+}
+
+/** Pure: decide whether a port flapped this sweep and what its rolling 1-hour
+ *  flap counter becomes. A flap is any oper-status change from a known state;
+ *  the counter restarts (not just resets to 0) when the last flap is over an
+ *  hour old, so a stale count can't trip the flapping alert. Exported for tests. */
+export function decidePortFlap(
+  prev: PortFlapPrev | undefined, status: string, nowMs = Date.now()
+): { flapped: boolean; flapCount: number; lastFlapAt: string | null } {
+  const flapped = !!prev && prev.oper_status !== 'unknown' && prev.oper_status !== status;
+  const windowExpired = !!prev?.last_flap_at &&
+    nowMs - new Date(prev.last_flap_at).getTime() > 3600_000;
+  const flapCount = flapped ? (windowExpired ? 1 : (prev?.flap_count_1h ?? 0) + 1) : (windowExpired ? 0 : prev?.flap_count_1h ?? 0);
+  const lastFlapAt = flapped ? new Date(nowMs).toISOString() : prev?.last_flap_at ?? null;
+  return { flapped, flapCount, lastFlapAt };
+}
+
 export interface HealthAlert {
   kind: string;
   raise: boolean;                                 // true = raise, false = resolve
@@ -325,8 +341,10 @@ async function evaluateHealthAlerts(
   }
 }
 
-/** GigabitEthernet1/0/1 → Gi1/0/1 to match `show interfaces status` naming. */
-function shortName(long: string): string {
+/** GigabitEthernet1/0/1 → Gi1/0/1 to match `show interfaces status` naming.
+ *  Both the error-counter join and topology local_port keys depend on this
+ *  mapping; a miss means silently dropped correlation. Exported for tests. */
+export function shortName(long: string): string {
   return long
     .replace(/^GigabitEthernet/i, 'Gi').replace(/^FastEthernet/i, 'Fa')
     .replace(/^TenGigabitEthernet/i, 'Te').replace(/^TwoGigabitEthernet/i, 'Tw')

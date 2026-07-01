@@ -35,6 +35,11 @@ export interface FlowExportOpts {
   host: string;
   /** Collector UDP port (NETFLOW_PORT). */
   port: number;
+  /** The device's known port names (from the ports table). Cisco Flexible
+   *  NetFlow attaches its flow monitor per interface, so the driver picks the
+   *  physical Ethernet ports out of this list; RouterOS ignores it (its
+   *  traffic-flow export is a global `interfaces=all` switch). */
+  interfaces?: string[];
 }
 
 /** Diagnostic tools a driver can run from the platform. Read-only and

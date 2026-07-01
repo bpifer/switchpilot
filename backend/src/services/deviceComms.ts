@@ -1,6 +1,7 @@
 // Bridges database rows (device + credential) to live device sessions.
 // All operations go through the SSH pool: one cached session per device with a
 // 90s idle TTL, so back-to-back UI actions and sweeps reuse the handshake.
+import crypto from 'node:crypto';
 import { query } from '../db.js';
 import { config } from '../config.js';
 import { audit } from '../audit.js';
@@ -233,7 +234,13 @@ export async function configureFlowExport(deviceId: string): Promise<string> {
       { statusCode: 400 });
   }
   const device = await getDevice(deviceId);
-  const lines = driverFor(device).flowExportLines({ host, port: config.netflow.port });
+  // Known port names feed drivers that attach the monitor per interface
+  // (Cisco Flexible NetFlow); RouterOS ignores them (global traffic-flow).
+  const { rows } = await query<{ name: string }>(
+    'SELECT name FROM ports WHERE device_id=$1 ORDER BY name', [deviceId]);
+  const lines = driverFor(device).flowExportLines({
+    host, port: config.netflow.port, interfaces: rows.map(r => r.name)
+  });
   return pushLines(device, lines, true);
 }
 
@@ -250,7 +257,10 @@ export async function pushConfigWithRevert(
   if (!driver.supportsCommitConfirm) {
     throw Object.assign(new Error(`Commit-confirm is not supported on ${driver.vendor}`), { statusCode: 501 });
   }
-  const token = `spcc${Date.now().toString(36)}`;   // alphanumeric backup/scheduler name
+  // Alphanumeric backup/scheduler name; the random suffix keeps two pushes to
+  // the same device from ever sharing a snapshot name (timestamp alone could
+  // collide within 1ms if pushes are made concurrent).
+  const token = `spcc${Date.now().toString(36)}${crypto.randomBytes(3).toString('hex')}`;
   const target = await sshTargetFor(device);
 
   // Arm the revert first, so even a disconnect mid-apply still auto-reverts.

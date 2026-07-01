@@ -112,9 +112,44 @@ describe('NetFlow auto-export - config building', () => {
       .toThrow(/invalid tool target/i);
   });
 
-  it('Cisco flow-export is not yet supported (501)', () => {
-    expect(() => ciscoDriver('ios').flowExportLines({ host: '10.0.0.1', port: 2055 }))
-      .toThrow(/not yet supported on Cisco/i);
+  it('Cisco builds an FNF record/exporter/monitor and attaches it to physical ports only', () => {
+    const lines = ciscoDriver('iosxe').flowExportLines({
+      host: '192.168.10.250', port: 2055,
+      interfaces: ['Gi1/0/1', 'Gi1/0/2', 'Po1', 'Vlan10', 'Gi1/0/1.100'],
+    });
+    // Record fields must cover exactly what the v9 decoder extracts.
+    expect(lines).toContain('match ipv4 source address');
+    expect(lines).toContain('match ipv4 destination address');
+    expect(lines).toContain('match transport source-port');
+    expect(lines).toContain('match transport destination-port');
+    expect(lines).toContain('match ipv4 protocol');
+    expect(lines).toContain('collect counter bytes long');
+    expect(lines).toContain('collect counter packets long');
+    expect(lines).toContain('destination 192.168.10.250');
+    expect(lines).toContain('transport udp 2055');
+    expect(lines).toContain('export-protocol netflow-v9');
+    // Monitor attached to the two physical ports; Po/Vlan/subinterface skipped.
+    expect(lines).toContain('interface GigabitEthernet1/0/1');
+    expect(lines).toContain('interface GigabitEthernet1/0/2');
+    expect(lines.filter(l => l === 'ip flow monitor SWITCHPILOT input')).toHaveLength(2);
+    expect(lines.join('\n')).not.toMatch(/Port-channel|Vlan10|1\/0\/1\.100/);
+  });
+
+  it('Cisco flow-export re-guards the collector host against CLI metacharacters', () => {
+    expect(() => ciscoDriver('iosxe').flowExportLines({ host: '1.2.3.4 x; reload', port: 2055, interfaces: ['Gi1/0/1'] }))
+      .toThrow(/invalid tool target/i);
+  });
+
+  it('Cisco flow-export refuses when no physical ports are known (nothing to attach to)', () => {
+    expect(() => ciscoDriver('iosxe').flowExportLines({ host: '10.0.0.1', port: 2055, interfaces: ['Po1', 'Vlan10'] }))
+      .toThrow(/no physical ethernet ports/i);
+    expect(() => ciscoDriver('iosxe').flowExportLines({ host: '10.0.0.1', port: 2055 }))
+      .toThrow(/no physical ethernet ports/i);
+  });
+
+  it('NX-OS flow-export stays unsupported (different feature/record grammar)', () => {
+    expect(() => ciscoDriver('nxos').flowExportLines({ host: '10.0.0.1', port: 2055, interfaces: ['Eth1/1'] }))
+      .toThrow(/not yet supported on NX-OS/i);
   });
 });
 

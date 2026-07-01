@@ -2,9 +2,12 @@ import { useState } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
+import { api } from '../api';
+import type { Me } from '../App';
+import { useAction } from '../hooks/useAction';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useSiteScope, scoped } from '../context/SiteContext';
-import { PageHeader, Card } from '../components/ui';
+import { PageHeader, Card, Button } from '../components/ui';
 
 type Range = '1h' | '24h' | '7d';
 const RANGES: { value: Range; label: string }[] = [
@@ -29,10 +32,18 @@ function fmtTime(ts: string, range: Range): string {
   return d.toLocaleTimeString('en-US', { hour: 'numeric' });
 }
 
-export default function Traffic() {
+export default function Traffic({ me }: { me: Me }) {
   const { siteId } = useSiteScope();
   const [range, setRange] = useState<Range>('24h');
   const [deviceId, setDeviceId] = useState('');
+  const { run, busy: exporting } = useAction();
+  const canConfig = me.role === 'superadmin' || me.role === 'netadmin';
+
+  // Point the selected device's NetFlow/traffic-flow export at this collector
+  // (idempotent config push; the backend resolves host/port from its env).
+  const enableExport = () => run(
+    () => api(`/api/devices/${deviceId}/flow-export`, { method: 'POST' }),
+    { success: 'Flow export configured. Flows should appear within a few minutes.' });
 
   const { data: devices = [] } = useApiQuery<any[]>(scoped('/api/devices', siteId));
   const { data: status } = useApiQuery<{ enabled: boolean; port: number; records: number; latest: string | null }>(
@@ -66,6 +77,11 @@ export default function Traffic() {
             </button>
           ))}
         </div>
+        {canConfig && deviceId && (
+          <Button variant="secondary" disabled={exporting || !status?.enabled} onClick={enableExport}>
+            {exporting ? 'Configuring…' : 'Enable export on this device'}
+          </Button>
+        )}
         {status && (
           <span className="ml-auto text-xs text-slate-400">
             {status.enabled ? `Collector on udp/${status.port}` : 'Collector disabled'}
@@ -87,6 +103,11 @@ export default function Traffic() {
               <p className="mt-1 text-xs text-slate-400">
                 MikroTik: <span className="font-mono">/ip traffic-flow</span> (version 5 or 9). Cisco: a flow exporter to this host.
               </p>
+              {canConfig && status?.enabled && (
+                <p className="mt-2 text-xs text-slate-500">
+                  Or select a device above and click <span className="font-medium">Enable export on this device</span> to configure it automatically.
+                </p>
+              )}
             </div>
           </Card>
         </div>

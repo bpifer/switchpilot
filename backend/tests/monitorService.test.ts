@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { evaluateHealth } from '../src/services/monitorService.js';
+import { evaluateHealth, decidePortFlap, shortName } from '../src/services/monitorService.js';
 
 const ok = { temperatureC: 35, psu: [{ id: '1', status: 'OK' }], fans: [{ id: '1', status: 'normal' }] };
 const find = (a: { kind: string }[], k: string) => a.find(x => x.kind === k)!;
@@ -28,5 +28,62 @@ describe('evaluateHealth', () => {
 
   it('flags a failed fan', () => {
     expect(find(evaluateHealth('sw1', 10, 10, { ...ok, fans: [{ id: '1', status: 'failed' }] }), 'fan_fail').raise).toBe(true);
+  });
+});
+
+describe('decidePortFlap', () => {
+  const NOW = Date.parse('2026-07-01T12:00:00Z');
+  const mins = (n: number) => new Date(NOW - n * 60_000).toISOString();
+
+  it('a brand-new port (no previous state) never counts as flapped', () => {
+    expect(decidePortFlap(undefined, 'connected', NOW))
+      .toEqual({ flapped: false, flapCount: 0, lastFlapAt: null });
+  });
+
+  it('a status change from a known state is a flap and increments the counter', () => {
+    const r = decidePortFlap(
+      { oper_status: 'connected', flap_count_1h: 2, last_flap_at: mins(10) }, 'notconnect', NOW);
+    expect(r.flapped).toBe(true);
+    expect(r.flapCount).toBe(3);
+    expect(r.lastFlapAt).toBe(new Date(NOW).toISOString());
+  });
+
+  it('a change from "unknown" is initial discovery, not a flap', () => {
+    expect(decidePortFlap(
+      { oper_status: 'unknown', flap_count_1h: 0, last_flap_at: null }, 'connected', NOW).flapped).toBe(false);
+  });
+
+  it('an unchanged status keeps the counter and timestamp as-is inside the window', () => {
+    expect(decidePortFlap(
+      { oper_status: 'connected', flap_count_1h: 4, last_flap_at: mins(30) }, 'connected', NOW))
+      .toEqual({ flapped: false, flapCount: 4, lastFlapAt: mins(30) });
+  });
+
+  it('a flap after the 1-hour window restarts the counter at 1 (stale count cannot alert)', () => {
+    const r = decidePortFlap(
+      { oper_status: 'connected', flap_count_1h: 7, last_flap_at: mins(90) }, 'notconnect', NOW);
+    expect(r).toMatchObject({ flapped: true, flapCount: 1 });
+  });
+
+  it('a quiet port with an expired window decays its counter to 0', () => {
+    expect(decidePortFlap(
+      { oper_status: 'connected', flap_count_1h: 7, last_flap_at: mins(90) }, 'connected', NOW).flapCount).toBe(0);
+  });
+});
+
+describe('shortName (long → show-interfaces-status form)', () => {
+  it.each([
+    ['GigabitEthernet1/0/1', 'Gi1/0/1'],
+    ['TenGigabitEthernet1/1/1', 'Te1/1/1'],
+    ['TwoGigabitEthernet1/0/48', 'Tw1/0/48'],
+    ['FortyGigabitEthernet1/1/1', 'Fo1/1/1'],
+    ['HundredGigE1/0/1', 'Hu1/0/1'],
+    ['FastEthernet0/1', 'Fa0/1'],
+    ['Port-channel1', 'Po1'],
+  ])('%s → %s', (long, short) => expect(shortName(long)).toBe(short));
+
+  it('passes through names it does not recognize (already-short or vendor-new)', () => {
+    expect(shortName('Gi1/0/1')).toBe('Gi1/0/1');
+    expect(shortName('AppGigabitEthernet1/0/1')).toBe('AppGigabitEthernet1/0/1');
   });
 });

@@ -30,12 +30,17 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       auto-export DONE: `driver.flowExportLines` + `POST /api/devices/:id/flow-export`
       (netadmin, audited) push an idempotent `/ip traffic-flow` target at the
       collector; the target syntax was verified against a live CRS326 7.12.1
-      (`dst-address`, `version=9`). Remaining: (1) **live end-to-end test** - apply
-      `flowExportLines` to the CRS326 pointed at the LXC collector and confirm
+      (`dst-address`, `version=9`). Frontend button DONE (2026-07-01): "Enable
+      export on this device" on the Traffic page when a device is selected
+      (netadmin-gated, also referenced from the empty state). Cisco
+      Flexible-NetFlow auto-config BUILT (2026-07-01): record/exporter/monitor
+      named SWITCHPILOT with the field set the v9 decoder extracts, monitor
+      attached input-side per physical Ethernet port (names from the ports
+      table; Po/Vlan/subinterfaces skipped); unit-tested; NX-OS still 501.
+      Remaining: (1) **live end-to-end test** - apply `flowExportLines` on the
+      CRS326 (and now the C9300) pointed at the LXC collector and confirm
       `flow_records` populate (needs `NETFLOW_ENABLED=true` + udp/2055 reachable
-      from the switch); (2) a frontend button to trigger flow-export per device;
-      (3) Cisco Flexible-NetFlow auto-config (record/exporter/monitor +
-      per-interface apply, still 501).
+      from the switch); the Cisco FNF lines await that hardware validation.
 - [ ] **Topology upgrades.** `Medium`. PARTIAL: orphan-node detection shipped
       (managed devices with no discovered neighbors are flagged on the map +
       counted). Still open: manual link drawing + persistence, MNDP dedup,
@@ -43,9 +48,13 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       CDP/LLDP auto-graph (`routes/topology.ts`).
 - [ ] **Test the riskiest untested code.** `Medium`. PARTIAL: `jobService` retry/
       backoff (`decideJobOutcome`/`backoffMs`) and `monitorService` health-alert
-      decisions (`evaluateHealth`) now have unit tests (pure logic extracted). Still
-      open: the rest of `monitorService.refreshDevice`, the `scheduler` wiring, and
-      the largest untested frontend pages (`Compliance`, `Firmware`, `DeviceDetail`).
+      decisions (`evaluateHealth`) now have unit tests (pure logic extracted).
+      2026-07-01: port flap detection extracted pure (`decidePortFlap`, window
+      restart/decay edge cases) + `shortName` exported, both tested; the
+      scheduler's sweep worker pool extracted (`forEachLimit`) + tested
+      (concurrency cap, per-device error isolation, empty list). Still open:
+      the remaining I/O paths of `monitorService.refreshDevice` and the largest
+      untested frontend pages (`Compliance`, `Firmware`, `DeviceDetail`).
       (External review.)
 
 ## P3 - Nice to have
@@ -57,9 +66,17 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       extract a `ciscoMonitor.ts` mirroring `routerosMonitor.ts`. The real
       remaining Cisco coupling (PLAN-multi-vendor #4) and the key architectural
       debt, but no user-facing payoff, so not urgent.
-- [ ] **Dry-run remediation + scheduled compliance remediation.** `Medium`. Drift
-      already auto-remediates vs a pinned baseline; add a dry-run mode and optional
-      scheduled remediation for compliance rules.
+- [ ] **Dry-run remediation + scheduled compliance remediation.** `Medium`.
+      PARTIAL (2026-07-01): dry-run DONE on both paths. Compliance rules:
+      `POST /api/compliance/remediate` accepts `dryRun:true` (classifies the fix
+      against the live config server-side, so `{platform_host}` substitution
+      matches what a real push would send; the Compliance Preview button now
+      uses it instead of building lines client-side). Baseline drift:
+      `POST /api/devices/:id/baseline/dry-run` previews exactly what
+      auto-remediate would replay; `replayableLines` is now shared by drift
+      remediation, restore, and rollback. Still open: optional scheduled
+      remediation for compliance rules, and a baseline-management UI
+      (set-baseline / auto-remediate is API-only today).
 - [ ] **DHCP/IPAM correlation.** `Medium`. Pull leases from MikroTik/pfSense/
       Pi-hole and correlate to clients.
 - [ ] **Credential presets (reusable, admin-restricted).** `Medium`. Reusable
@@ -68,8 +85,18 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       toast store (`components/Toast`, `toast.error/success/info` + `<Toaster/>`)
       now exists and all 22 browser `alert()` calls across 10 files were migrated
       to it (consistent, non-blocking error/success UX; 409s now surface as a
-      toast). Still open: a `useMutation`-style hook to consolidate the per-tab
-      busy/try-catch state (PortsTab, ConfigTab, and ~13 more). (External review.)
+      toast). 2026-07-01: the mutation hook shipped - `hooks/useAction.ts`
+      (busy + per-row `isBusy(key)` + toast-on-error + optional success toast,
+      unit-tested) and Compliance (all 3 modals), BackupsTab, Templates,
+      Traffic, and DeviceDetail (refresh + host-key re-pin) were migrated.
+      This also fixed real bugs: BackupsTab restore/diff and Templates delete
+      had NO error handling (a failed restore rejected silently - no toast, no
+      busy state); restore now also refetches so the pre-restore snapshot
+      appears. Still open: the tabs that surface errors inline in an output
+      pane by design (PortsTab, ConfigTab, ToolsTab) don't fit the toast hook -
+      they keep their local pattern; migrate the remaining toast-style pages
+      (Devices, Firmware, Users, Integrations, Lifecycle) opportunistically.
+      (External review.)
 
 ## P4 - Later (large, risky, or niche)
 
