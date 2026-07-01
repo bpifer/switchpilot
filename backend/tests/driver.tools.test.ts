@@ -187,3 +187,30 @@ describe('LAG / port-channel - config building', () => {
     expect(() => ciscoDriver('ios').lagCreateLines({ id: 'x', members: ['Gi1/0/1', 'Gi1/0/2'], mode: 'lacp' })).toThrow(/must be a number/i);
   });
 });
+
+describe('Cisco interface-name injection guard', () => {
+  const cisco = ciscoDriver('ios');
+
+  it('rejects port names with whitespace / CLI metacharacters across every write method', () => {
+    for (const bad of ['Gi1/0/1\n reload', 'Gi1/0/1; reload', 'Gi1 0/1', 'x`whoami`', 'Gi1/0/1|sh run']) {
+      expect(() => cisco.setPortAdmin(bad, false)).toThrow(/invalid interface name/i);
+      expect(() => cisco.portConfig(bad, { vlan: 10 })).toThrow(/invalid interface name/i);
+      expect(() => cisco.bounceLines(bad)).toThrow(/invalid interface name/i);
+      expect(() => cisco.poeCycleLines(bad)).toThrow(/invalid interface name/i);
+      expect(() => cisco.cableTest(bad)).toThrow(/invalid interface name/i);
+      expect(() => cisco.portReadbackCommand(bad)).toThrow(/invalid interface name/i);
+    }
+  });
+
+  it('rejects an injected LAG member', () => {
+    expect(() => cisco.lagCreateLines({ id: '1', members: ['Gi1/0/1', 'Gi1/0/2; reload'], mode: 'lacp' }))
+      .toThrow(/invalid interface name/i);
+  });
+
+  it('accepts legit names (abbrev, full, Port-channel, subinterface) and still expands them', () => {
+    for (const ok of ['Gi1/0/1', 'GigabitEthernet1/0/48', 'Te1/1/1', 'Po10', 'Port-channel10', 'Gi1/0/1.100']) {
+      expect(() => cisco.setPortAdmin(ok, true)).not.toThrow();
+    }
+    expect(cisco.setPortAdmin('Gi1/0/1', false)[0]).toBe('interface GigabitEthernet1/0/1');
+  });
+});

@@ -1,7 +1,7 @@
 // Cisco IOS / IOS-XE / NX-OS driver. Extracted verbatim from the inline
 // command strings that used to live in deviceComms, the ports route, and the
 // configs route - behavior is unchanged.
-import { expandInterfaceName } from '../cisco/parsers.js';
+import { expandInterfaceName, assertCiscoPort } from '../cisco/parsers.js';
 import type { DeviceDriver, PortConfigOpts, BaselineOpts, BaselinePlan, DeviceToolId, DeviceToolOpts, FlowExportOpts, RevertGuardOpts, LagOpts } from './types.js';
 import { assertToolTarget } from './types.js';
 
@@ -10,6 +10,13 @@ function assertChannelId(id: string): void {
   if (!/^\d{1,4}$/.test(id)) {
     throw Object.assign(new Error('Cisco channel-group id must be a number (1-4096)'), { statusCode: 400 });
   }
+}
+
+/** Validate an interface name (injection guard) then expand its abbreviation,
+ *  for every place a port name reaches a CLI command. */
+function ciscoIface(name: string): string {
+  assertCiscoPort(name);
+  return expandInterfaceName(name);
 }
 
 export function ciscoDriver(os: string): DeviceDriver {
@@ -55,11 +62,11 @@ export function ciscoDriver(os: string): DeviceDriver {
     },
 
     setPortAdmin(port, enabled) {
-      return [`interface ${expandInterfaceName(port)}`, enabled ? 'no shutdown' : 'shutdown'];
+      return [`interface ${ciscoIface(port)}`, enabled ? 'no shutdown' : 'shutdown'];
     },
 
     portConfig(port, o: PortConfigOpts) {
-      const lines = [`interface ${expandInterfaceName(port)}`];
+      const lines = [`interface ${ciscoIface(port)}`];
       if (o.description !== undefined) {
         // Strip CR/LF so a description can't inject extra IOS commands.
         const d = o.description.replace(/[\r\n]+/g, ' ').trim();
@@ -85,16 +92,16 @@ export function ciscoDriver(os: string): DeviceDriver {
     },
 
     portReadbackCommand(port) {
-      return `show running-config interface ${expandInterfaceName(port)}`;
+      return `show running-config interface ${ciscoIface(port)}`;
     },
 
     bounceLines(port) {
-      const iface = expandInterfaceName(port);
+      const iface = ciscoIface(port);
       return { down: [`interface ${iface}`, 'shutdown'], up: [`interface ${iface}`, 'no shutdown'] };
     },
 
     poeCycleLines(port) {
-      const iface = expandInterfaceName(port);
+      const iface = ciscoIface(port);
       return {
         off: [`interface ${iface}`, 'power inline never'],
         on: [`interface ${iface}`, 'power inline auto'],
@@ -102,7 +109,7 @@ export function ciscoDriver(os: string): DeviceDriver {
     },
 
     cableTest(port) {
-      const iface = expandInterfaceName(port);
+      const iface = ciscoIface(port);
       return {
         run: `test cable-diagnostics tdr interface ${iface}`,
         show: `show cable-diagnostics tdr interface ${iface}`
@@ -148,13 +155,13 @@ export function ciscoDriver(os: string): DeviceDriver {
       assertChannelId(id);
       if (members.length < 2) throw Object.assign(new Error('A LAG needs at least 2 member ports'), { statusCode: 400 });
       const m = mode === 'lacp' ? 'active' : 'on';   // LACP (active) vs static (on)
-      return members.flatMap(p => [`interface ${expandInterfaceName(p)}`, `channel-group ${id} mode ${m}`]);
+      return members.flatMap(p => [`interface ${ciscoIface(p)}`, `channel-group ${id} mode ${m}`]);
     },
 
     lagDeleteLines({ id, members }: LagOpts): string[] {
       assertChannelId(id);
       return [
-        ...members.flatMap(p => [`interface ${expandInterfaceName(p)}`, `no channel-group ${id}`]),
+        ...members.flatMap(p => [`interface ${ciscoIface(p)}`, `no channel-group ${id}`]),
         `no interface Port-channel ${id}`,
       ];
     },

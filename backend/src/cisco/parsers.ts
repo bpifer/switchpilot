@@ -360,3 +360,13 @@ export function expandInterfaceName(short: string): string {
   if (!m) return short;
   return (map[m[1]] ?? m[1]) + m[2];
 }
+
+/** Charset guard for an interface name that will be interpolated into a Cisco CLI
+ *  command - mirrors RouterOS rosPort(). Accepts Gi1/0/1, GigabitEthernet1/0/48,
+ *  Port-channel1, subinterfaces (Gi1/0/1.100), Bundle-Ether1; rejects whitespace
+ *  and metacharacters so a name cannot smuggle extra IOS commands. */
+export function assertCiscoPort(name: string): void {
+  if (!/^[A-Za-z0-9./-]{1,48}$/.test(name)) {
+    throw Object.assign(new Error('Invalid interface name'), { statusCode: 400 });
+  }
+}

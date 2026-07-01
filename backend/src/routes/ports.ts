@@ -4,7 +4,7 @@ import { audit, redactForAudit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
 import { devicePushConfig, deviceExec, bouncePort, cableTest, setPortAdmin, pushPortConfig, getDevice, poeCyclePort, createLag, deleteLag } from '../services/deviceComms.js';
 import { bridgeVlanFiltering, isMikrotik, routerOsPortMacs, routerOsVlans, routerOsSfp } from '../services/routerosMonitor.js';
-import { expandInterfaceName, parseMacTable, parseVlanBrief } from '../cisco/parsers.js';
+import { expandInterfaceName, parseMacTable, parseVlanBrief, assertCiscoPort } from '../cisco/parsers.js';
 import { driverFor } from '../drivers/index.js';
 import { previewConfigLines } from '../services/configPreview.js';
 import { verifyPortConfig } from '../services/portVerify.js';
@@ -66,6 +66,7 @@ export default async function portRoutes(app: FastifyInstance) {
     async (req) => {
       const { id, port } = req.params as any;
       if (isMikrotik(await getDevice(id))) return routerOsPortMacs(id, port);
+      assertCiscoPort(port);
       const out = await deviceExec(id, [`show mac address-table interface ${expandInterfaceName(port)}`]);
       return parseMacTable(Object.values(out)[0] ?? '');
     });
@@ -153,6 +154,7 @@ export default async function portRoutes(app: FastifyInstance) {
       const { id, port } = req.params as any;
       const device = await getDevice(id);
       if (isMikrotik(device)) return routerOsSfp(id, port);
+      assertCiscoPort(port);
       // Cisco: structured parse is image-dependent, so return the raw detail.
       const out = await deviceExec(id, [`show interfaces ${expandInterfaceName(port)} transceiver detail`]).catch(() => ({}));
       const raw = Object.values(out)[0] ?? '';
