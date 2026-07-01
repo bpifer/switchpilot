@@ -178,7 +178,8 @@ describe('LAG / port-channel - config building', () => {
     expect(ciscoDriver('ios').lagCreateLines({ id: '2', members: ['Gi1/0/1', 'Gi1/0/2'], mode: 'static' }))
       .toContain('channel-group 2 mode on');
     const del = ciscoDriver('ios').lagDeleteLines({ id: '2', members: ['Gi1/0/1'], mode: 'static' });
-    expect(del).toContain('no channel-group 2');
+    expect(del).toContain('no channel-group');            // bare - `no channel-group 2` is invalid on IOS-XE
+    expect(del).not.toContain('no channel-group 2');
     expect(del).toContain('no interface Port-channel 2');
   });
 

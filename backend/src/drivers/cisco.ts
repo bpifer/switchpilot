@@ -160,8 +160,11 @@ export function ciscoDriver(os: string): DeviceDriver {
 
     lagDeleteLines({ id, members }: LagOpts): string[] {
       assertChannelId(id);
+      // `no channel-group` takes NO id - an interface is only ever in one group,
+      // and `no channel-group <id>` is rejected as "% Incomplete command" on
+      // IOS-XE (verified on a C9300, 17.3). Then remove the empty Port-channel.
       return [
-        ...members.flatMap(p => [`interface ${ciscoIface(p)}`, `no channel-group ${id}`]),
+        ...members.flatMap(p => [`interface ${ciscoIface(p)}`, 'no channel-group']),
         `no interface Port-channel ${id}`,
       ];
     },

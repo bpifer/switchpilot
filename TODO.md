@@ -25,8 +25,13 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       (`POST /config/push {confirm:true}`) arms a device-side backup + a scheduled
       `/system backup load name=X password=""` that auto-reverts unless the platform
       re-confirms reachability (`pushConfigWithRevert` / `armRevertLines`). Remaining:
-      the Cisco half (`reload in` + `reload cancel`/`write` over the shell channel,
-      with the confirm prompt) - needs the Cisco test switch to validate.
+      the Cisco half. **Mechanics now validated on a C9300 (IOS-XE 17.3):**
+      `reload in <n>` -> "Save? [yes/no]:" (answer `no`) -> "Proceed with reload?
+      [confirm]" (Enter); apply the unsaved change; then `reload cancel` + `write
+      memory` if reachable, else the scheduled reload fires and boots startup-config
+      (reverting). Still to build: `CiscoSshSession` handling for those two prompts
+      (the driver "lines" model does not fit `reload in`); end-to-end needs an
+      SSH-reachable Cisco (console validated command mechanics only).
 ## P2 - High value
 
 - [ ] **Platform backup/restore workflow.** `Medium`. PARTIAL: fleet config-bundle
@@ -153,7 +158,9 @@ coexistence).
 **Port aggregation:** link-aggregation groups (LACP/static) from 2+ ports - Cisco
 EtherChannel (`channel-group N mode active|on`) and RouterOS bridge-aware bonding
 (`/interface bonding`: derive bridge, pull members, create bond, re-add); create +
-delete validated end-to-end on a CRS326; netadmin + audited; a "Create LAG" panel
+delete validated end-to-end on a CRS326 AND a C9300 (IOS-XE 17.3), where Cisco
+delete was corrected to bare `no channel-group` (the `<id>` form is "% Incomplete
+command" on IOS-XE); netadmin + audited; a "Create LAG" panel
 on the Ports tab. (RouterOS bonds are CPU-forwarded on the switch chip; delete UI
 + listing existing LAGs is a follow-up.)
 
