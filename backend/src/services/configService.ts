@@ -86,15 +86,17 @@ export async function checkDrift(deviceId: string): Promise<boolean> {
   const baseline = await baselineFor(deviceId);
   if (!baseline) return false;
 
-  const cmd = driverFor(await getDevice(deviceId)).configCommand;
-  const out = await deviceExec(deviceId, [cmd]);
+  const driver = driverFor(await getDevice(deviceId));
+  const out = await deviceExec(deviceId, [driver.configCommand]);
   const current = Object.values(out)[0] ?? '';
   if (sha256(normalizeConfig(current)) === sha256(normalizeConfig(baseline.content))) return false;
 
   await raiseAlert(deviceId, 'config_drift', 'warning',
     'Running configuration has drifted from the assigned baseline');
 
-  if (baseline.auto_remediate) {
+  // A RouterOS /export is not replayable line-by-line (restore/rollback block
+  // it at the route); never auto-push it here even if the flag was set.
+  if (baseline.auto_remediate && driver.os !== 'routeros') {
     await devicePushConfig(deviceId, replayableLines(baseline.content), true);
     await raiseAlert(deviceId, 'config_drift', 'info', 'Baseline configuration automatically restored');
   }

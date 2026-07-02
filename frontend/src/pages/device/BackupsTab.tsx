@@ -3,16 +3,62 @@ import { api } from '../../api';
 import { useAction } from '../../hooks/useAction';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import { Card, Button, Modal, Field, inputCls } from '../../components/ui';
+import ConfigPreviewModal, { type PreviewData } from '../../components/ConfigPreviewModal';
 
-export default function BackupsTab({ deviceId, canOperate, canConfig }: {
-  deviceId: string; canOperate: boolean; canConfig: boolean;
+interface Baseline {
+  backup_id: string;
+  auto_remediate: boolean;
+  set_by: string;
+  set_at: string;
+}
+
+export default function BackupsTab({ deviceId, canOperate, canConfig, vendor }: {
+  deviceId: string; canOperate: boolean; canConfig: boolean; vendor?: string;
 }) {
   const { data: backups = [], refetch } = useApiQuery<any[]>(`/api/devices/${deviceId}/backups`);
+  const { data: baseline = null, refetch: refetchBaseline } =
+    useApiQuery<Baseline | null>(`/api/devices/${deviceId}/baseline`);
   const [diff, setDiff] = useState('');
   const [showBackup, setShowBackup] = useState(false);
   const [reason, setReason] = useState('');
   const [ticket, setTicket] = useState('');
+  const [driftPreview, setDriftPreview] = useState<PreviewData | null>(null);
   const { run, busy, isBusy } = useAction();
+  // Drift detection works on RouterOS, but a /export cannot be replayed, so
+  // restore-from-baseline (and its dry run / auto-remediate) is Cisco-only.
+  const isRos = vendor === 'mikrotik';
+
+  const setBaseline = (backupId: string) => run(async () => {
+    await api(`/api/devices/${deviceId}/baseline`, {
+      method: 'PUT',
+      // re-pointing the baseline keeps the existing auto-remediate choice
+      body: { backupId, autoRemediate: (baseline?.auto_remediate ?? false) && !isRos }
+    });
+    refetchBaseline();
+  }, { key: `baseline:${backupId}`, success: 'Baseline set. Drift sweeps now compare against this backup.' });
+
+  const toggleAutoRemediate = () => {
+    if (!baseline) return;
+    run(async () => {
+      await api(`/api/devices/${deviceId}/baseline`, {
+        method: 'PUT', body: { backupId: baseline.backup_id, autoRemediate: !baseline.auto_remediate }
+      });
+      refetchBaseline();
+    }, { key: 'auto-remediate' });
+  };
+
+  const dryRunDrift = () => run(async () => {
+    setDriftPreview(await api(`/api/devices/${deviceId}/baseline/dry-run`, { method: 'POST' }));
+  }, { key: 'drift-dry-run' });
+
+  const restoreBaseline = () => {
+    if (!baseline) return;
+    run(async () => {
+      await api(`/api/devices/${deviceId}/restore/${baseline.backup_id}`, { method: 'POST' });
+      setDriftPreview(null);
+      refetch();   // the pre-restore snapshot appears in the list
+    }, { key: 'restore-baseline', success: 'Baseline restore pushed.' });
+  };
 
   const takeBackup = () => run(async () => {
     await api(`/api/devices/${deviceId}/backups`, { method: 'POST', body: { reason, ticket } });
@@ -41,7 +87,12 @@ export default function BackupsTab({ deviceId, canOperate, canConfig }: {
           <tbody>
             {backups.map(b => (
               <tr key={b.id} className="border-b last:border-0">
-                <td className="py-1.5">{new Date(b.created_at).toLocaleString()}</td>
+                <td className="py-1.5">
+                  {new Date(b.created_at).toLocaleString()}
+                  {baseline?.backup_id === b.id && (
+                    <span className="ml-1.5 rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700 ring-1 ring-brand-200">baseline</span>
+                  )}
+                </td>
                 <td>{b.taken_by}</td>
                 <td className="max-w-32 truncate text-slate-600" title={b.reason || undefined}>{b.reason || '-'}</td>
                 <td className="font-mono text-xs text-slate-600">{b.ticket || '-'}</td>
@@ -51,6 +102,12 @@ export default function BackupsTab({ deviceId, canOperate, canConfig }: {
                           disabled={busy} onClick={() => showDiff(b.id)}>
                     {isBusy(`diff:${b.id}`) ? 'diffing…' : 'diff vs live'}
                   </button>
+                  {canConfig && baseline?.backup_id !== b.id && (
+                    <button className="text-xs text-brand-600 hover:underline disabled:opacity-50"
+                            disabled={busy} onClick={() => setBaseline(b.id)}>
+                      {isBusy(`baseline:${b.id}`) ? 'setting…' : 'set baseline'}
+                    </button>
+                  )}
                   {canConfig && (
                     <button className="text-xs text-red-600 hover:underline disabled:opacity-50"
                             disabled={busy} onClick={() => restore(b.id)}>
@@ -71,6 +128,67 @@ export default function BackupsTab({ deviceId, canOperate, canConfig }: {
           )) : <span className="text-gray-400">Select “diff vs live” on a backup.</span>}
         </pre>
       </Card>
+
+      <Card title="Baseline & drift">
+        {!baseline ? (
+          <p className="text-sm text-slate-500">
+            No baseline set. Pick a known-good backup above and click <span className="font-medium">set baseline</span> —
+            every drift sweep then compares the live config against it and raises a
+            <span className="font-mono text-xs"> config_drift</span> alert when they diverge.
+          </p>
+        ) : (
+          <div className="space-y-3 text-sm">
+            <p className="text-slate-600">
+              Baseline: <span className="font-medium text-slate-800">
+                {(() => {
+                  const b = backups.find(x => x.id === baseline.backup_id);
+                  return b ? `backup from ${new Date(b.created_at).toLocaleString()}` : `backup ${String(baseline.backup_id).slice(0, 8)}…`;
+                })()}
+              </span>
+              <span className="ml-2 text-xs text-slate-400">
+                set by {baseline.set_by} on {new Date(baseline.set_at).toLocaleDateString()}
+              </span>
+            </p>
+            {isRos ? (
+              <p className="text-xs text-slate-400">
+                Drift detection is active. Restore/auto-remediation is unavailable on RouterOS
+                (an /export cannot be replayed line by line) — reconcile drift on the device.
+              </p>
+            ) : (
+              <>
+                <label className="flex items-center gap-2 text-slate-600">
+                  <input type="checkbox" checked={baseline.auto_remediate} disabled={!canConfig || busy}
+                         onChange={toggleAutoRemediate} />
+                  Auto-remediate: push the baseline back automatically when drift is detected
+                </label>
+                {canConfig && (
+                  <div>
+                    <Button variant="secondary" disabled={busy} onClick={dryRunDrift}>
+                      {isBusy('drift-dry-run') ? 'Comparing…' : 'Preview restore (dry run)'}
+                    </Button>
+                    <span className="ml-2 text-xs text-slate-400">
+                      Shows exactly what a restore-to-baseline would push, against the live config. Changes nothing.
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </Card>
+
+      {driftPreview && (
+        <ConfigPreviewModal
+          title="Restore to baseline (dry run)"
+          data={driftPreview}
+          busy={isBusy('restore-baseline')}
+          applyLabel="Restore baseline now"
+          onApply={() => {
+            if (confirm('Push the baseline config back onto the device? A pre-restore backup is taken first.')) restoreBaseline();
+          }}
+          onClose={() => setDriftPreview(null)}
+        />
+      )}
 
       {showBackup && (
         <Modal title="Take configuration backup" onClose={() => setShowBackup(false)}>

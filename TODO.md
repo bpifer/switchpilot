@@ -74,9 +74,14 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       uses it instead of building lines client-side). Baseline drift:
       `POST /api/devices/:id/baseline/dry-run` previews exactly what
       auto-remediate would replay; `replayableLines` is now shared by drift
-      remediation, restore, and rollback. Still open: optional scheduled
-      remediation for compliance rules, and a baseline-management UI
-      (set-baseline / auto-remediate is API-only today).
+      remediation, restore, and rollback. Baseline-management UI shipped
+      (same day): Backups tab gets a "set baseline" action per backup, a
+      baseline badge, and a Baseline & drift card (auto-remediate toggle +
+      dry-run preview + restore-to-baseline). Also fixed a latent bug found
+      building it: `checkDrift` auto-remediate on RouterOS would have replayed
+      an /export line-by-line - now guarded in the service AND rejected at the
+      baseline PUT. Still open: optional scheduled remediation for compliance
+      rules.
 - [ ] **DHCP/IPAM correlation.** `Medium`. Pull leases from MikroTik/pfSense/
       Pi-hole and correlate to clients.
 - [ ] **Credential presets (reusable, admin-restricted).** `Medium`. Reusable
@@ -175,8 +180,17 @@ EtherChannel (`channel-group N mode active|on`) and RouterOS bridge-aware bondin
 delete validated end-to-end on a CRS326 AND a C9300 (IOS-XE 17.3), where Cisco
 delete was corrected to bare `no channel-group` (the `<id>` form is "% Incomplete
 command" on IOS-XE); netadmin + audited; a "Create LAG" panel
-on the Ports tab. (RouterOS bonds are CPU-forwarded on the switch chip; delete UI
-+ listing existing LAGs is a follow-up.)
+on the Ports tab. (RouterOS bonds are CPU-forwarded on the switch chip.)
+LAG listing + delete UI shipped 2026-07-01: existing LAGs (Po<N>/bond*) are
+listed on the Ports tab with status/speed and a delete flow - RouterOS deletes
+with a confirm (the device derives the slaves), Cisco asks for the member ports
+(membership isn't in the inventory) before detaching channel-groups.
+
+**Bulk port configuration (2026-07-01):** apply one port profile to N selected
+ports from the Ports tab - same PortConfigModal + dry-run preview (against the
+first selected port) as the single-port flow, then sequential per-port applies
+with device read-back verification and a per-port ✓/⚠/✗ report; continues past
+failures. Physical ports only (LAG virtuals excluded).
 
 **Cross-tool (mikrotik-manager review):** Device Tools tab (ping/traceroute on
 both vendors, ip-scan on RouterOS, injection-safe, audited; RouterOS tools

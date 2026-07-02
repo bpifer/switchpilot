@@ -338,10 +338,15 @@ export default async function configRoutes(app: FastifyInstance) {
         properties: { backupId: { type: 'string' }, autoRemediate: { type: 'boolean', default: false } }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const { id } = req.params as any;
     const { backupId, autoRemediate } = req.body as any;
     const me = req.user as any;
+    // Drift *detection* works on RouterOS, but auto-remediation would replay an
+    // /export (blocked everywhere else) - refuse the flag rather than store it.
+    if (autoRemediate && isMikrotik(await getDevice(id))) {
+      return reply.code(400).send({ error: 'Auto-remediate is not supported on RouterOS: ' + ROUTEROS_RESTORE_MSG });
+    }
     await query(
       `INSERT INTO config_baselines (device_id, backup_id, auto_remediate, set_by)
        VALUES ($1,$2,$3,$4)

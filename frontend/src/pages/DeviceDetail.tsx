@@ -134,7 +134,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
       <div className="p-6">
         {tab === 'ports' && <PortsTab deviceId={id!} ports={ports} canOperate={canOperate} onChanged={reload} />}
         {tab === 'config' && <ConfigTab deviceId={id!} canConfig={canConfig} />}
-        {tab === 'backups' && <BackupsTab deviceId={id!} canOperate={canOperate} canConfig={canConfig} />}
+        {tab === 'backups' && <BackupsTab deviceId={id!} canOperate={canOperate} canConfig={canConfig} vendor={device.vendor} />}
         {tab === 'history' && <HistoryTab deviceId={id!} canConfig={canConfig} />}
         {tab === 'vlans' && <VlansTab deviceId={id!} />}
         {tab === 'neighbors' && <NeighborsTab deviceId={id!} />}

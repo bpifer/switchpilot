@@ -53,12 +53,141 @@ export default function PortsTab({ deviceId, ports, canOperate, onChanged }: {
                     canOperate={canOperate} onChanged={onChanged} />
       )}
 
+      {canOperate && <BulkConfigPanel deviceId={deviceId} ports={ports} onChanged={onChanged} />}
+
       {canOperate && <LagPanel deviceId={deviceId} ports={ports} onChanged={onChanged} />}
     </div>
   );
 }
 
-// Create a link-aggregation group (port-channel / bond) from >= 2 member ports.
+// Apply one port configuration to several ports at once (the most common
+// switch task: N access ports for the same VLAN/profile). Reuses the same
+// modal, dry-run preview, and per-port apply endpoint as the single-port flow;
+// the preview runs against the first selected port, the apply hits each port
+// sequentially (the SSH pool serializes per device anyway) and reports per port.
+function BulkConfigPanel({ deviceId, ports, onChanged }: {
+  deviceId: string; ports: Port[]; onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [sel, setSel] = useState<string[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [preview, setPreview] = useState<PreviewData | null>(null);
+  const [pendingBody, setPendingBody] = useState<any | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState('');
+  const [results, setResults] = useState<string[]>([]);
+
+  // Physical ports only - LAG virtual interfaces are configured individually.
+  const physical = ports.filter(p => !/^Po\d+$/i.test(p.name) && !/^bond/i.test(p.name));
+  const first = physical.find(p => p.name === sel[0]);
+
+  const toggle = (name: string) =>
+    setSel(s => (s.includes(name) ? s.filter(x => x !== name) : [...s, name]));
+
+  // Step 1: dry-run the edit against the first selected port and show the diff.
+  async function startPreview(body: any) {
+    setShowModal(false); setResults([]);
+    setBusy(true);
+    try {
+      const p = await api<PreviewData>(
+        `/api/devices/${deviceId}/ports/${encodeURIComponent(sel[0])}/config/preview`,
+        { method: 'POST', body });
+      setPreview(p); setPendingBody(body);
+    } catch (err: any) {
+      setResults([`✗ preview failed: ${err.message}`]);
+    } finally { setBusy(false); }
+  }
+
+  // Step 2: operator confirmed - apply to every selected port, one at a time,
+  // continuing past failures and reporting each port's outcome.
+  async function applyAll() {
+    if (!pendingBody) return;
+    if (!confirm(`Apply this configuration to ${sel.length} port(s)?\n\n${sel.join(', ')}`)) return;
+    setPreview(null); setBusy(true); setResults([]);
+    const out: string[] = [];
+    for (const [i, name] of sel.entries()) {
+      setProgress(`Applying ${i + 1}/${sel.length}: ${name}`);
+      try {
+        const r = await api<{ warning?: string; verified?: PortVerification | null }>(
+          `/api/devices/${deviceId}/ports/${encodeURIComponent(name)}/config`,
+          { method: 'POST', body: pendingBody });
+        const v = r?.verified;
+        if (v?.checked && !v.ok) {
+          out.push(`⚠ ${name}: applied, but read-back differs (${v.mismatches.map(m => `${m.field}: expected ${m.expected}, got ${m.actual}`).join('; ')})`);
+        } else {
+          out.push(`✓ ${name}${r?.warning ? ` — ${r.warning}` : ''}`);
+        }
+      } catch (err: any) {
+        out.push(`✗ ${name}: ${err.message}`);
+      }
+      setResults([...out]);
+    }
+    setProgress(''); setBusy(false); setPendingBody(null);
+    onChanged();
+  }
+
+  return (
+    <Card title="Bulk configure">
+      {!open ? (
+        <Button variant="secondary" onClick={() => setOpen(true)}>Configure multiple ports…</Button>
+      ) : (
+        <div className="space-y-3">
+          <div>
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Ports ({sel.length} selected)
+            </div>
+            <div className="grid max-h-48 grid-cols-3 gap-1 overflow-auto sm:grid-cols-4 lg:grid-cols-6">
+              {physical.map(p => (
+                <label key={p.name}
+                       className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs ${sel.includes(p.name) ? 'border-brand-300 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600'}`}>
+                  <input type="checkbox" checked={sel.includes(p.name)} onChange={() => toggle(p.name)} />
+                  <span className="truncate font-mono">{p.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <p className="text-xs text-slate-400">
+            One configuration, applied to every selected port. The preview compares against the first
+            selected port; each port then gets its own apply with device read-back verification.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => { setOpen(false); setSel([]); setResults([]); }}>Cancel</Button>
+            <Button onClick={() => setShowModal(true)} disabled={busy || sel.length === 0}>
+              {busy && !preview && !progress ? 'Checking…' : `Configure ${sel.length || ''} port(s)…`}
+            </Button>
+          </div>
+          {progress && <p className="text-xs font-medium text-slate-500">{progress}</p>}
+          {results.length > 0 && (
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-gray-900 p-3 text-xs leading-relaxed text-green-300">{results.join('\n')}</pre>
+          )}
+        </div>
+      )}
+
+      {showModal && first && (
+        <PortConfigModal
+          port={{ ...first, name: `${sel.length} ports`, description: '' }}
+          busy={busy}
+          onClose={() => setShowModal(false)}
+          onApply={startPreview}
+        />
+      )}
+
+      {preview && (
+        <ConfigPreviewModal
+          title={`Apply to ${sel.length} ports (preview: ${sel[0]})`}
+          data={preview}
+          busy={busy}
+          applyLabel={`Apply to ${sel.length} ports`}
+          onApply={applyAll}
+          onClose={() => { setPreview(null); setPendingBody(null); }}
+        />
+      )}
+    </Card>
+  );
+}
+
+// Create a link-aggregation group (port-channel / bond) from >= 2 member ports,
+// and list/delete existing ones (detected by name: Cisco Po<N>, RouterOS bond*).
 function LagPanel({ deviceId, ports, onChanged }: { deviceId: string; ports: Port[]; onChanged: () => void }) {
   const [open, setOpen] = useState(false);
   const [lagId, setLagId] = useState('');
@@ -66,10 +195,19 @@ function LagPanel({ deviceId, ports, onChanged }: { deviceId: string; ports: Por
   const [members, setMembers] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState('');
+  // A pending delete: the LAG port plus (Cisco only) its member ports to detach.
+  const [deleting, setDeleting] = useState<Port | null>(null);
+  const [delMembers, setDelMembers] = useState<string[]>([]);
   const isRos = ports.some(p => /^(ether|sfp-)/i.test(p.name));
+
+  const isLagPort = (p: Port) => /^Po\d+$/i.test(p.name) || /^bond/i.test(p.name);
+  const lags = ports.filter(isLagPort);
+  const physical = ports.filter(p => !isLagPort(p));
 
   const toggle = (name: string) =>
     setMembers(m => (m.includes(name) ? m.filter(x => x !== name) : [...m, name]));
+  const toggleDel = (name: string) =>
+    setDelMembers(m => (m.includes(name) ? m.filter(x => x !== name) : [...m, name]));
 
   async function create() {
     setBusy(true); setResult('');
@@ -84,8 +222,86 @@ function LagPanel({ deviceId, ports, onChanged }: { deviceId: string; ports: Por
     } finally { setBusy(false); }
   }
 
+  // RouterOS derives the bond's slaves on the device; Cisco needs the member
+  // ports named so each gets `no channel-group` (membership isn't readable
+  // from the ports table).
+  async function removeLag(lag: Port, memberPorts: string[]) {
+    setBusy(true); setResult('');
+    try {
+      const id = /^Po\d+$/i.test(lag.name) ? lag.name.replace(/^Po/i, '') : lag.name;
+      const r = await api<{ output?: string }>(
+        `/api/devices/${deviceId}/lag/${encodeURIComponent(id)}/delete`,
+        { method: 'POST', body: { members: memberPorts } });
+      setResult(r.output || `LAG ${lag.name} deleted.`);
+      setDeleting(null); setDelMembers([]);
+      onChanged();
+    } catch (err: any) {
+      setResult(`Error: ${err.message}`);
+    } finally { setBusy(false); }
+  }
+
+  function startDelete(lag: Port) {
+    if (/^bond/i.test(lag.name)) {
+      // RouterOS: the device knows the slaves; a confirm is all that's needed.
+      if (confirm(`Delete ${lag.name}? Its member ports return to normal switching.`)) void removeLag(lag, []);
+    } else {
+      setDeleting(lag); setDelMembers([]);
+    }
+  }
+
   return (
     <Card title="Link aggregation (LAG)">
+      {lags.length > 0 && (
+        <div className="mb-4">
+          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Existing LAGs
+          </div>
+          <div className="space-y-1">
+            {lags.map(l => (
+              <div key={l.name} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-1.5 text-sm">
+                <span className="font-mono font-medium text-slate-800">{l.name}</span>
+                <StatusBadge status={l.oper_status} />
+                {l.speed && <span className="text-xs text-slate-500">{l.speed}</span>}
+                {l.description && <span className="truncate text-xs text-slate-400">{l.description}</span>}
+                <button className="ml-auto text-xs text-red-600 hover:underline disabled:opacity-50"
+                        disabled={busy} onClick={() => startDelete(l)}>
+                  delete
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {deleting && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50/50 p-3">
+          <div className="mb-1 text-sm font-medium text-slate-800">Delete {deleting.name}</div>
+          <p className="mb-2 text-xs text-slate-500">
+            Select the member ports of this port-channel so each gets its channel-group removed
+            (membership is on the device, not in the inventory - check <span className="font-mono">show etherchannel summary</span> if unsure).
+          </p>
+          <div className="grid max-h-40 grid-cols-3 gap-1 overflow-auto sm:grid-cols-4 lg:grid-cols-6">
+            {physical.map(p => (
+              <label key={p.name}
+                     className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs ${delMembers.includes(p.name) ? 'border-red-300 bg-red-50 text-red-700' : 'border-slate-200 text-slate-600'}`}>
+                <input type="checkbox" checked={delMembers.includes(p.name)} onChange={() => toggleDel(p.name)} />
+                <span className="truncate font-mono">{p.name}</span>
+              </label>
+            ))}
+          </div>
+          <div className="mt-2 flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => { setDeleting(null); setDelMembers([]); }}>Cancel</Button>
+            <Button variant="danger" disabled={busy || delMembers.length === 0}
+                    onClick={() => {
+                      if (confirm(`Delete ${deleting.name} and detach ${delMembers.length} member port(s)? Links on those ports stay up but leave the bundle.`))
+                        void removeLag(deleting, delMembers);
+                    }}>
+              {busy ? 'Deleting…' : 'Delete LAG'}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {!open ? (
         <Button variant="secondary" onClick={() => setOpen(true)}>Create a LAG / port-channel</Button>
       ) : (
