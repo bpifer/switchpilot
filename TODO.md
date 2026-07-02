@@ -5,6 +5,24 @@ notes are at the bottom. Effort tags: **Easy** ~half day, **Medium** 1-2 days,
 **Hard** multi-day / risky. Priority weighs value, effort, and risk. MikroTik
 architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.md).
 
+## Deferred from external review (2026-07-02, round 2)
+
+- [ ] **Response schemas on routes.** `Medium`. 0/28 route files declare Fastify
+      response schemas, so `/docs` shows every response as an empty object and
+      responses use generic JSON.stringify (not the faster schema serializer).
+      Valid but low homelab payoff; do opportunistically per route.
+- [ ] **Webhook/notifier delivery retry.** `Medium`. `fireWebhooks` +
+      Teams/Slack/SMTP fire once and log status; a momentarily-down receiver
+      loses the event. The job queue (backoff/retry) already exists and could
+      own delivery. Design change, deferred.
+
+Fixed this round (see Shipped): compliance staleness, automation vs maintenance
+windows, NetFlow row dedup, commit-confirm double-fetch, safe-apply label +
+reboot clarification, CSV import messages, CSP upgrade-insecure-requests, and
+the Campaigns silent-catch (+ a double-stringify bug found there). The CSV
+"duplicate rows" claim was wrong (`mgmt_ip` is already UNIQUE); only its error
+message needed cleanup.
+
 ## P1 - Next up (highest value, do first)
 
 - [x] **Transactional / commit-confirm pushes (+ self-lockout guard).** `Hard`. **DONE.**
