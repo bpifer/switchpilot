@@ -72,7 +72,11 @@ async function flush(): Promise<void> {
     });
     await query(
       `INSERT INTO flow_records (bucket, device_id, exporter_ip, src_ip, dst_ip, protocol, dst_port, app, bytes, packets, flows)
-       VALUES ${values.join(',')}`, params
+       VALUES ${values.join(',')}
+       ON CONFLICT (bucket, exporter_ip, src_ip, dst_ip, protocol, dst_port) DO UPDATE SET
+         bytes = flow_records.bytes + EXCLUDED.bytes,
+         packets = flow_records.packets + EXCLUDED.packets,
+         flows = flow_records.flows + EXCLUDED.flows`, params
     ).catch(err => console.error('[netflow] flush failed:', (err as Error).message));
   }
 }
