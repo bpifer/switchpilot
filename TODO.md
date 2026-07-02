@@ -60,12 +60,15 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
 ## P3 - Nice to have
 
 - [ ] **Reads through the driver + split `monitorService`.** `Hard`
-      (architecture). Cisco reads (`show ...`) are still inline in
-      `monitorService.refreshDevice` while RouterOS uses `routerosMonitor`. Add
-      `driver.readCommands`/parser pairs (or `getPorts/getVlans/getNeighbors`) and
-      extract a `ciscoMonitor.ts` mirroring `routerosMonitor.ts`. The real
-      remaining Cisco coupling (PLAN-multi-vendor #4) and the key architectural
-      debt, but no user-facing payoff, so not urgent.
+      (architecture). PARTIAL (2026-07-01): the split is DONE - the Cisco read
+      path was extracted verbatim to `services/ciscoMonitor.ts` (mirroring
+      `routerosMonitor.ts`), the shared decision logic (evaluateHealth, flap
+      detection, shortName) to `services/monitorShared.ts`, and
+      `monitorService` is now the vendor-neutral dispatcher (pollStatus +
+      refreshDevice; helpers re-exported so importers/tests are unchanged).
+      Line-identical move verified mechanically; 278 tests pass. Still open:
+      the `driver.readCommands`/parser-pair abstraction so a third vendor
+      (Aruba/ICX) plugs in without a new monitor module (PLAN-multi-vendor #4).
 - [ ] **Dry-run remediation + scheduled compliance remediation.** `Medium`.
       PARTIAL (2026-07-01): dry-run DONE on both paths. Compliance rules:
       `POST /api/compliance/remediate` accepts `dryRun:true` (classifies the fix
