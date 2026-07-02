@@ -3,6 +3,7 @@
 // 90s idle TTL, so back-to-back UI actions and sweeps reuse the handshake.
 import crypto from 'node:crypto';
 import { query } from '../db.js';
+import { redis, publishEvent } from '../redis.js';
 import { config } from '../config.js';
 import { audit } from '../audit.js';
 import { decryptSecret } from '../crypto/secrets.js';
@@ -274,6 +275,12 @@ export async function pushConfigWithRevert(
     }
   });
 
+  // Surface the armed window to the UI (redis TTL = the revert timer, so the
+  // flag self-clears if we crash or the device reverts). Works across replicas.
+  const armedKey = `device:${deviceId}:revertArmed`;
+  await redis.set(armedKey, new Date(Date.now() + seconds * 1000).toISOString(), 'EX', seconds).catch(() => {});
+  publishEvent({ type: 'device_updated', data: { deviceId } }).catch(() => {});
+
   let output: string;
   try {
     output = await withDeviceSession(target, session => session.configure(lines));
@@ -299,6 +306,10 @@ export async function pushConfigWithRevert(
       await session.configure(driver.disarmRevertLines(token));
     }
   });
+  // Disarmed: clear the armed flag now rather than letting the TTL run out.
+  // (On the 'reverting' paths above the key is left to expire with the timer.)
+  await redis.del(armedKey).catch(() => {});
+  publishEvent({ type: 'device_updated', data: { deviceId } }).catch(() => {});
   return { outcome: 'confirmed', output };
 }
 

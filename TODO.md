@@ -202,6 +202,13 @@ device list), so open pages refetch the moment a sweep lands instead of
 waiting out their 60s poll. Only active queries refetch - background pages
 cost nothing.
 
+**Commit-confirm armed indicator (2026-07-01):** while a safe-apply push is
+inside its confirmation window, `pushConfigWithRevert` records the revert
+deadline in a redis key whose TTL matches the timer (self-clearing, works
+across replicas; cleared early on confirm). `GET /api/devices/:id` returns it
+as `revert_armed_until` and the device page shows an amber "auto-revert armed
+until HH:MM" badge, pushed live via `device_updated` events.
+
 **Cross-tool (mikrotik-manager review):** Device Tools tab (ping/traceroute on
 both vendors, ip-scan on RouterOS, injection-safe, audited; RouterOS tools
 validated live on a CRS326, their continuously-refreshing output collapsed to the

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
+import { redis } from '../redis.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
 import { encryptSecret } from '../crypto/secrets.js';
@@ -185,7 +186,14 @@ export default async function deviceRoutes(app: FastifyInstance) {
   });
 
   app.get('/api/devices/:id', { preHandler: requireRole('readonly'), schema: { tags: ['devices'] } },
-    async (req) => getDevice((req.params as any).id));
+    async (req) => {
+      const device = await getDevice((req.params as any).id);
+      // Commit-confirm state: while a safe-apply push is inside its confirmation
+      // window, this holds the ISO time the device-side auto-revert fires
+      // (redis TTL matches the timer, so it self-clears). Null otherwise.
+      const revertArmedUntil = await redis.get(`device:${device.id}:revertArmed`).catch(() => null);
+      return { ...device, revert_armed_until: revertArmedUntil };
+    });
 
   // Onboard a device — manual model or auto-detect
   app.post('/api/devices', {

@@ -80,6 +80,12 @@ export default function DeviceDetail({ me }: { me: Me }) {
         <div className="rounded-xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200/60">
           <div className="flex flex-wrap items-center gap-x-7 gap-y-2.5">
             <StatusBadge status={device.status} />
+            {device.revert_armed_until && new Date(device.revert_armed_until) > new Date() && (
+              <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200"
+                    title="A safe-apply config push is awaiting confirmation. If the platform cannot re-reach the device, it reverts itself at this time.">
+                ⏳ auto-revert armed until {new Date(device.revert_armed_until).toLocaleTimeString()}
+              </span>
+            )}
             <Meta label="Vendor" value={device.vendor ? device.vendor[0].toUpperCase() + device.vendor.slice(1) : null} />
             <Meta label="Model" value={device.model} mono />
             <Meta label="Serial" value={device.serial_number} mono />
