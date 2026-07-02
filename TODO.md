@@ -11,10 +11,14 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       response schemas, so `/docs` shows every response as an empty object and
       responses use generic JSON.stringify (not the faster schema serializer).
       Valid but low homelab payoff; do opportunistically per route.
-- [ ] **Webhook/notifier delivery retry.** `Medium`. `fireWebhooks` +
-      Teams/Slack/SMTP fire once and log status; a momentarily-down receiver
-      loses the event. The job queue (backoff/retry) already exists and could
-      own delivery. Design change, deferred.
+- [x] **Webhook/notifier delivery retry.** `Medium`. **DONE 2026-07-02.** A
+      shared `util/httpRetry.ts` (`fetchWithRetry`, unit-tested) retries
+      transient failures - network error / timeout / 5xx / 429 - with
+      exponential backoff, and never retries a 4xx (permanent misconfig).
+      `fireWebhooks` uses it (last_status now notes "gave up after N tries")
+      and `dispatchNotifications` (Discord/ntfy/Gotify/Telegram/Pushover) too.
+      The built-in Teams/Slack/SMTP senders still fire once - a follow-up could
+      route them through the same helper.
 
 Fixed this round (see Shipped): compliance staleness, automation vs maintenance
 windows, NetFlow row dedup, commit-confirm double-fetch, safe-apply label +

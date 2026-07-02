@@ -4,6 +4,7 @@
 // aren't set), so payloads are unit-testable without any network. dispatch()
 // fires every configured channel best-effort and in parallel.
 import { config } from '../config.js';
+import { fetchWithRetry } from '../util/httpRetry.js';
 
 export type Severity = 'info' | 'warning' | 'critical';
 export interface NotifyRequest { url: string; init: RequestInit; }
@@ -72,8 +73,9 @@ export function buildNotifications(title: string, text: string, severity: Severi
 }
 
 /** Fire every configured extra channel, best-effort and in parallel. A single
- *  channel failure (timeout, bad token) never blocks the others. */
+ *  channel failure (timeout, bad token) never blocks the others; transient
+ *  failures (network / 5xx) are retried with backoff. */
 export async function dispatchNotifications(title: string, text: string, severity: Severity): Promise<void> {
   await Promise.allSettled(buildNotifications(title, text, severity).map(req =>
-    fetch(req.url, { ...req.init, signal: AbortSignal.timeout(10_000) }).catch(() => {})));
+    fetchWithRetry(req.url, req.init)));
 }

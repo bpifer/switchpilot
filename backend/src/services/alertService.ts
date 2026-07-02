@@ -4,6 +4,7 @@ import { query } from '../db.js';
 import { config } from '../config.js';
 import { publishEvent } from '../redis.js';
 import { dispatchNotifications } from './notifiers.js';
+import { fetchWithRetry } from '../util/httpRetry.js';
 
 export type Severity = 'info' | 'warning' | 'critical';
 const SEV_RANK: Record<Severity, number> = { info: 1, warning: 2, critical: 3 };
@@ -120,20 +121,15 @@ export async function fireWebhooks(payload: {
   await Promise.allSettled(subs
     .filter(s => webhookMatchesSeverity(payload.severity, s.min_severity as Severity))
     .map(async s => {
-      let status: string;
-      try {
-        const headers: Record<string, string> = { 'content-type': 'application/json' };
-        if (s.secret) {
-          headers['x-switchpilot-signature'] =
-            'sha256=' + createHmac('sha256', s.secret).update(body).digest('hex');
-        }
-        const res = await fetch(s.url, {
-          method: 'POST', headers, body, signal: AbortSignal.timeout(10_000)
-        });
-        status = String(res.status);
-      } catch (err) {
-        status = `error: ${(err as Error).message.slice(0, 100)}`;
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+      if (s.secret) {
+        headers['x-switchpilot-signature'] =
+          'sha256=' + createHmac('sha256', s.secret).update(body).digest('hex');
       }
+      // Retry a briefly-down receiver (network error / timeout / 5xx); a 4xx is
+      // a permanent misconfiguration and is not retried.
+      const r = await fetchWithRetry(s.url, { method: 'POST', headers, body });
+      const status = r.ok || r.attempts === 1 ? r.status : `${r.status} (gave up after ${r.attempts} tries)`;
       await query(
         'UPDATE webhook_subscriptions SET last_fired_at=now(), last_status=$1 WHERE id=$2',
         [status, s.id]).catch(() => {});
