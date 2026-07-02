@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { raiseAlert } from './alertService.js';
 import { runAutomationTrigger } from './automationService.js';
 import { config } from '../config.js';
+import { createBatcher } from '../util/batcher.js';
 
 // IOS/IOS-XE/NX-OS (and RouterOS) syslog patterns and their platform events.
 // Exported for tests. vendor-neutral: distinct wording keeps vendors from
@@ -98,6 +99,38 @@ export function withinRate(ip: string, nowSec = Math.floor(Date.now() / 1000)): 
   return true;
 }
 
+interface SyslogRow {
+  deviceId: string | null;
+  sourceIp: string;
+  facility: number | null;
+  severity: number | null;
+  message: string;
+}
+
+// Viewer storage is buffered: one multi-row INSERT per second (or per 200
+// messages) instead of a statement per datagram, so a burst from many sources
+// costs one connection, not one per message. Alert matching stays immediate -
+// only the log-viewer persistence is deferred. maxBuffer sheds load during a
+// DB outage rather than growing memory (storage here is best-effort).
+const rowBatcher = createBatcher<SyslogRow>({
+  intervalMs: 1000,
+  maxBatch: 200,
+  maxBuffer: 5000,
+  flush: async rows => {
+    await query(
+      `INSERT INTO syslog_messages (device_id, source_ip, facility, severity, message)
+       SELECT t.device_id, t.source_ip::inet, t.facility, t.severity, t.message
+       FROM jsonb_to_recordset($1::jsonb) AS t(
+          device_id uuid, source_ip text, facility int, severity int, message text)`,
+      [JSON.stringify(rows.map(r => ({
+        device_id: r.deviceId, source_ip: r.sourceIp,
+        facility: r.facility, severity: r.severity, message: r.message,
+      })))]);
+  },
+  onError: (err, dropped) =>
+    console.warn(`syslog: dropped ${dropped} buffered message(s) - ${err.message}`),
+});
+
 export function startSyslogListener(): void {
   const port = config.syslogPort;
   const sock = dgram.createSocket('udp4');
@@ -119,13 +152,9 @@ export function startSyslogListener(): void {
 
     const { deviceId, hostname } = await resolveDevice(sourceIp);
 
-    // Store for the log viewer (best-effort, rate-limited per source)
+    // Store for the log viewer (best-effort, rate-limited per source, batched)
     if (withinRate(sourceIp)) {
-      await query(
-        `INSERT INTO syslog_messages (device_id, source_ip, facility, severity, message)
-         VALUES ($1,$2,$3,$4,$5)`,
-        [deviceId || null, sourceIp, facility, severity, text]
-      ).catch(() => { /* viewer storage is non-critical */ });
+      rowBatcher.push({ deviceId: deviceId || null, sourceIp, facility, severity, message: text });
     }
 
     for (const { re, handler } of PATTERNS) {

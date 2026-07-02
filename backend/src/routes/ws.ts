@@ -70,7 +70,19 @@ export default async function wsRoutes(app: FastifyInstance) {
       shell = await openInteractiveShell(target, send, () => { if (ws.readyState === 1) ws.close(); });
     } catch (e: any) { send(`\r\n[ssh error: ${e.message}]\r\n`); ws.close(); return; }
 
+    // Idle timeout: an abandoned browser tab must not keep console-level device
+    // access open indefinitely. Only CLIENT input counts as activity - device
+    // output does not (a chatty switch would otherwise keep a dead tab alive).
+    const IDLE_LIMIT_MS = 15 * 60_000;
+    let lastInput = Date.now();
+    const idleTimer = setInterval(() => {
+      if (Date.now() - lastInput < IDLE_LIMIT_MS) return;
+      send(`\r\n[session closed after ${IDLE_LIMIT_MS / 60_000} minutes of inactivity]\r\n`);
+      ws.close(1000, 'idle timeout');   // triggers cleanup below (shell close + audit)
+    }, 30_000);
+
     ws.on('message', (raw: Buffer) => {
+      lastInput = Date.now();
       const msg = raw.toString('utf8');
       // resize control frames are JSON prefixed with \x00; everything else is keystrokes
       if (msg.startsWith('\x00')) {
@@ -80,6 +92,7 @@ export default async function wsRoutes(app: FastifyInstance) {
       shell!.write(msg);
     });
     const cleanup = () => {
+      clearInterval(idleTimer);
       shell?.close();
       audit(user.username, 'terminal.close', q.deviceId, {}, req.ip).catch(() => {});
     };

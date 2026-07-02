@@ -64,8 +64,11 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       variant, and a regression for the once-silent restore failure) and the
       bulk port configuration flow (preview-first-port, per-port apply,
       continue-past-failure, read-back mismatch reporting, confirm-decline).
-      Still open: the remaining I/O paths of the vendor monitors and the
-      other big untested pages (`Compliance`, `Firmware`). (External review.)
+      Still open: the remaining I/O paths of the vendor monitors, the
+      other big untested pages (`Compliance`, `Firmware`), and SSH chaos
+      cases the mocks don't simulate (mid-push disconnects, echo delays,
+      auth-prompt variants) - the one valid gap from the 2026-07-02 external
+      review. (External review.)
 
 ## P3 - Nice to have
 
@@ -253,6 +256,20 @@ are now vendor-aware via the driver seam (config view/diff/preview, automation
 fixes). Remaining Cisco-only spots are intentionally guarded (restore/rollback)
 or vendor-tagged (enable-secret remediation). The last big coupling is the read
 path - see "Reads through the driver" in P3.
+
+**External review triage (2026-07-02):** adopted two items - syslog viewer
+storage now batches (util/batcher.ts: 1s interval or 200 rows, 5000-row memory
+cap, failed flush drops instead of retry-storming; alert matching stays
+immediate) and the web terminal gets a 15-minute idle timeout (client input
+only; device output doesn't keep a dead tab alive). Rejected/already built:
+NetFlow "line-by-line writes" (collector has aggregated per-minute buckets +
+chunked batch inserts since day one), webhook payload signing (outbound-only +
+HMAC-SHA256 X-SwitchPilot-Signature already implemented), credential-script
+hardening (reveals are already audited; KMS is out of scope for self-hosted),
+worker-thread telemetry + TimescaleDB (wrong scale; retention pruning already
+caps growth), PortGrid virtualization (a front panel is a few hundred nodes,
+not a list), and "per-frame WS crypto" (not a real practice; wss + nonce
+handshake + DB-role check + audit is the standard model).
 
 **Already covered (raised in reviews, but built):** sweep concurrency
 (`CONCURRENCY=8` worker pool + per-device SSH pool), syslog retention (14-day),
