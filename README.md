@@ -163,3 +163,17 @@ evaluator, job retry/backoff, device health alerting, credential-key crypto, RBA
 and auth flows. CI
 typechecks both halves, runs the tests, and
 builds both Docker images on every push.
+
+## License
+
+SwitchPilot is free software, licensed under the
+**GNU Affero General Public License v3.0 or later** (AGPL-3.0-or-later) —
+see [LICENSE](LICENSE).
+
+In short: you may use, study, modify, and redistribute it freely. If you run a
+modified version as a network service (the AGPL's key difference from the GPL),
+you must offer its source code to the people who use that service. The login
+screen links back to this repository to satisfy that source offer for unmodified
+deployments; if you fork it, point that link at your fork.
+
+Copyright (C) 2025-2026 Brendon Pifer

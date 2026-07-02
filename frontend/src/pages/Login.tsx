@@ -99,6 +99,16 @@ export default function Login({ onLogin }: { onLogin: (me: Me) => void }) {
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+
+        {/* AGPL §13 source offer: users interacting over the network must be
+            able to reach the Corresponding Source. Forks should point this at
+            their own repository. */}
+        <p className="mt-4 text-center text-xs text-slate-500">
+          <a href="https://github.com/bpifer/switchpilot" target="_blank" rel="noreferrer"
+             className="hover:text-slate-300 hover:underline">
+            SwitchPilot is free software (AGPL-3.0) — source code
+          </a>
+        </p>
       </div>
     </div>
   );
