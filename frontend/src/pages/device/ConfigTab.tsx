@@ -85,9 +85,10 @@ export default function ConfigTab({ deviceId, canConfig }: { deviceId: string; c
           <textarea className="h-64 w-full rounded border p-2 font-mono text-xs"
                     placeholder={'interface GigabitEthernet1/0/10\n description Printer\n switchport access vlan 20'}
                     value={pushLines} onChange={e => setPushLines(e.target.value)} />
-          <label className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+          <label className="mt-2 flex items-center gap-2 text-xs text-slate-500"
+                 title="Cisco arms 'reload in N'; RouterOS schedules a backup restore. Either way, if the platform can't reach the device after the change, the device reloads back to the pre-change config.">
             <input type="checkbox" checked={safeApply} onChange={e => setSafeApply(e.target.checked)} />
-            Safe apply: auto-revert in ~2&nbsp;min if the platform loses access after the change (RouterOS)
+            Safe apply: if the platform loses access after the change, the device reloads back to the pre-change config in ~2&nbsp;min (Cisco IOS-XE &amp; RouterOS)
           </label>
           <div className="mt-2 flex items-center justify-between">
             <span className="text-xs text-slate-400">Preview shows what changes and flags risky lines before applying.</span>

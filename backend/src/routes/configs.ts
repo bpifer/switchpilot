@@ -287,7 +287,10 @@ export default async function configRoutes(app: FastifyInstance) {
     // Commit-confirm counts as accepting the risk: its auto-revert net is exactly
     // the safety mechanism for a change that might cut management, so confirm=true
     // passes the gate without also requiring force (the warnings are still audited).
-    const lockout = detectMgmtLockout(lines, driverFor(await getDevice(id)).vendor);
+    // Fetch the device row once and reuse it for the lockout check and the
+    // commit-confirm push (avoids a second identical getDevice on every push).
+    const device = await getDevice(id);
+    const lockout = detectMgmtLockout(lines, driverFor(device).vendor);
     if (lockout.length && !force && !confirm) {
       await audit(me.username, 'config.push.blocked', id, { lines, warnings: lockout }, req.ip);
       return reply.code(409).send({
@@ -302,7 +305,7 @@ export default async function configRoutes(app: FastifyInstance) {
     // Commit-confirm: apply under an auto-revert net that restores the device if
     // the platform can no longer reach it afterward (RouterOS only; Cisco -> 501).
     if (confirm) {
-      const res = await pushConfigWithRevert(id, lines, confirmSeconds ?? 120);
+      const res = await pushConfigWithRevert(device, lines, confirmSeconds ?? 120);
       await audit(me.username, 'config.push', id,
         { lines, output: redactForAudit(res.output), commitConfirm: res.outcome, ...(lockout.length ? { forcedLockout: lockout } : {}) }, req.ip);
       return { ok: res.outcome === 'confirmed', outcome: res.outcome, output: res.output };

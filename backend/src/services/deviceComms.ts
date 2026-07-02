@@ -251,9 +251,9 @@ export interface RevertResult { outcome: 'confirmed' | 'reverting'; output: stri
  *  then confirm the platform can still reach the device - disarming on success,
  *  or letting the device auto-revert if the change cut us off. RouterOS only. */
 export async function pushConfigWithRevert(
-  deviceId: string, lines: string[], seconds: number
+  device: DeviceRow, lines: string[], seconds: number
 ): Promise<RevertResult> {
-  const device = await getDevice(deviceId);
+  const deviceId = device.id;
   const driver = driverFor(device);
   if (!driver.supportsCommitConfirm) {
     throw Object.assign(new Error(`Commit-confirm is not supported on ${driver.vendor}`), { statusCode: 501 });

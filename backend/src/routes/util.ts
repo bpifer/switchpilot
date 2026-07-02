@@ -1,4 +1,12 @@
 // Shared helpers for route handlers.
+import { isIP } from 'node:net';
+
+/** True for a valid IPv4 or IPv6 literal. Used to validate CSV/import input
+ *  before it reaches a Postgres `::inet` cast, so a bad cell yields a clean
+ *  row-level message instead of a raw cast error. */
+export function isIpAddress(s: string): boolean {
+  return isIP(s.trim()) !== 0;
+}
 
 /**
  * Password safe to interpolate into an IOS config line (e.g. `enable secret X`):

@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
-import { siteFilter } from './util.js';
+import { siteFilter, isIpAddress } from './util.js';
 
 export default async function discoveryRoutes(app: FastifyInstance) {
   /**
@@ -60,15 +60,22 @@ export default async function discoveryRoutes(app: FastifyInstance) {
 
       const ip = row['mgmt_ip'] || row['ip'] || row['management_ip'];
       if (!ip) { results.push({ row: line, ok: false, error: 'mgmt_ip column missing or empty' }); continue; }
+      // Validate before the ::inet cast so a bad cell gives a clean row-level
+      // message instead of a raw Postgres cast error.
+      if (!isIpAddress(ip)) { results.push({ ip, ok: false, error: `not a valid IP address: "${ip}"` }); continue; }
 
       try {
         const { rows } = await query(
           `INSERT INTO devices (hostname, mgmt_ip, model, credential_id, site_id)
-           VALUES ($1, $2::inet, $3, $4::uuid, $5::uuid) RETURNING id`,
+           VALUES ($1, $2::inet, $3, $4::uuid, $5::uuid)
+           ON CONFLICT (mgmt_ip) DO NOTHING
+           RETURNING id`,
           [row['hostname'] || '', ip,
            row['model'] || '',
            row['credential_id'] || null,
            row['site_id'] || null]);
+        // ON CONFLICT DO NOTHING returns no row when the IP already exists.
+        if (!rows[0]) { results.push({ ip, ok: false, error: 'a device with this management IP already exists' }); continue; }
         results.push({ ip, id: rows[0].id, ok: true });
       } catch (err) {
         results.push({ ip, ok: false, error: (err as Error).message });

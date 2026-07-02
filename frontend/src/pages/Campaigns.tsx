@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { useAction } from '../hooks/useAction';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card, Button } from '../components/ui';
 
@@ -57,7 +58,7 @@ export default function Campaigns() {
   const [ringCounts, setRingCounts] = useState<Partial<RingCount>>({});
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: '', imageId: '', rings: ['pilot', 'production'] as string[], waitDays: 7 });
-  const [busy, setBusy] = useState('');
+  const { run, busy: anyBusy, isBusy } = useAction();
 
   const { data: campaigns = [], isLoading: loading, refetch: reloadCampaigns } =
     useApiQuery<Campaign[]>('/api/campaigns', { refetchInterval: 30000 });
@@ -73,23 +74,21 @@ export default function Campaigns() {
 
   const load = () => { reloadCampaigns(); };
 
-  const act = async (url: string, method = 'POST') => {
-    setBusy(url);
-    try { await api(url, { method }); load(); } catch { /* handled */ } finally { setBusy(''); }
-  };
+  const act = (url: string, method = 'POST') =>
+    run(async () => { await api(url, { method }); load(); }, { key: url });
 
-  const create = async () => {
+  const create = () => {
     if (!form.name.trim() || !form.imageId) return;
-    setBusy('create');
-    try {
+    run(async () => {
+      // NB: api() already JSON-stringifies body; pass the object, not a string.
       await api('/api/campaigns', {
         method: 'POST',
-        body: JSON.stringify({ name: form.name, imageId: form.imageId, rings: form.rings, waitDays: form.waitDays })
+        body: { name: form.name, imageId: form.imageId, rings: form.rings, waitDays: form.waitDays }
       });
       setShowCreate(false);
       setForm({ name: '', imageId: '', rings: ['pilot', 'production'], waitDays: 7 });
       load();
-    } catch { /* handled */ } finally { setBusy(''); }
+    }, { key: 'create' });
   };
 
   const toggleRing = (r: string) => setForm(f => ({
@@ -191,31 +190,31 @@ export default function Campaigns() {
                     <div className="flex flex-col gap-1.5 shrink-0">
                       {c.status === 'draft' && (
                         <Button variant="primary" onClick={() => act(`/api/campaigns/${c.id}/start`)}
-                          disabled={!!busy}>
+                          disabled={anyBusy}>
                           Start
                         </Button>
                       )}
                       {c.status === 'running' && (
                         <>
                           <Button variant="primary" onClick={() => act(`/api/campaigns/${c.id}/advance`)}
-                            disabled={!!busy}>
+                            disabled={anyBusy}>
                             Advance
                           </Button>
                           <Button variant="secondary" onClick={() => act(`/api/campaigns/${c.id}/pause`)}
-                            disabled={!!busy}>
+                            disabled={anyBusy}>
                             Pause
                           </Button>
                         </>
                       )}
                       {c.status === 'paused' && (
                         <Button variant="primary" onClick={() => act(`/api/campaigns/${c.id}/advance`)}
-                          disabled={!!busy}>
+                          disabled={anyBusy}>
                           Resume
                         </Button>
                       )}
                       {(c.status === 'running' || c.status === 'paused') && (
                         <Button variant="danger" onClick={() => act(`/api/campaigns/${c.id}/abort`)}
-                          disabled={!!busy}>
+                          disabled={anyBusy}>
                           Abort
                         </Button>
                       )}
@@ -287,8 +286,8 @@ export default function Campaigns() {
               </div>
               <div className="flex justify-end gap-2 mt-5">
                 <Button variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
-                <Button variant="primary" onClick={create} disabled={busy === 'create'}>
-                  {busy === 'create' ? 'Creating…' : 'Create Campaign'}
+                <Button variant="primary" onClick={create} disabled={isBusy('create')}>
+                  {isBusy('create') ? 'Creating…' : 'Create Campaign'}
                 </Button>
               </div>
             </div>
