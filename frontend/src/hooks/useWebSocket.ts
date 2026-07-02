@@ -3,6 +3,9 @@ import { api, getToken } from '../api';
 
 export type WsEvent =
   | { type: 'alert'; data: { deviceId: string; kind: string; severity: string; message: string; ts: string } }
+  // A monitor sweep finished refreshing this device (or its status flipped) -
+  // open pages should refetch its data instead of waiting out their poll interval.
+  | { type: 'device_updated'; data: { deviceId: string } }
   | { type: 'job_progress'; data: {
       jobId: string;
       deviceId?: string;

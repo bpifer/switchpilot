@@ -192,6 +192,13 @@ first selected port) as the single-port flow, then sequential per-port applies
 with device read-back verification and a per-port ✓/⚠/✗ report; continues past
 failures. Physical ports only (LAG virtuals excluded).
 
+**Live device refresh over WebSocket (2026-07-01):** monitor sweeps (and
+status flips) publish a `device_updated` event on the existing redis→/ws bus;
+the app invalidates that device's react-query entries (detail, ports, metrics,
+device list), so open pages refetch the moment a sweep lands instead of
+waiting out their 60s poll. Only active queries refetch - background pages
+cost nothing.
+
 **Cross-tool (mikrotik-manager review):** Device Tools tab (ping/traceroute on
 both vendors, ip-scan on RouterOS, injection-safe, audited; RouterOS tools
 validated live on a CRS326, their continuously-refreshing output collapsed to the

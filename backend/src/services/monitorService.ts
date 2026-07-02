@@ -1,7 +1,7 @@
 // Polls devices over SSH/SNMP, updates inventory/port/topology state, raises alerts.
 import dns from 'node:dns/promises';
 import { query } from '../db.js';
-import { redis } from '../redis.js';
+import { redis, publishEvent } from '../redis.js';
 import { CiscoSshSession } from '../cisco/sshClient.js';
 import { RouterOsSshSession } from '../routeros/sshClient.js';
 import { withDeviceSession } from '../cisco/sshPool.js';
@@ -43,6 +43,10 @@ export async function pollStatus(device: DeviceRow): Promise<void> {
   }
 
   const newStatus = reachable ? 'online' : 'offline';
+  // Push the flip to connected dashboards (only on change - polls are frequent).
+  if (device.status !== newStatus) {
+    publishEvent({ type: 'device_updated', data: { deviceId: device.id } }).catch(() => {});
+  }
   // Per-device availability rollup: bump the current hour's up/total counters so
   // availability % over a window is a cheap aggregate. Best-effort.
   await query(
@@ -69,8 +73,16 @@ export async function pollStatus(device: DeviceRow): Promise<void> {
 /** Full refresh: identity, metrics, environment, ports, PoE, MACs, stack, neighbors. */
 export async function refreshDevice(deviceId: string): Promise<void> {
   const device = await getDevice(deviceId);
+  // Notify connected dashboards that this device's inventory/port data changed,
+  // so open pages refetch immediately instead of waiting out their poll interval.
+  const notifyUpdated = () =>
+    publishEvent({ type: 'device_updated', data: { deviceId } }).catch(() => {});
   // MikroTik gear uses a wholly different CLI; hand off to the RouterOS sweep.
-  if (isMikrotik(device)) return refreshRouterOsDevice(deviceId);
+  if (isMikrotik(device)) {
+    await refreshRouterOsDevice(deviceId);
+    notifyUpdated();
+    return;
+  }
   const target = await sshTargetFor(device);
   // Pooled session: repeated sweeps reuse the SSH handshake (enable mode is
   // handled by the pool via target.skipEnable for NX-OS).
@@ -263,6 +275,7 @@ export async function refreshDevice(deviceId: string): Promise<void> {
     await redis.set(`device:${deviceId}:lastRefresh`, Date.now().toString()).catch(() => { /* cache only */ });
   });
   publishDevice(deviceId).catch(() => { /* mqtt best-effort */ });
+  notifyUpdated();
 }
 
 export interface PortFlapPrev {

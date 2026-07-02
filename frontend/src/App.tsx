@@ -186,6 +186,17 @@ export default function App() {
       setLiveAlertCount(n => n + 1);
       // keep the global bell count fresh the moment an alert fires
       queryClient.invalidateQueries({ queryKey: ['/api/summary'] });
+    } else if (msg.type === 'device_updated') {
+      // A monitor sweep refreshed this device (or its status flipped): refetch
+      // whatever is on screen for it - detail, ports, metrics - plus the device
+      // list. Only ACTIVE queries refetch, so background pages cost nothing.
+      const { deviceId } = msg.data;
+      queryClient.invalidateQueries({
+        predicate: q => {
+          const k = String(q.queryKey[0] ?? '');
+          return k.startsWith(`/api/devices/${deviceId}`) || k === '/api/devices' || k.startsWith('/api/devices?');
+        }
+      });
     }
   }, !!me);
 
