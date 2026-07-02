@@ -52,10 +52,14 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       2026-07-01: port flap detection extracted pure (`decidePortFlap`, window
       restart/decay edge cases) + `shortName` exported, both tested; the
       scheduler's sweep worker pool extracted (`forEachLimit`) + tested
-      (concurrency cap, per-device error isolation, empty list). Still open:
-      the remaining I/O paths of `monitorService.refreshDevice` and the largest
-      untested frontend pages (`Compliance`, `Firmware`, `DeviceDetail`).
-      (External review.)
+      (concurrency cap, per-device error isolation, empty list). Frontend:
+      the new device-tab flows now have behavioral tests (33 total) -
+      `BackupsTab` (baseline set/badge/auto-remediate/dry-run, the RouterOS
+      variant, and a regression for the once-silent restore failure) and the
+      bulk port configuration flow (preview-first-port, per-port apply,
+      continue-past-failure, read-back mismatch reporting, confirm-decline).
+      Still open: the remaining I/O paths of the vendor monitors and the
+      other big untested pages (`Compliance`, `Firmware`). (External review.)
 
 ## P3 - Nice to have
 
