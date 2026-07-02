@@ -33,14 +33,20 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
       (`dst-address`, `version=9`). Frontend button DONE (2026-07-01): "Enable
       export on this device" on the Traffic page when a device is selected
       (netadmin-gated, also referenced from the empty state). Cisco
-      Flexible-NetFlow auto-config BUILT (2026-07-01): record/exporter/monitor
-      named SWITCHPILOT with the field set the v9 decoder extracts, monitor
-      attached input-side per physical Ethernet port (names from the ports
-      table; Po/Vlan/subinterfaces skipped); unit-tested; NX-OS still 501.
-      Remaining: (1) **live end-to-end test** - apply `flowExportLines` on the
-      CRS326 (and now the C9300) pointed at the LXC collector and confirm
-      `flow_records` populate (needs `NETFLOW_ENABLED=true` + udp/2055 reachable
-      from the switch); the Cisco FNF lines await that hardware validation.
+      Flexible-NetFlow auto-config BUILT (2026-07-01) and **hardware-validated
+      (2026-07-02)** on a C9300-24T, IOS-XE 17.03.07: all 84 generated lines
+      accepted with zero % messages, record/exporter/monitor verified on
+      device, monitor attached input-side on all 32 physical ports (AppGig
+      correctly filtered out), re-applying the identical config is a clean
+      no-op (17.3 emits no "in use" warnings for identical fields), cleanup
+      verified, startup untouched. The same session validated the full
+      ciscoMonitor read path (all parsers + capability gating: PoE command
+      skipped on the non-PoE 24T, layer3 ARP taken, stack parsed) and the
+      commit-confirm arm/cancel mechanics post-refactor. NX-OS still 501.
+      Remaining: (1) **collector end-to-end** - flow-export a switch at the
+      running platform and confirm `flow_records` populate (needs
+      `NETFLOW_ENABLED=true` + udp/2055 reachable from the switch); CLI
+      acceptance is proven, delivery is not yet.
 - [ ] **Topology upgrades.** `Medium`. PARTIAL: orphan-node detection shipped
       (managed devices with no discovered neighbors are flagged on the map +
       counted). Still open: manual link drawing + persistence, MNDP dedup,

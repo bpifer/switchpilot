@@ -134,10 +134,11 @@ export function ciscoDriver(os: string): DeviceDriver {
       // attached input-side on each physical Ethernet port (FNF has no global
       // "all interfaces" switch like RouterOS traffic-flow). The record's field
       // set is exactly what the platform's v9 decoder extracts: src/dst IPv4,
-      // L4 ports, protocol, byte/packet counters. Built per IOS-XE syntax and
-      // unit-tested; not yet hardware-validated (TODO: NetFlow follow-ups).
-      // Re-running is safe: IOS-XE refuses to edit an in-use record with a
-      // "% ... is in use" warning, leaving the identical config in place.
+      // L4 ports, protocol, byte/packet counters. Validated on a C9300-24T
+      // (IOS-XE 17.03.07): every line accepted (zero % messages), monitor
+      // attaches on L2 switchports, and re-applying the identical config is a
+      // clean no-op - 17.3 re-accepts identical record fields without even an
+      // "in use" warning. (Collector delivery e2e still needs a live platform.)
       if (nxos) {
         // NX-OS needs `feature netflow` and has its own record grammar.
         throw Object.assign(new Error('NetFlow auto-export is not yet supported on NX-OS'), { statusCode: 501 });
