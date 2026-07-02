@@ -1,10 +1,25 @@
 // Event-triggered automation rules: "if a port goes down, notify Teams",
 // "if config drifts, restore baseline", "if CPU > 90%, alert", etc.
 import { query } from '../db.js';
-import { raiseAlert } from './alertService.js';
+import { raiseAlert, inMaintenanceWindow } from './alertService.js';
 import { devicePushConfig, setPortAdmin } from './deviceComms.js';
 import { checkDrift } from './configService.js';
 import { renderTemplate } from './templateService.js';
+
+// Actions that change device state. During an active maintenance window these
+// are suppressed: an operator is working on the device and an automation that
+// disables a port, pushes a template, or reverts to baseline would fight them
+// (restore_baseline is the worst - it would undo the change in progress).
+// `notify` is not here: it flows through raiseAlert, which already suppresses
+// during a window, so alerts stay quiet without silencing this whole rule.
+const STATE_CHANGING_ACTIONS = new Set(['restore_baseline', 'run_template', 'disable_port']);
+
+/** Whether an automation action writes to the device (vs `notify`, which only
+ *  raises an alert). State-changing actions are suppressed during a maintenance
+ *  window. Exported for tests. */
+export function isStateChangingAction(action: string): boolean {
+  return STATE_CHANGING_ACTIONS.has(action);
+}
 
 export interface TriggerContext {
   deviceId: string;
@@ -32,6 +47,13 @@ async function executeRule(rule: any, ctx: TriggerContext): Promise<void> {
   // generic threshold condition (e.g. cpu_high with {"threshold": 95})
   if (cond.threshold !== undefined && ctx.cpu !== undefined && ctx.cpu < cond.threshold) return;
   if (cond.threshold !== undefined && ctx.temp !== undefined && ctx.temp < cond.threshold) return;
+
+  // Don't let a config-changing automation fire on a device someone is actively
+  // maintaining (mirrors alert suppression, but for writes).
+  if (isStateChangingAction(rule.action) && ctx.deviceId && await inMaintenanceWindow(ctx.deviceId)) {
+    console.log(`automation "${rule.name}" (${rule.action}) skipped: ${ctx.deviceId} is in a maintenance window`);
+    return;
+  }
 
   const params = rule.action_params ?? {};
   const d = await query('SELECT hostname FROM devices WHERE id=$1', [ctx.deviceId]);

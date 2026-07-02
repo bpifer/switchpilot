@@ -105,11 +105,23 @@ export async function evaluateDevice(deviceId: string): Promise<{ evaluated: num
   return { evaluated: rules.length, passed: passedCount };
 }
 
-/** Evaluate every monitored device. Called by the scheduler. */
-export async function evaluateAllCompliance(concurrency = 8): Promise<void> {
-  const { rows } = await query<{ id: string }>('SELECT id FROM devices WHERE monitor_enabled');
-  await forEachLimit(rows, concurrency, d => evaluateDevice(d.id).then(() => {}),
-    (d, err) => console.warn(`compliance eval failed for ${d.id}: ${err.message}`));
+/** Evaluate every monitored device. Called by the scheduler.
+ *  `fresh` pulls a running-config backup per device before evaluating, so the
+ *  score reflects the live device instead of the last (possibly day-old)
+ *  backup. backupDevice dedupes on a normalized hash, so an unchanged config
+ *  is just one SSH read - no new row and no git commit. Offline devices are
+ *  skipped so a fresh sweep doesn't stall on unreachable gear. */
+export async function evaluateAllCompliance(
+  opts: { fresh?: boolean; concurrency?: number } = {}
+): Promise<void> {
+  const { rows } = await query<{ id: string; status: string }>(
+    'SELECT id, status FROM devices WHERE monitor_enabled');
+  await forEachLimit(rows, opts.concurrency ?? 8, async d => {
+    if (opts.fresh && d.status !== 'offline') {
+      await backupDevice(d.id, 'compliance-scheduler', { reason: 'scheduled compliance evaluation' });
+    }
+    await evaluateDevice(d.id);
+  }, (d, err) => console.warn(`compliance eval failed for ${d.id}: ${err.message}`));
 }
 
 /** Resolve a rule's remediation template into pushable config lines.

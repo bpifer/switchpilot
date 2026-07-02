@@ -19,6 +19,20 @@ export function webhookMatchesSeverity(alert: Severity, min: Severity): boolean 
 const lastEmail = new Map<string, number>();
 const EMAIL_THROTTLE_MS = 3600_000;
 
+/** True if the device is inside an active maintenance window right now. Shared
+ *  by alert suppression AND state-changing automation gating, so "hands off
+ *  during a window" means the same thing for both. A window with no device_ids
+ *  covers the whole fleet. */
+export async function inMaintenanceWindow(deviceId: string): Promise<boolean> {
+  const mw = await query(
+    `SELECT id FROM maintenance_windows
+     WHERE now() BETWEEN starts_at AND ends_at
+     AND (cardinality(device_ids) = 0 OR $1::uuid = ANY(device_ids))
+     LIMIT 1`,
+    [deviceId]);
+  return mw.rowCount ? true : false;
+}
+
 /**
  * Record an alert and fan out notifications.
  * Deduplicates open alerts of the same kind on the same device.
@@ -31,15 +45,7 @@ export async function raiseAlert(
   message: string
 ): Promise<void> {
   // Suppress during active maintenance windows
-  if (deviceId) {
-    const mw = await query(
-      `SELECT id FROM maintenance_windows
-       WHERE now() BETWEEN starts_at AND ends_at
-       AND (cardinality(device_ids) = 0 OR $1::uuid = ANY(device_ids))
-       LIMIT 1`,
-      [deviceId]);
-    if (mw.rowCount) return;
-  }
+  if (deviceId && await inMaintenanceWindow(deviceId)) return;
 
   const existing = await query(
     `SELECT id FROM alerts WHERE device_id IS NOT DISTINCT FROM $1 AND kind=$2 AND resolved_at IS NULL`,

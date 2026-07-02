@@ -76,7 +76,9 @@ export function startScheduler(): void {
     eachDevice(async d => {
       if (d.status !== 'offline') await checkDrift(d.id);
     }, 'drift check').catch(err => console.error('drift sweep failed:', err));
-    evaluateAllCompliance().catch(err => console.error('compliance evaluation failed:', err));
+    // fresh: pull the live running config first so the score reflects the device
+    // now, not the last nightly backup (backupDevice dedupes, so it's cheap).
+    evaluateAllCompliance({ fresh: true }).catch(err => console.error('compliance evaluation failed:', err));
   });
 
   // daily TLS cert expiry check (best-effort; devices without TLS are skipped)
