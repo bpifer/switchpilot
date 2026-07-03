@@ -16,9 +16,37 @@ function rangeConfig(range: string): { interval: string; bucket: string } {
   }
 }
 
+// Response schemas: documents the Traffic API in /docs for integrations
+// (Grafana etc.). bytes/packets are Postgres bigints, serialized as strings.
+// additionalProperties keeps it forgiving if a field is added later.
+const talkerItem = {
+  type: 'object', additionalProperties: true,
+  properties: { host: { type: 'string' }, bytes: { type: 'string' }, packets: { type: 'string' } },
+};
+const appItem = {
+  type: 'object', additionalProperties: true,
+  properties: { app: { type: 'string' }, bytes: { type: 'string' } },
+};
+const seriesItem = {
+  type: 'object', additionalProperties: true,
+  properties: { bucket: { type: 'string', format: 'date-time' }, bytes: { type: 'string' } },
+};
+
 export default async function trafficRoutes(app: FastifyInstance) {
   // Collector status + whether any data has landed (drives the empty state).
-  app.get('/api/traffic/status', { preHandler: requireRole('readonly'), schema: { tags: ['traffic'] } },
+  app.get('/api/traffic/status', {
+    preHandler: requireRole('readonly'),
+    schema: {
+      tags: ['traffic'],
+      response: { 200: {
+        type: 'object', additionalProperties: true,
+        properties: {
+          enabled: { type: 'boolean' }, port: { type: 'integer' },
+          records: { type: 'integer' }, latest: { type: ['string', 'null'], format: 'date-time' },
+        },
+      } },
+    },
+  },
     async () => {
       const { rows } = await query<{ n: number; latest: string | null }>(
         `SELECT count(*)::int AS n, max(bucket) AS latest FROM flow_records`);
@@ -27,7 +55,10 @@ export default async function trafficRoutes(app: FastifyInstance) {
 
   // Top talkers: hosts by total bytes, counting traffic in either direction.
   app.get<{ Querystring: { range?: string; deviceId?: string } }>(
-    '/api/traffic/top-talkers', { preHandler: requireRole('readonly'), schema: { tags: ['traffic'] } },
+    '/api/traffic/top-talkers', {
+      preHandler: requireRole('readonly'),
+      schema: { tags: ['traffic'], response: { 200: { type: 'array', items: talkerItem } } },
+    },
     async (req) => {
       const { interval } = rangeConfig(req.query.range ?? '24h');
       const dev = req.query.deviceId;
@@ -46,7 +77,10 @@ export default async function trafficRoutes(app: FastifyInstance) {
 
   // Application breakdown by bytes.
   app.get<{ Querystring: { range?: string; deviceId?: string } }>(
-    '/api/traffic/apps', { preHandler: requireRole('readonly'), schema: { tags: ['traffic'] } },
+    '/api/traffic/apps', {
+      preHandler: requireRole('readonly'),
+      schema: { tags: ['traffic'], response: { 200: { type: 'array', items: appItem } } },
+    },
     async (req) => {
       const { interval } = rangeConfig(req.query.range ?? '24h');
       const dev = req.query.deviceId;
@@ -61,7 +95,10 @@ export default async function trafficRoutes(app: FastifyInstance) {
 
   // Total bytes over time (area chart).
   app.get<{ Querystring: { range?: string; deviceId?: string } }>(
-    '/api/traffic/series', { preHandler: requireRole('readonly'), schema: { tags: ['traffic'] } },
+    '/api/traffic/series', {
+      preHandler: requireRole('readonly'),
+      schema: { tags: ['traffic'], response: { 200: { type: 'array', items: seriesItem } } },
+    },
     async (req) => {
       const { interval, bucket } = rangeConfig(req.query.range ?? '24h');
       const dev = req.query.deviceId;
