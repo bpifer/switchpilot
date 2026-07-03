@@ -21,15 +21,22 @@ export interface ComplianceRule {
 /** Test one rule against a config. Returns { passed, detail }. */
 export function evaluateRule(rule: ComplianceRule, configText: string): { passed: boolean; detail: string } {
   const lines = configText.split('\n');
+  // A `no <feature>` line is an explicit negation, not the affirmative config,
+  // so it must not satisfy a line_present/line_absent check for `<feature>`
+  // (e.g. `no aaa new-model` is AAA DISABLED, not enabled). Skip `no `-prefixed
+  // lines unless the rule pattern itself is a negation.
+  const patternNegates = /^\s*no\s/.test(rule.pattern);
+  const affirmativelyContains = (l: string) =>
+    l.includes(rule.pattern) && (patternNegates || !/^\s*no\s+/.test(l));
   switch (rule.match_type) {
     case 'line_present': {
-      const hit = lines.find(l => l.includes(rule.pattern));
+      const hit = lines.find(affirmativelyContains);
       return hit
         ? { passed: true, detail: hit.trim() }
         : { passed: false, detail: `no line contains "${rule.pattern}"` };
     }
     case 'line_absent': {
-      const hit = lines.find(l => l.includes(rule.pattern));
+      const hit = lines.find(affirmativelyContains);
       return hit
         ? { passed: false, detail: `forbidden line present: ${hit.trim()}` }
         : { passed: true, detail: '' };

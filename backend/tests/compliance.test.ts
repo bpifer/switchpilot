@@ -23,6 +23,27 @@ describe('evaluateRule', () => {
     expect(evaluateRule(r, RUNNING_CONFIG_NONCOMPLIANT).passed).toBe(false); // telnet present
   });
 
+  // Real C9300 finding: `no aaa new-model` (AAA disabled) contains the substring
+  // "aaa new-model", so a naive line_present falsely reported the control as
+  // present/compliant. A `no `-negation must not satisfy the affirmative check.
+  it('line_present does not treat a "no <feature>" negation as the feature being present', () => {
+    const r = rule({ match_type: 'line_present', pattern: 'aaa new-model' });
+    expect(evaluateRule(r, 'hostname sw\nno aaa new-model\nend').passed).toBe(false);
+    expect(evaluateRule(r, 'hostname sw\naaa new-model\nend').passed).toBe(true);
+  });
+
+  it('line_absent treats a "no <feature>" negation as the feature being absent', () => {
+    const r = rule({ match_type: 'line_absent', pattern: 'ip http server' });
+    // explicitly disabled -> absent -> PASS; explicitly enabled -> present -> FAIL
+    expect(evaluateRule(r, 'no ip http server').passed).toBe(true);
+    expect(evaluateRule(r, 'ip http server').passed).toBe(false);
+  });
+
+  it('a rule whose pattern is itself a negation still matches the negation line', () => {
+    const r = rule({ match_type: 'line_present', pattern: 'no ip http server' });
+    expect(evaluateRule(r, 'no ip http server').passed).toBe(true);
+  });
+
   it('regex_present anchors per-line with the m flag', () => {
     const r = rule({ match_type: 'regex_present', pattern: '^ntp server ' });
     expect(evaluateRule(r, RUNNING_CONFIG_COMPLIANT).passed).toBe(true);
