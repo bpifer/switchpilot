@@ -240,7 +240,10 @@ export async function configureFlowExport(deviceId: string): Promise<string> {
   const { rows } = await query<{ name: string }>(
     'SELECT name FROM ports WHERE device_id=$1 ORDER BY name', [deviceId]);
   const lines = driverFor(device).flowExportLines({
-    host, port: config.netflow.port, interfaces: rows.map(r => r.name)
+    host, port: config.netflow.port, interfaces: rows.map(r => r.name),
+    // The device's own IP as the export source (host() strips any CIDR suffix),
+    // so RouterOS doesn't emit from 0.0.0.0 and get dropped by a NAT'd collector.
+    srcAddress: String(device.mgmt_ip).replace(/\/\d+$/, ''),
   });
   return pushLines(device, lines, true);
 }

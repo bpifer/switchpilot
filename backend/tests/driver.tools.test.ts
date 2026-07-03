@@ -107,6 +107,14 @@ describe('NetFlow auto-export - config building', () => {
     ]);
   });
 
+  it('RouterOS pins the export source to the device IP when given (avoids 0.0.0.0 -> dropped)', () => {
+    const lines = routerosDriver().flowExportLines({ host: '192.168.10.226', port: 2055, srcAddress: '192.168.10.41' });
+    expect(lines[1]).toBe('/ip traffic-flow target add dst-address=192.168.10.226 port=2055 version=9 src-address=192.168.10.41');
+    // a non-IP srcAddress is ignored rather than interpolated into the CLI
+    const noSrc = routerosDriver().flowExportLines({ host: '192.168.10.226', port: 2055, srcAddress: 'garbage; /system reset' });
+    expect(noSrc[1]).toBe('/ip traffic-flow target add dst-address=192.168.10.226 port=2055 version=9');
+  });
+
   it('RouterOS re-guards the collector host against CLI metacharacters', () => {
     expect(() => routerosDriver().flowExportLines({ host: '1.2.3.4; /system reset', port: 2055 }))
       .toThrow(/invalid tool target/i);

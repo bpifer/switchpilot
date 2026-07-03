@@ -250,14 +250,19 @@ export function routerosDriver(): DeviceDriver {
       return frames.reduce((best, f) => (lines(f) >= lines(best) ? f : best), frames[0]);
     },
 
-    flowExportLines({ host, port }: FlowExportOpts): string[] {
+    flowExportLines({ host, port, srcAddress }: FlowExportOpts): string[] {
       assertToolTarget(host);   // host reaches the CLI; reuse the metachar guard
+      // Pin the exported packets' source to the device's own IP. RouterOS
+      // otherwise emits from 0.0.0.0 when the collector is on a directly
+      // connected subnet, and a NAT'd/containerized collector drops those as a
+      // martian source (found live: CRS326 7.12.1 -> dockerized LXC collector).
+      const src = srcAddress && /^[\d.]+$/.test(srcAddress) ? ` src-address=${srcAddress}` : '';
       // Idempotent: drop any prior target to this collector, re-add, enable on
       // all interfaces. version=9 matches the platform's v9 decoder. Param names
       // verified against RouterOS 7.12.1 (dst-address is canonical).
       return [
         `/ip traffic-flow target remove [find dst-address=${host}]`,
-        `/ip traffic-flow target add dst-address=${host} port=${port} version=9`,
+        `/ip traffic-flow target add dst-address=${host} port=${port} version=9${src}`,
         '/ip traffic-flow set enabled=yes interfaces=all',
       ];
     },

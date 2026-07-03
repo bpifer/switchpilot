@@ -40,6 +40,10 @@ export interface FlowExportOpts {
    *  physical Ethernet ports out of this list; RouterOS ignores it (its
    *  traffic-flow export is a global `interfaces=all` switch). */
   interfaces?: string[];
+  /** The device's own management IP, used as the exported packets' source
+   *  address. Without it RouterOS emits from 0.0.0.0, which a NAT'd/containerized
+   *  collector drops as a martian source (validated live on a CRS326 -> LXC). */
+  srcAddress?: string;
 }
 
 /** Diagnostic tools a driver can run from the platform. Read-only and
