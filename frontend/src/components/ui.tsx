@@ -11,9 +11,9 @@ export function Icon({ d, className = 'w-4 h-4' }: { d: string; className?: stri
 
 export function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4 shadow-sm">
+    <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-6 sm:py-4">
       <h1 className="text-lg font-semibold text-slate-800">{title}</h1>
-      <div className="flex gap-2">{children}</div>
+      <div className="flex flex-wrap gap-2">{children}</div>
     </div>
   );
 }

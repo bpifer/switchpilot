@@ -44,6 +44,7 @@ function Webhooks() {
         </p>
         <Button onClick={() => setEditing({ name: '', url: '', secret: '', minSeverity: 'warning' })}>Add webhook</Button>
       </div>
+      <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-left text-xs uppercase text-slate-500">
@@ -73,6 +74,7 @@ function Webhooks() {
           {hooks.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-slate-400">No webhooks configured</td></tr>}
         </tbody>
       </table>
+      </div>
       {editing && <WebhookModal hook={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refetch(); }} />}
     </Card>
   );
@@ -160,6 +162,7 @@ function ApiKeys() {
         </div>
       )}
 
+      <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-left text-xs uppercase text-slate-500">
@@ -180,6 +183,7 @@ function ApiKeys() {
           {keys.length === 0 && <tr><td colSpan={5} className="py-4 text-center text-slate-400">No API keys</td></tr>}
         </tbody>
       </table>
+      </div>
 
       {creating && (
         <Modal title="Create API key" onClose={() => setCreating(false)}>

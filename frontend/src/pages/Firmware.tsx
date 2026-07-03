@@ -45,6 +45,7 @@ export default function Firmware({ me }: { me: Me }) {
 
       <div className="space-y-4 p-6">
         <Card title="Device firmware">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs uppercase text-gray-500">
@@ -92,9 +93,11 @@ export default function Firmware({ me }: { me: Me }) {
               )}
             </tbody>
           </table>
+          </div>
         </Card>
 
         <Card title="Image library">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs uppercase text-gray-500">
@@ -140,6 +143,7 @@ export default function Firmware({ me }: { me: Me }) {
               )}
             </tbody>
           </table>
+          </div>
         </Card>
       </div>
 

@@ -98,7 +98,10 @@ export default function PortGrid({ ports, selected, onSelect }: {
     module.includes('/') ? `${module}/1–${n}` : `${module}1–${n}`;
 
   return (
-    <div className="space-y-5">
+    // min-w-0 lets this shrink inside its flex parent; overflow-x-auto scrolls
+    // the fixed-width front-panel rows on narrow screens instead of blowing out
+    // the page (a 48-port row can't wrap without breaking the physical layout).
+    <div className="min-w-0 max-w-full space-y-5 overflow-x-auto">
       {[...groups.entries()].map(([module, list]) => {
         const sorted = [...list].sort((a, b) => portNum(a.name) - portNum(b.name));
         const odd  = sorted.filter(p => portNum(p.name) % 2 === 1);

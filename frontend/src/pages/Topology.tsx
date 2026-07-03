@@ -10,9 +10,13 @@ type Pos = { x: number; y: number };
 
 const CANVAS = { cx: 520, cy: 340 };
 
+// Stable default so a loading/empty response doesn't hand a fresh {nodes:[]}
+// object to the position-seeding effect every render (which looped it forever).
+const EMPTY_GRAPH: { nodes: Node[]; edges: Edge[] } = { nodes: [], edges: [] };
+
 export default function Topology() {
   const { siteId } = useSiteScope();
-  const { data: graph = { nodes: [], edges: [] } } =
+  const { data: graph = EMPTY_GRAPH } =
     useApiQuery<{ nodes: Node[]; edges: Edge[] }>(scoped('/api/topology', siteId), { refetchInterval: 60000 });
   const navigate = useNavigate();
   const svgRef = useRef<SVGSVGElement>(null);

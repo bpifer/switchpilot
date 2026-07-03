@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { api, getToken, setToken } from './api';
 import { Icon } from './components/ui';
 import Login from './pages/Login';
@@ -178,7 +178,12 @@ export default function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
   const [liveAlertCount, setLiveAlertCount] = useState(0);
+  // Mobile nav drawer: the sidebar is a static column on lg+, an off-canvas
+  // drawer below that. Closes automatically on navigation (route change).
+  const [navOpen, setNavOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  useEffect(() => { setNavOpen(false); }, [location.pathname]);
   const queryClient = useQueryClient();
 
   const wsStatus = useWebSocket(msg => {
@@ -247,7 +252,11 @@ export default function App() {
     <CommandPalette />
     <Toaster />
     <div className="flex h-screen bg-slate-50">
-      <aside className="flex w-60 shrink-0 flex-col bg-slate-900 text-white">
+      {/* Mobile drawer backdrop */}
+      {navOpen && (
+        <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" aria-hidden onClick={() => setNavOpen(false)} />
+      )}
+      <aside className={`fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col bg-slate-900 text-white transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${navOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         {/* Logo */}
         <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-800">
           <LogoMark className="h-9 w-9 shrink-0" />
@@ -256,6 +265,12 @@ export default function App() {
             <div className="mt-0.5 text-[10px] text-slate-400 leading-none">Network Management</div>
           </div>
           <AlertsBell />
+          {/* Close drawer (mobile only) */}
+          <button className="lg:hidden -mr-1 rounded p-1 text-slate-400 hover:text-white" aria-label="Close menu" onClick={() => setNavOpen(false)}>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-5 w-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Site scope */}
@@ -337,7 +352,20 @@ export default function App() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto">
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Mobile top bar (hidden on lg+, where the sidebar is always visible) */}
+        <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2.5 lg:hidden">
+          <button className="-ml-1 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100" aria-label="Open menu" onClick={() => setNavOpen(true)}>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="h-6 w-6">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+            </svg>
+          </button>
+          <LogoMark className="h-7 w-7 shrink-0" />
+          <span className="font-semibold text-slate-800">SwitchPilot</span>
+          <div className="ml-auto"><AlertsBell /></div>
+        </header>
+
+        <main className="flex-1 overflow-auto">
         <ErrorBoundary>
         <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading…</div>}>
         <Routes>
@@ -370,7 +398,8 @@ export default function App() {
         </Routes>
         </Suspense>
         </ErrorBoundary>
-      </main>
+        </main>
+      </div>
     </div>
     </SiteScopeProvider>
   );

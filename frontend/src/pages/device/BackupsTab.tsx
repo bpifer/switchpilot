@@ -81,6 +81,7 @@ export default function BackupsTab({ deviceId, canOperate, canConfig, vendor }: 
     <div className="grid gap-4 lg:grid-cols-2">
       <Card title="Configuration backups">
         {canOperate && <Button onClick={() => setShowBackup(true)}>Backup now</Button>}
+        <div className="overflow-x-auto">
         <table className="mt-3 w-full text-sm">
           <thead><tr className="border-b text-left text-xs uppercase text-gray-500">
             <th className="py-1">Taken</th><th>By</th><th>Reason</th><th>Ticket</th><th>Size</th><th></th></tr></thead>
@@ -120,6 +121,7 @@ export default function BackupsTab({ deviceId, canOperate, canConfig, vendor }: 
             {backups.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-gray-400">No backups yet</td></tr>}
           </tbody>
         </table>
+        </div>
       </Card>
       <Card title="Diff">
         <pre className="max-h-[32rem] overflow-auto rounded bg-gray-900 p-3 text-xs leading-relaxed">

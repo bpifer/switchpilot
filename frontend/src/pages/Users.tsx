@@ -22,6 +22,7 @@ export default function Users() {
       </PageHeader>
       <div className="grid gap-4 p-6 lg:grid-cols-2">
         <Card title="Users">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="border-b text-left text-xs uppercase text-gray-500">
               <th className="py-1">User</th><th>Role</th><th>Source</th><th>MFA</th><th>Status</th><th>Last login</th><th></th></tr></thead>
@@ -55,6 +56,7 @@ export default function Users() {
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
         <div className="space-y-4">
           <AuditIntegrity />

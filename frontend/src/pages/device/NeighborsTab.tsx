@@ -5,6 +5,7 @@ export default function NeighborsTab({ deviceId }: { deviceId: string }) {
   const { data: neighbors = [] } = useApiQuery<any[]>(`/api/devices/${deviceId}/neighbors`);
   return (
     <Card title="CDP / LLDP neighbors">
+      <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead><tr className="border-b text-left text-xs uppercase text-gray-500">
           <th className="py-1">Local port</th><th>Neighbor</th><th>Neighbor port</th><th>IP</th><th>Platform</th><th>Via</th></tr></thead>
@@ -22,6 +23,7 @@ export default function NeighborsTab({ deviceId }: { deviceId: string }) {
           {neighbors.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-gray-400">No neighbors discovered yet</td></tr>}
         </tbody>
       </table>
+      </div>
     </Card>
   );
 }

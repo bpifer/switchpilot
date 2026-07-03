@@ -116,12 +116,12 @@ export default function DeviceDetail({ me }: { me: Me }) {
       </div>
 
       {/* Tabs */}
-      <div className="px-6 pt-4">
-        <div className="flex items-center justify-between border-b border-slate-200">
-          <div className="flex gap-1">
+      <div className="px-4 pt-4 sm:px-6">
+        <div className="flex items-center justify-between gap-2 border-b border-slate-200">
+          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
             {TABS.map(t => (
               <button key={t} onClick={() => setTab(t)}
-                      className={`px-4 py-2 text-sm capitalize transition-colors ${tab === t
+                      className={`shrink-0 whitespace-nowrap px-3 py-2 text-sm capitalize transition-colors sm:px-4 ${tab === t
                         ? 'border-b-2 border-brand-600 font-medium text-brand-700'
                         : 'text-gray-500 hover:text-gray-700'}`}>
                 {t === 'vlans' ? <span className="normal-case">VLANs</span> : t}
@@ -130,8 +130,8 @@ export default function DeviceDetail({ me }: { me: Me }) {
           </div>
           {canConfig && (
             <button onClick={() => setShowTerminal(true)}
-                    className="mb-1 inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
-              <span className="font-mono">›_</span> Terminal
+                    className="mb-1 inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+              <span className="font-mono">›_</span> <span className="hidden sm:inline">Terminal</span>
             </button>
           )}
         </div>
