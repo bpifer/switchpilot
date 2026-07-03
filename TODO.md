@@ -10,7 +10,19 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
 - [ ] **Response schemas on routes.** `Medium`. 0/28 route files declare Fastify
       response schemas, so `/docs` shows every response as an empty object and
       responses use generic JSON.stringify (not the faster schema serializer).
-      Valid but low homelab payoff; do opportunistically per route.
+      DEFERRED (needs running-stack verification): fast-json-stringify strips
+      any undeclared property by default, and most handlers return `SELECT *`
+      with many varied-typed columns - an incomplete/mistyped schema would
+      silently drop fields the SPA needs, which can't be verified offline
+      (LXC-only). Do per-route WITH the app running to diff responses, using
+      `additionalProperties: true` to be safe.
+- [ ] **Credential presets (P3).** `Medium`. Needs scoping: the existing
+      `credentials` table already IS a reusable, netadmin-restricted, named
+      credential set attachable to devices and usable in bulk CSV import
+      (`credential_id`). A separate "presets" table would largely duplicate it.
+      Clarify what a preset adds (superadmin-only vs netadmin? an
+      onboarding-wizard quick-pick?) before building, to avoid a redundant
+      subsystem.
 - [x] **Webhook/notifier delivery retry.** `Medium`. **DONE 2026-07-02.** A
       shared `util/httpRetry.ts` (`fetchWithRetry`, unit-tested) retries
       transient failures - network error / timeout / 5xx / 429 - with

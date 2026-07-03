@@ -11,6 +11,14 @@ export interface MockDeviceOptions {
   responses?: Record<string, string>;
   /** config lines containing any of these substrings are rejected with an IOS error */
   rejectConfigContaining?: string[];
+  /** Fault injection (chaos tests): reject SSH authentication outright. */
+  rejectAuth?: boolean;
+  /** Fault injection: when this exact command arrives, drop the shell channel
+   *  mid-command (simulates a device disconnect / TCP reset during an op). */
+  dropOnCommand?: string;
+  /** Fault injection: delay every command's response by this many ms (to
+   *  exercise per-exec timeouts). */
+  delayMs?: number;
 }
 
 export interface RunningMock {
@@ -49,7 +57,7 @@ export async function startMockDevice(opts: MockDeviceOptions = {}): Promise<Run
     // server before auth); without a handler ssh2 surfaces that as an unhandled
     // 'error'. The mock doesn't care why a connection dropped.
     client.on('error', () => { /* client disconnected */ });
-    client.on('authentication', ctx => ctx.accept());
+    client.on('authentication', ctx => opts.rejectAuth ? ctx.reject() : ctx.accept());
     client.on('ready', () => {
       client.on('session', accept => {
         const session = accept();
@@ -78,6 +86,8 @@ export async function startMockDevice(opts: MockDeviceOptions = {}): Promise<Run
           });
 
           function handle(cmd: string) {
+            // Fault injection: drop the shell mid-command instead of replying.
+            if (opts.dropOnCommand && cmd === opts.dropOnCommand) { stream.end(); return; }
             if (cmd === '') { send(''); return; }
             if (cmd === 'enable') { priv = true; send(''); return; }
             if (cmd === 'disable') { priv = false; send(''); return; }
@@ -96,8 +106,11 @@ export async function startMockDevice(opts: MockDeviceOptions = {}): Promise<Run
               send(''); // accept the config line silently
               return;
             }
-            // exec mode: canned show output (empty for unknown commands)
-            send(responses[cmd] ?? '');
+            // exec mode: canned show output (empty for unknown commands). Only
+            // the show response honors delayMs, so connect-time setup commands
+            // (terminal/enable) aren't slowed - the delay targets exec timeouts.
+            if (opts.delayMs) setTimeout(() => send(responses[cmd] ?? ''), opts.delayMs);
+            else send(responses[cmd] ?? '');
           }
         });
       });

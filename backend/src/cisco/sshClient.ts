@@ -235,17 +235,33 @@ export class CiscoSshSession {
   private waitFor(pattern: RegExp, timeoutMs = 30000): Promise<string> {
     return new Promise((resolve, reject) => {
       const started = Date.now();
+      let settled = false;
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearInterval(tick);
+        this.stream?.removeListener('close', onClose);
+        this.conn.removeListener('close', onClose);
+        this.conn.removeListener('error', onClose);
+        fn();
+      };
+      // A mid-command disconnect (device dropped the shell, TCP reset) must fail
+      // fast so the pool evicts and reconnects - not hang until timeoutMs. The
+      // reload() path handles its own close separately and doesn't use waitFor.
+      const onClose = () => settle(() =>
+        reject(new Error(`Device closed the connection mid-command (last output: ${this.buffer.slice(-200)})`)));
       const tick = setInterval(() => {
         if (pattern.test(this.buffer)) {
-          clearInterval(tick);
           const out = this.buffer;
           this.buffer = '';
-          resolve(out);
+          settle(() => resolve(out));
         } else if (Date.now() - started > timeoutMs) {
-          clearInterval(tick);
-          reject(new Error(`Timed out waiting for device prompt (last output: ${this.buffer.slice(-200)})`));
+          settle(() => reject(new Error(`Timed out waiting for device prompt (last output: ${this.buffer.slice(-200)})`)));
         }
       }, 50);
+      this.stream?.once('close', onClose);
+      this.conn.once('close', onClose);
+      this.conn.once('error', onClose);
     });
   }
 }
