@@ -10,19 +10,25 @@ architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.
 The app is mature; what's left is mostly polish, niche features, or big new
 subsystems. Best value-per-effort next, in order:
 
-1. **Response schemas on hot routes** — S (~½ day for top ~8 routes). Unblocked
-   now the LXC is reachable to diff responses. Better `/docs` + faster
-   serialization + type safety.
-2. **Scheduled compliance remediation** — M (~1 day). Completes the compliance
-   automation loop; must be maintenance-window-aware + dry-run-backed.
-3. **Topology link-utilization + VLAN overlays** — M (~1–2 days). Now compelling
-   because live NetFlow data exists; turns the CDP/LLDP graph into "what's
-   talking to what, how much".
+1. ~~Response schemas on hot routes~~ **DONE 2026-07-03.** Traffic API
+   (status/top-talkers/apps/series) now declares 200 schemas (additionalProperties
+   -safe, date-time formats), verified live. The SELECT * device/alert endpoints
+   are intentionally left unschemaed (36 mixed/nullable cols; high tedium, no
+   anti-strip benefit).
+2. ~~Scheduled compliance remediation~~ **DONE 2026-07-03.** Opt-in, triple-gated
+   (global COMPLIANCE_AUTO_REMEDIATE master switch + per-rule auto_remediate flag
+   + maintenance-window suppression), audited, reuses the proven remediate()
+   path. UI toggle + auto-fix badge on the Compliance rules editor. Off by default.
+3. ~~Topology link-utilization + VLAN overlays~~ **DONE 2026-07-03.** Plain/
+   Utilization/VLAN toggle on the map; edges enriched with local-port VLAN, link
+   speed, and live utilization % (port_metrics bandwidth vs speed, null-safe);
+   link hover shows a detail card. Verified live (VLAN overlay renders the trunk
+   link).
 4. **In-app DB backup/restore** — M (~1–2 days). DR completeness (pg_dump is
-   runbook-only today). Restore is destructive → guardrails.
+   runbook-only today). Restore is destructive → guardrails. **Next up.**
 5. **Aruba InstantOn 1930 (SNMP read-only, phase 1)** — M–H (~3–4 days). Real
    hardware on hand; needs a non-SSH transport abstraction + SNMP enabled on the
-   switch first. See the feasibility assessment.
+   switch first. See the feasibility assessment. (User: "later this week.")
 
 Lower value / defer: remaining `useAction` page migrations (cosmetic, ~½ day),
 NX-OS Flexible NetFlow (niche, no hw), manual topology link-drawing (~2 days),
