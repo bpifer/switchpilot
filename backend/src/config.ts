@@ -32,7 +32,11 @@ export const config = {
     statusIntervalSec: parseInt(process.env.POLL_STATUS_INTERVAL ?? '60', 10),
     metricsIntervalSec: parseInt(process.env.POLL_METRICS_INTERVAL ?? '300', 10),
     backupCron: process.env.BACKUP_CRON ?? '0 2 * * *',
-    complianceCron: process.env.COMPLIANCE_CRON ?? '*/15 * * * *'
+    complianceCron: process.env.COMPLIANCE_CRON ?? '*/15 * * * *',
+    // Master switch for scheduled compliance auto-remediation. OFF by default;
+    // even when true, only rules explicitly flagged auto_remediate are pushed,
+    // and never to a device inside a maintenance window.
+    complianceAutoRemediate: process.env.COMPLIANCE_AUTO_REMEDIATE === 'true'
   },
   retention: {
     metricsDays: parseInt(process.env.RETAIN_METRICS_DAYS ?? '400', 10),

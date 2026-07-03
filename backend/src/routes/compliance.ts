@@ -33,7 +33,8 @@ export default async function complianceRoutes(app: FastifyInstance) {
           pattern: { type: 'string' },
           remediation: { type: 'string' },
           siteId: { type: ['string', 'null'] },
-          enabled: { type: 'boolean' }
+          enabled: { type: 'boolean' },
+          autoRemediate: { type: 'boolean' }
         }
       }
     }
@@ -41,10 +42,10 @@ export default async function complianceRoutes(app: FastifyInstance) {
     const me = req.user as any;
     const b = req.body as any;
     const { rows } = await query(
-      `INSERT INTO compliance_rules (name, description, severity, match_type, pattern, remediation, site_id, enabled, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      `INSERT INTO compliance_rules (name, description, severity, match_type, pattern, remediation, site_id, enabled, auto_remediate, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
       [b.name, b.description ?? '', b.severity ?? 'warning', b.match_type, b.pattern,
-       b.remediation ?? '', b.siteId || null, b.enabled ?? true, me.username]);
+       b.remediation ?? '', b.siteId || null, b.enabled ?? true, b.autoRemediate ?? false, me.username]);
     await audit(me.username, 'compliance.rule.create', rows[0].id, { name: b.name }, req.ip);
     return reply.code(201).send({ id: rows[0].id });
   });
@@ -59,10 +60,10 @@ export default async function complianceRoutes(app: FastifyInstance) {
            name=COALESCE($2,name), description=COALESCE($3,description),
            severity=COALESCE($4,severity), match_type=COALESCE($5,match_type),
            pattern=COALESCE($6,pattern), remediation=COALESCE($7,remediation),
-           site_id=$8, enabled=COALESCE($9,enabled)
+           site_id=$8, enabled=COALESCE($9,enabled), auto_remediate=COALESCE($10,auto_remediate)
          WHERE id=$1`,
         [id, b.name ?? null, b.description ?? null, b.severity ?? null, b.match_type ?? null,
-         b.pattern ?? null, b.remediation ?? null, b.siteId || null, b.enabled ?? null]);
+         b.pattern ?? null, b.remediation ?? null, b.siteId || null, b.enabled ?? null, b.autoRemediate ?? null]);
       await audit(me.username, 'compliance.rule.update', id, {}, req.ip);
       return { ok: true };
     });

@@ -1,9 +1,12 @@
 // Configuration compliance engine: evaluate each device's latest config backup
 // against a set of rules, store pass/fail, and roll up a fleet score.
 import { query } from '../db.js';
+import { config } from '../config.js';
+import { audit, redactForAudit } from '../audit.js';
 import { devicePushConfig } from './deviceComms.js';
 import { backupDevice } from './configService.js';
 import { previewConfigLines } from './configPreview.js';
+import { inMaintenanceWindow } from './alertService.js';
 import { forEachLimit } from '../util/concurrency.js';
 
 export interface ComplianceRule {
@@ -128,7 +131,35 @@ export async function evaluateAllCompliance(
       await backupDevice(d.id, 'compliance-scheduler', { reason: 'scheduled compliance evaluation' });
     }
     await evaluateDevice(d.id);
+    // Opt-in scheduled auto-remediation for online devices (never offline: we
+    // can't push, and stale results shouldn't drive changes).
+    if (d.status !== 'offline') await autoRemediateDevice(d.id);
   }, (d, err) => console.warn(`compliance eval failed for ${d.id}: ${err.message}`));
+}
+
+/** Push remediation for any FAILED rule on a device that is flagged
+ *  `auto_remediate`, gated by three deliberate safeguards: the global master
+ *  switch (COMPLIANCE_AUTO_REMEDIATE), the per-rule flag, and maintenance-window
+ *  suppression (never touch a device someone is actively working on). Each push
+ *  is audited. A per-rule failure is logged and skipped, not fatal. */
+export async function autoRemediateDevice(deviceId: string): Promise<void> {
+  if (!config.poll.complianceAutoRemediate) return;
+  if (await inMaintenanceWindow(deviceId)) return;
+  const { rows } = await query<{ rule_id: string; name: string }>(
+    `SELECT cr.id AS rule_id, cr.name
+       FROM compliance_results r JOIN compliance_rules cr ON cr.id = r.rule_id
+      WHERE r.device_id = $1 AND r.passed = false
+        AND cr.enabled AND cr.auto_remediate AND COALESCE(cr.remediation, '') <> ''`,
+    [deviceId]);
+  for (const r of rows) {
+    try {
+      const output = await remediate(deviceId, r.rule_id, 'compliance-auto-remediate');
+      await audit('compliance-auto-remediate', 'compliance.auto_remediate', deviceId,
+        { rule: r.name, ruleId: r.rule_id, output: redactForAudit(output) });
+    } catch (err) {
+      console.warn(`auto-remediate failed for ${deviceId} rule "${r.name}": ${(err as Error).message}`);
+    }
+  }
 }
 
 /** Resolve a rule's remediation template into pushable config lines.

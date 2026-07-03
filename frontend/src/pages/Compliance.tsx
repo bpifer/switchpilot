@@ -393,6 +393,7 @@ interface Rule {
   site_id: string | null;
   site_name: string | null;
   enabled: boolean;
+  auto_remediate: boolean;
 }
 
 const MATCH_LABELS: Record<string, string> = {
@@ -420,7 +421,8 @@ function RulesManager({ onClose }: { onClose: () => void }) {
       name: editing.name, description: editing.description ?? '',
       severity: editing.severity ?? 'warning', match_type: editing.match_type ?? 'line_present',
       pattern: editing.pattern, remediation: editing.remediation ?? '',
-      siteId: editing.site_id || null, enabled: editing.enabled ?? true
+      siteId: editing.site_id || null, enabled: editing.enabled ?? true,
+      autoRemediate: editing.auto_remediate ?? false
     };
     run(async () => {
       if (editing.id) await api(`/api/compliance/rules/${editing.id}`, { method: 'PUT', body });
@@ -445,7 +447,10 @@ function RulesManager({ onClose }: { onClose: () => void }) {
           <div key={r.id} className="flex items-center gap-2 rounded-lg border border-slate-200 p-2 text-sm">
             <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${SEV_COLOR[r.severity]}`}>{r.severity}</span>
             <div className="min-w-0 flex-1">
-              <div className="font-medium text-slate-800">{r.name} {!r.enabled && <span className="text-xs text-slate-400">(disabled)</span>}</div>
+              <div className="font-medium text-slate-800">
+                {r.name} {!r.enabled && <span className="text-xs text-slate-400">(disabled)</span>}
+                {r.auto_remediate && <span className="ml-1 rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700 ring-1 ring-brand-200">auto-fix</span>}
+              </div>
               <div className="truncate font-mono text-xs text-slate-500">{MATCH_LABELS[r.match_type]}: {r.pattern}</div>
             </div>
             <button className="text-xs text-brand-600 hover:underline" onClick={() => setEditing(r)}>edit</button>
@@ -495,6 +500,18 @@ function RulesManager({ onClose }: { onClose: () => void }) {
               </select>
             </Field>
           </div>
+          {editing.remediation?.trim() && (
+            <label className="mt-2 flex items-start gap-2 text-sm text-slate-600">
+              <input type="checkbox" className="mt-0.5" checked={editing.auto_remediate ?? false}
+                     onChange={e => setEditing(p => ({ ...p, auto_remediate: e.target.checked }))} />
+              <span>
+                Auto-remediate on the compliance sweep when a device fails this rule.
+                <span className="block text-xs text-slate-400">
+                  Also requires <span className="font-mono">COMPLIANCE_AUTO_REMEDIATE=true</span> on the server; never runs during a maintenance window.
+                </span>
+              </span>
+            </label>
+          )}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setEditing(null)}>Cancel</Button>
             <Button onClick={save} disabled={busy || !editing.name?.trim() || !editing.pattern?.trim()}>{busy ? 'Saving…' : 'Save'}</Button>
