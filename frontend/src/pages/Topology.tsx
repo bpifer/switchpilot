@@ -5,8 +5,38 @@ import { PageHeader, Card, Button } from '../components/ui';
 import { useSiteScope, scoped } from '../context/SiteContext';
 
 interface Node { id: string; label: string; model: string; status: string; managed: boolean; ip: string; stackSize: number; orphan?: boolean; }
-interface Edge { source: string; target: string; sourcePort: string; targetPort: string; protocol: string; }
+interface Edge {
+  source: string; target: string; sourcePort: string; targetPort: string; protocol: string;
+  vlan?: string | null; speedMbps?: number | null;
+  inBps?: number | null; outBps?: number | null; utilizationPct?: number | null;
+}
 type Pos = { x: number; y: number };
+type Overlay = 'none' | 'util' | 'vlan';
+
+// Link utilization -> colour (green idle ... red saturated).
+function utilColor(pct: number | null | undefined): string {
+  if (pct == null) return '#cbd5e1';
+  if (pct >= 80) return '#dc2626';
+  if (pct >= 50) return '#f59e0b';
+  if (pct >= 20) return '#eab308';
+  return '#16a34a';
+}
+// Stable colour per VLAN (numeric VLANs hash to a hue; trunk/routed fixed).
+function vlanColor(vlan: string | null | undefined): string {
+  if (!vlan) return '#cbd5e1';
+  if (vlan === 'trunk') return '#7c3aed';
+  if (vlan === 'routed') return '#0891b2';
+  const n = parseInt(vlan, 10);
+  if (!Number.isFinite(n)) return '#cbd5e1';
+  return `hsl(${(n * 47) % 360} 60% 45%)`;
+}
+function fmtBps(bps: number | null | undefined): string {
+  if (bps == null) return '—';
+  if (bps >= 1e9) return `${(bps / 1e9).toFixed(1)} Gbps`;
+  if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)} Mbps`;
+  if (bps >= 1e3) return `${(bps / 1e3).toFixed(0)} Kbps`;
+  return `${bps} bps`;
+}
 
 const CANVAS = { cx: 520, cy: 340 };
 
@@ -24,6 +54,8 @@ export default function Topology() {
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
   const [pos, setPos] = useState<Map<string, Pos>>(new Map());
   const [hover, setHover] = useState<string | null>(null);
+  const [overlay, setOverlay] = useState<Overlay>('none');
+  const [hoverEdge, setHoverEdge] = useState<number | null>(null);
   // drag state kept in a ref so pointer moves don't thrash React state
   const drag = useRef<{ mode: 'pan' | 'node'; id?: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
 
@@ -107,6 +139,14 @@ export default function Topology() {
   return (
     <div>
       <PageHeader title="Network topology">
+        <div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
+          {([['none', 'Plain'], ['util', 'Utilization'], ['vlan', 'VLAN']] as [Overlay, string][]).map(([v, label]) => (
+            <button key={v} onClick={() => setOverlay(v)}
+              className={`px-3 py-1.5 transition ${overlay === v ? 'bg-brand-600 font-medium text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
         <Button variant="secondary" onClick={() => zoom(1.2)}>+</Button>
         <Button variant="secondary" onClick={() => zoom(1 / 1.2)}>−</Button>
         <Button variant="secondary" onClick={reset}>Reset</Button>
@@ -127,12 +167,32 @@ export default function Topology() {
                 {graph.edges.map((e, i) => {
                   const a = pos.get(e.source), b = pos.get(e.target);
                   if (!a || !b) return null;
-                  const hl = hover === e.source || hover === e.target;
+                  const hl = hover === e.source || hover === e.target || hoverEdge === i;
+                  // Overlay drives edge colour + width: utilization (green→red by
+                  // %), VLAN (stable colour per VLAN), or plain grey.
+                  const stroke = hl ? '#0d7a5f'
+                    : overlay === 'util' ? utilColor(e.utilizationPct)
+                    : overlay === 'vlan' ? vlanColor(e.vlan)
+                    : '#cbd5e1';
+                  const width = overlay === 'util' && e.utilizationPct != null
+                    ? 1.25 + (e.utilizationPct / 100) * 4.5
+                    : hl ? 2.5 : 1.5;
+                  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
                   return (
-                    <g key={i}>
+                    <g key={i} onMouseEnter={() => setHoverEdge(i)} onMouseLeave={() => setHoverEdge(null)}>
+                      {/* wide invisible hit target so thin links are easy to hover */}
+                      <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={12} />
                       <line x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-                            stroke={hl ? '#0d7a5f' : '#cbd5e1'} strokeWidth={hl ? 2 : 1.25}
-                            vectorEffect="non-scaling-stroke" />
+                            stroke={stroke} strokeWidth={width} vectorEffect="non-scaling-stroke" />
+                      {/* Overlay label at the link midpoint */}
+                      {overlay === 'util' && e.utilizationPct != null && (
+                        <text x={mid.x} y={mid.y - 3} fontSize="9" fontWeight="600" fill={utilColor(e.utilizationPct)} textAnchor="middle">{e.utilizationPct}%</text>
+                      )}
+                      {overlay === 'vlan' && e.vlan && (
+                        <text x={mid.x} y={mid.y - 3} fontSize="9" fontWeight="600" fill={vlanColor(e.vlan)} textAnchor="middle">
+                          {e.vlan === 'trunk' ? 'trunk' : e.vlan === 'routed' ? 'L3' : `v${e.vlan}`}
+                        </text>
+                      )}
                       {hl && (
                         <>
                           <text x={(a.x * 2 + b.x) / 3} y={(a.y * 2 + b.y) / 3 - 3} fontSize="9" fill="#475569" textAnchor="middle">{e.sourcePort}</text>
@@ -187,14 +247,57 @@ export default function Topology() {
               </div>
             )}
 
-            <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500">
-              <Legend color="#16a34a" label="Online (managed)" />
-              <Legend color="#dc2626" label="Offline" />
-              <Legend color="#94a3b8" label="Neighbor (unmanaged)" round />
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-3 w-4 rounded-sm border-2 border-dashed border-amber-500" />
-                No neighbors (orphan)
-              </span>
+            {/* edge detail card (link stats) at the link midpoint */}
+            {hoverEdge != null && graph.edges[hoverEdge] && (() => {
+              const e = graph.edges[hoverEdge];
+              const a = pos.get(e.source), b = pos.get(e.target);
+              if (!a || !b) return null;
+              const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+              return (
+                <div className="pointer-events-none absolute z-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg"
+                     style={{ left: view.x + mx * view.k + 8, top: view.y + my * view.k - 10 }}>
+                  <div className="font-mono text-slate-700">{e.sourcePort} ↔ {e.targetPort}</div>
+                  <div className="mt-0.5 text-slate-500">
+                    {e.speedMbps ? `${e.speedMbps >= 1000 ? e.speedMbps / 1000 + 'G' : e.speedMbps + 'M'} link` : 'speed n/a'}
+                    {e.vlan ? ` · VLAN ${e.vlan}` : ''} · {e.protocol?.toUpperCase()}
+                  </div>
+                  {(e.inBps != null || e.outBps != null) && (
+                    <div className="mt-0.5 text-slate-500">↓ {fmtBps(e.inBps)} · ↑ {fmtBps(e.outBps)}
+                      {e.utilizationPct != null && <span className="ml-1 font-semibold" style={{ color: utilColor(e.utilizationPct) }}>({e.utilizationPct}%)</span>}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+              {overlay === 'util' ? (
+                <>
+                  <span className="font-medium text-slate-600">Link utilization:</span>
+                  <Legend color="#16a34a" label="< 20%" />
+                  <Legend color="#eab308" label="20–50%" />
+                  <Legend color="#f59e0b" label="50–80%" />
+                  <Legend color="#dc2626" label="≥ 80%" />
+                  <Legend color="#cbd5e1" label="no data" />
+                </>
+              ) : overlay === 'vlan' ? (
+                <>
+                  <span className="font-medium text-slate-600">Access VLAN of the local port;</span>
+                  <Legend color="#7c3aed" label="trunk" />
+                  <Legend color="#0891b2" label="routed (L3)" />
+                  <span>each access VLAN gets its own colour · hover a link for detail</span>
+                </>
+              ) : (
+                <>
+                  <Legend color="#16a34a" label="Online (managed)" />
+                  <Legend color="#dc2626" label="Offline" />
+                  <Legend color="#94a3b8" label="Neighbor (unmanaged)" round />
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-3 w-4 rounded-sm border-2 border-dashed border-amber-500" />
+                    No neighbors (orphan)
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </Card>

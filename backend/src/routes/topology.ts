@@ -3,6 +3,15 @@ import { query } from '../db.js';
 import { requireRole } from '../auth/rbac.js';
 import { siteFilter } from './util.js';
 
+/** "1000" | "a-1000" | "10G" | "10Gbps" -> Mbps, for link-utilization math. */
+function speedToMbps(s: string | null | undefined): number | null {
+  if (!s) return null;
+  const g = s.match(/([\d.]+)\s*g/i);
+  if (g) return Math.round(parseFloat(g[1]) * 1000);
+  const m = s.match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
 export default async function topologyRoutes(app: FastifyInstance) {
   /**
    * Layer-2 topology graph built from CDP/LLDP neighbor tables.
@@ -59,6 +68,37 @@ export default async function topologyRoutes(app: FastifyInstance) {
           protocol: link.protocol
         });
       }
+      // Enrich edges with the local port's VLAN, link speed, and live
+      // utilization (latest port_metrics bandwidth vs the port's speed). Powers
+      // the link-utilization + VLAN overlays. Bandwidth may be null on vendors
+      // that don't expose per-port bps, in which case utilization stays null.
+      const deviceIds = devices.map(d => d.id);
+      if (deviceIds.length && edges.length) {
+        const [metrics, portRows] = await Promise.all([
+          query<{ device_id: string; port_name: string; in_bps: string | null; out_bps: string | null }>(
+            `SELECT DISTINCT ON (device_id, port_name) device_id, port_name, in_bps, out_bps
+             FROM port_metrics WHERE device_id = ANY($1)
+             ORDER BY device_id, port_name, recorded_at DESC`, [deviceIds]),
+          query<{ device_id: string; name: string; speed: string | null; vlan: string | null }>(
+            `SELECT device_id, name, speed, vlan FROM ports WHERE device_id = ANY($1)`, [deviceIds]),
+        ]);
+        const mByPort = new Map(metrics.rows.map(r => [`${r.device_id}|${r.port_name}`, r]));
+        const pByPort = new Map(portRows.rows.map(r => [`${r.device_id}|${r.name}`, r]));
+        for (const e of edges) {
+          const k = `${e.source}|${e.sourcePort}`;
+          const m = mByPort.get(k);
+          const p = pByPort.get(k);
+          if (p) { e.vlan = p.vlan ?? null; e.speedMbps = speedToMbps(p.speed); }
+          if (m) {
+            e.inBps = m.in_bps != null ? Number(m.in_bps) : null;
+            e.outBps = m.out_bps != null ? Number(m.out_bps) : null;
+          }
+          const speedBps = (e.speedMbps ?? 0) * 1e6;
+          const peak = Math.max(e.inBps ?? 0, e.outBps ?? 0);
+          e.utilizationPct = speedBps > 0 && peak > 0 ? Math.min(100, Math.round((peak / speedBps) * 100)) : null;
+        }
+      }
+
       // Flag managed devices with no discovered neighbor links (orphans): a
       // possible monitoring gap, a standalone device, or CDP/LLDP not running.
       const linked = new Set<string>();
