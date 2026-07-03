@@ -4,7 +4,7 @@ import { api } from '../api';
 import { useAction } from '../hooks/useAction';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
-import { PageHeader, Button, StatusBadge, fmtUptime, Modal, Field, inputCls } from '../components/ui';
+import { PageHeader, Card, Button, StatusBadge, fmtUptime, Modal, Field, inputCls } from '../components/ui';
 import type { Port } from '../components/PortGrid';
 import DeviceTerminal from '../components/DeviceTerminal';
 import PortsTab from './device/PortsTab';
@@ -114,6 +114,8 @@ export default function DeviceDetail({ me }: { me: Me }) {
           </div>
         </div>
       </div>
+
+      {device.vendor === 'mikrotik' && <RouterOsFirmwarePanel deviceId={id!} canConfig={canConfig} />}
 
       {/* Tabs */}
       <div className="px-4 pt-4 sm:px-6">
@@ -317,6 +319,81 @@ function HostKeyStatus({ deviceId, fp, pinnedAt, canConfig, onChanged }: {
           {busy ? '…' : 're-pin'}
         </button>
       )}
+    </div>
+  );
+}
+
+// RouterOS firmware: the installed RouterOS package + the RouterBOARD bootloader
+// firmware, with staged (non-disruptive) upgrade actions and an explicit reboot
+// to apply. Checked on demand so a device SSH round-trip doesn't slow page load.
+interface RouterOsFw {
+  version: string; architecture: string; channel: string;
+  latestVersion: string; updateStatus: string; osUpdateAvailable: boolean;
+  routerboardModel: string; currentFirmware: string; upgradeFirmware: string;
+  routerboardUpgradeAvailable: boolean;
+}
+function RouterOsFirmwarePanel({ deviceId, canConfig }: { deviceId: string; canConfig: boolean }) {
+  const [fw, setFw] = useState<RouterOsFw | null>(null);
+  const { run, busy, isBusy } = useAction();
+  const base = `/api/devices/${deviceId}/routeros-firmware`;
+
+  const check = () => run(async () => setFw(await api<RouterOsFw>(base)), { key: 'check' });
+  const download = () => run(async () => {
+    await api(`${base}/download`, { method: 'POST' }); await check();
+  }, { key: 'download', success: 'RouterOS package downloaded and staged. Reboot to apply.' });
+  const stageRb = () => run(async () => {
+    await api(`${base}/routerboard-upgrade`, { method: 'POST' });
+  }, { key: 'rb', success: 'Bootloader firmware upgrade staged. Reboot to apply.' });
+  const reboot = () => {
+    if (!confirm('Reboot now to apply staged firmware? The device will be unreachable for 1–2 minutes.')) return;
+    run(async () => { await api(`${base}/reboot`, { method: 'POST', body: { confirm: 'REBOOT' } }); },
+      { key: 'reboot', success: 'Reboot issued — the device will apply staged firmware and come back shortly.' });
+  };
+
+  return (
+    <div className="px-4 pt-4 sm:px-6">
+      <Card title="RouterOS firmware">
+        {!fw ? (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-slate-500">Check the installed RouterOS + RouterBOARD (bootloader) firmware and whether upgrades are available.</p>
+            <Button variant="secondary" onClick={check} disabled={busy}>{isBusy('check') ? 'Checking…' : 'Check firmware'}</Button>
+          </div>
+        ) : (
+          <div className="space-y-3 text-sm">
+            <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">RouterOS</div>
+                <div className="font-mono text-slate-800">{fw.version} <span className="text-xs text-slate-400">({fw.channel || 'stable'}, {fw.architecture})</span></div>
+                <div className={`text-xs ${fw.osUpdateAvailable ? 'text-amber-600' : 'text-slate-400'}`}>
+                  {fw.osUpdateAvailable ? `Update available: ${fw.latestVersion}` : (fw.updateStatus || 'Up to date')}
+                </div>
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">RouterBOARD firmware</div>
+                <div className="font-mono text-slate-800">
+                  {fw.currentFirmware || '—'}
+                  {fw.routerboardUpgradeAvailable && <span className="text-amber-600"> → {fw.upgradeFirmware}</span>}
+                </div>
+                <div className="text-xs text-slate-400">{fw.routerboardUpgradeAvailable ? 'Bootloader upgrade available (bundled — no download)' : 'Bootloader up to date'}</div>
+              </div>
+            </div>
+
+            {canConfig && (
+              <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                {fw.osUpdateAvailable && (
+                  <Button variant="secondary" disabled={busy} onClick={download}>{isBusy('download') ? 'Downloading…' : `Download ${fw.latestVersion}`}</Button>
+                )}
+                {fw.routerboardUpgradeAvailable && (
+                  <Button variant="secondary" disabled={busy} onClick={stageRb}>{isBusy('rb') ? 'Staging…' : 'Stage bootloader upgrade'}</Button>
+                )}
+                <Button variant="danger" disabled={busy} onClick={reboot}>{isBusy('reboot') ? 'Rebooting…' : 'Reboot to apply'}</Button>
+                <Button variant="secondary" disabled={busy} onClick={check}>↻</Button>
+                <span className="text-xs text-slate-400">Downloads/staging are non-disruptive; only a reboot applies them.</span>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

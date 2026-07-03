@@ -46,6 +46,7 @@ import searchRoutes from './routes/search.js';
 import toolRoutes from './routes/tools.js';
 import trafficRoutes from './routes/traffic.js';
 import timelineRoutes from './routes/timeline.js';
+import routerosFirmwareRoutes from './routes/routerosFirmware.js';
 
 /** Constant-time check of the /metrics bearer token (or ?token=). */
 function validMetricsToken(req: { headers: Record<string, unknown>; query?: unknown }): boolean {
@@ -208,6 +209,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(toolRoutes);
   await app.register(trafficRoutes);
   await app.register(timelineRoutes);
+  await app.register(routerosFirmwareRoutes);
 
   return app;
 }

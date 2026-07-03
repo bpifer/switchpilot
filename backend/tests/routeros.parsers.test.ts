@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-  parseTerse, parseResource, parseRouterboard, parseInterfaces,
+  parseTerse, parseResource, parseRouterboard, parsePackageUpdate, parseInterfaces,
   parseBridgeHosts, parseIpAddresses, parseNeighbors, parseHealth,
   parseEthernetMonitor, parseSize, parseRate,
 } from '../src/routeros/parsers.js';
@@ -48,6 +48,25 @@ describe('parseRouterboard', () => {
     expect(r.model).toBe('CRS326-24G-2S+');
     expect(r.serialNumber).toBe('HCX08CX227Y');
     expect(r.upgradeFirmware).toBe('7.12.1');
+  });
+  it('flags a routerboard firmware upgrade when current != bundled (real CRS326)', () => {
+    const r = parseRouterboard(fx('routerboard.txt'));
+    // real device: bootloader 6.48.6 behind the 7.12.1 bundled with the OS
+    expect(r.currentFirmware).toBe('6.48.6');
+    expect(r.upgradeFirmware).not.toBe(r.currentFirmware);
+  });
+});
+
+describe('parsePackageUpdate', () => {
+  it('parses installed/channel from `package update print` (real CRS326)', () => {
+    const u = parsePackageUpdate('            channel: stable\n  installed-version: 7.12.1');
+    expect(u).toEqual({ channel: 'stable', installedVersion: '7.12.1', latestVersion: '', status: '' });
+  });
+  it('parses a newer version + status after check-for-updates', () => {
+    const u = parsePackageUpdate(
+      'channel: stable\ninstalled-version: 7.12.1\nlatest-version: 7.15.3\nstatus: New version is available');
+    expect(u.latestVersion).toBe('7.15.3');
+    expect(u.status).toMatch(/new version/i);
   });
 });
 

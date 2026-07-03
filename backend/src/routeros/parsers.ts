@@ -126,6 +126,24 @@ export function parseIdentity(output: string): string {
   return parseKeyValue(output)['name'] ?? '';
 }
 
+export interface RosPackageUpdate {
+  channel: string;          // release train: stable | testing | long-term | development
+  installedVersion: string;
+  latestVersion: string;    // '' until check-for-updates has run / none newer
+  status: string;           // e.g. "New version is available" | "System is already up to date"
+}
+
+/** `/system package update print` (optionally after check-for-updates). */
+export function parsePackageUpdate(output: string): RosPackageUpdate {
+  const kv = parseKeyValue(output);
+  return {
+    channel: kv['channel'] ?? '',
+    installedVersion: kv['installed-version'] ?? '',
+    latestVersion: kv['latest-version'] ?? '',
+    status: kv['status'] ?? '',
+  };
+}
+
 export interface RosInterface {
   name: string;
   defaultName: string;
