@@ -110,6 +110,9 @@ export function ciscoDriver(os: string): DeviceDriver {
 
     cableTest(port) {
       const iface = ciscoIface(port);
+      // Validated on a C9300-24T (IOS-XE 17.03.07): start is acknowledged with
+      // "TDR test started", results render the per-pair table (a port with no
+      // link may report "Not Completed" until TDR finishes or link comes up).
       return {
         run: `test cable-diagnostics tdr interface ${iface}`,
         show: `show cable-diagnostics tdr interface ${iface}`
