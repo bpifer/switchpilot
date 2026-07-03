@@ -161,6 +161,38 @@ POWER SUPPLY 2 is Not Present
     expect(env.fans.filter(f => f.status === 'OK')).toHaveLength(2);
   });
 
+  // Real `show environment all` from a live C9300-24T (IOS-XE 17.03.07) with a
+  // single PSU: the chassis fan table + PSU-fan lines, one PSU present, second
+  // slot empty. Regression: a bare \S+ status truncated "NOT PRESENT" to "NOT",
+  // and the chassis fan table wasn't parsed at all.
+  it('parses a real C9300 environment (chassis fan table + empty PSU slot)', () => {
+    const env = parseEnvironment(`Switch   FAN   Speed   State
+---------------------------------------------------
+  1      1   13760     OK
+  1      2   13760     OK
+  1      3   13760     OK
+FAN PS-1 is OK
+FAN PS-2 is NOT PRESENT
+Switch 1: SYSTEM TEMPERATURE is OK
+Inlet Temperature Value: 26 Degree Celsius
+Temperature State: GREEN
+Yellow Threshold : 46 Degree Celsius
+Red Threshold    : 56 Degree Celsius
+SW  PID                 Serial#     Status           Sys Pwr  PoE Pwr  Watts
+--  ------------------  ----------  ---------------  -------  -------  -----
+1A  PWR-C1-350WAC-P     DCC2310B3M0  OK              Good     n/a      350
+1B  Not Present`);
+
+    expect(env.temperatureC).toBe(26);
+    // one PSU present and OK (the empty 1B slot is not reported as a supply)
+    expect(env.psu).toEqual([{ id: '1A', status: 'OK' }]);
+    // 3 chassis fans + 2 PSU fans, all captured with FULL status
+    expect(env.fans).toHaveLength(5);
+    expect(env.fans.filter(f => f.status === 'OK')).toHaveLength(4);
+    const psFan = env.fans.find(f => f.id === 'PS-2');
+    expect(psFan?.status).toBe('NOT PRESENT');   // not truncated to "NOT"
+  });
+
   it('parses power inline', () => {
     const poe = parsePowerInline(`
 Interface Admin  Oper       Power   Device              Class Max

@@ -21,8 +21,10 @@ export function evaluateHealth(
   hostname: string, cpu: number, mem: number,
   env: { temperatureC: number | null; psu: { id: string; status: string }[]; fans: { id: string; status: string }[] }
 ): HealthAlert[] {
-  const badPsu = env.psu.filter(p => !envOk(p.status) && !/not present/i.test(p.status));
-  const badFans = env.fans.filter(f => !envOk(f.status));
+  const badPsu = env.psu.filter(p => !envOk(p.status) && !/not present|absent/i.test(p.status));
+  // An empty PSU slot reports its fan as "Not Present" - not a failure. Mirror
+  // the PSU guard so a single-supply switch doesn't raise a false fan alert.
+  const badFans = env.fans.filter(f => !envOk(f.status) && !/not present|absent/i.test(f.status));
   const tempHigh = env.temperatureC !== null && env.temperatureC >= 60;
   return [
     cpu >= 90

@@ -29,6 +29,19 @@ describe('evaluateHealth', () => {
   it('flags a failed fan', () => {
     expect(find(evaluateHealth('sw1', 10, 10, { ...ok, fans: [{ id: '1', status: 'failed' }] }), 'fan_fail').raise).toBe(true);
   });
+
+  it('does not flag an empty PSU slot fan reporting "Not Present" (real C9300, single PSU)', () => {
+    const env = {
+      temperatureC: 26,
+      psu: [{ id: '1A', status: 'OK' }],
+      fans: [
+        { id: '1/1', status: 'OK' }, { id: '1/2', status: 'OK' }, { id: '1/3', status: 'OK' },
+        { id: 'PS-1', status: 'OK' }, { id: 'PS-2', status: 'NOT PRESENT' },
+      ],
+    };
+    expect(find(evaluateHealth('sw1', 10, 10, env), 'fan_fail').raise).toBe(false);
+    expect(find(evaluateHealth('sw1', 10, 10, env), 'psu_fail').raise).toBe(false);
+  });
 });
 
 describe('decidePortFlap', () => {
