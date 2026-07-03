@@ -9,8 +9,9 @@ RUN npm run build && npm prune --omit=dev
 FROM node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
-# git is required for config version history/diff/rollback (alpine has none by default)
-RUN apk add --no-cache git
+# git: config version history/diff/rollback. postgresql16-client: in-app DB
+# backup/restore (pg_dump/pg_restore); pin to 16 to match the postgres:16 server.
+RUN apk add --no-cache git postgresql16-client
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY migrations ./migrations

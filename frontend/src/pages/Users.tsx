@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { api } from '../api';
+import { api, apiUpload, getToken } from '../api';
 import { toast } from '../components/Toast';
+import { useAction } from '../hooks/useAction';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card, Button, Modal, Field, inputCls, StatusBadge } from '../components/ui';
 
@@ -60,6 +61,7 @@ export default function Users() {
         </Card>
         <div className="space-y-4">
           <AuditIntegrity />
+          <DatabaseBackup />
           <Card title="Recent audit log">
             <ul className="max-h-[24rem] divide-y overflow-auto text-sm">
               {audit.map(a => {
@@ -130,6 +132,68 @@ function AuditIntegrity() {
             : <>✗ Tampering detected{result.brokenAtId ? ` at entry #${result.brokenAtId}` : ''}: {result.reason}</>}
         </div>
       )}
+    </Card>
+  );
+}
+
+// Superadmin disaster-recovery: download a full pg_dump of the platform DB, or
+// restore from one. Restore is destructive (replaces all data) and gated behind
+// a checkbox + a native confirm; the server takes a safety backup first.
+function DatabaseBackup() {
+  const { run, busy } = useAction();
+  const [file, setFile] = useState<File | null>(null);
+  const [ack, setAck] = useState(false);
+
+  const download = () => run(async () => {
+    // Streamed binary with an auth header, so fetch + blob rather than an <a href>.
+    const res = await fetch('/api/security/db/backup', { headers: { authorization: `Bearer ${getToken()}` } });
+    if (!res.ok) throw new Error(`Backup failed (${res.status})`);
+    const blob = await res.blob();
+    const name = res.headers.get('content-disposition')?.match(/filename="(.+?)"/)?.[1] ?? 'switchpilot.dump';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+    URL.revokeObjectURL(url);
+  }, { success: 'Database backup downloaded.' });
+
+  const restore = () => {
+    if (!file || !ack) return;
+    if (!confirm(`Restore the database from "${file.name}"?\n\nThis REPLACES all current SwitchPilot data. A safety backup of the current database is taken first. Restart the API afterwards.`)) return;
+    run(async () => {
+      const form = new FormData();
+      form.append('confirm', 'RESTORE');   // must precede the file
+      form.append('file', file);
+      const r = await apiUpload<{ note: string }>('/api/security/db/restore', form);
+      setFile(null); setAck(false);
+      toast.success(r.note ?? 'Restore applied.');
+    });
+  };
+
+  return (
+    <Card title="Database backup & restore">
+      <p className="text-sm text-slate-500">
+        A full backup of every SwitchPilot table (inventory, credentials, configs, compliance, users, audit log).
+        Encrypted secrets stay encrypted — keep the file somewhere safe.
+      </p>
+      <div className="mt-3">
+        <Button variant="secondary" disabled={busy} onClick={download}>{busy ? 'Working…' : 'Download database backup'}</Button>
+      </div>
+
+      <div className="mt-4 border-t border-slate-100 pt-3">
+        <div className="text-sm font-medium text-slate-700">Restore</div>
+        <p className="mt-0.5 text-xs text-slate-500">Replaces ALL current data with the contents of a backup file.</p>
+        <input type="file" accept=".dump" className="mt-2 block w-full text-sm"
+               onChange={e => setFile(e.target.files?.[0] ?? null)} />
+        <label className="mt-2 flex items-start gap-2 text-xs text-slate-600">
+          <input type="checkbox" className="mt-0.5" checked={ack} onChange={e => setAck(e.target.checked)} />
+          I understand this overwrites all current SwitchPilot data.
+        </label>
+        <div className="mt-2">
+          <Button variant="danger" disabled={busy || !file || !ack} onClick={restore}>
+            {busy ? 'Restoring…' : 'Restore from backup'}
+          </Button>
+        </div>
+      </div>
     </Card>
   );
 }
