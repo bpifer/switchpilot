@@ -5,6 +5,32 @@ notes are at the bottom. Effort tags: **Easy** ~half day, **Medium** 1-2 days,
 **Hard** multi-day / risky. Priority weighs value, effort, and risk. MikroTik
 architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.md).
 
+## Recommended order (2026-07-03 re-prioritization, w/ rough effort)
+
+The app is mature; what's left is mostly polish, niche features, or big new
+subsystems. Best value-per-effort next, in order:
+
+1. **Response schemas on hot routes** — S (~½ day for top ~8 routes). Unblocked
+   now the LXC is reachable to diff responses. Better `/docs` + faster
+   serialization + type safety.
+2. **Scheduled compliance remediation** — M (~1 day). Completes the compliance
+   automation loop; must be maintenance-window-aware + dry-run-backed.
+3. **Topology link-utilization + VLAN overlays** — M (~1–2 days). Now compelling
+   because live NetFlow data exists; turns the CDP/LLDP graph into "what's
+   talking to what, how much".
+4. **In-app DB backup/restore** — M (~1–2 days). DR completeness (pg_dump is
+   runbook-only today). Restore is destructive → guardrails.
+5. **Aruba InstantOn 1930 (SNMP read-only, phase 1)** — M–H (~3–4 days). Real
+   hardware on hand; needs a non-SSH transport abstraction + SNMP enabled on the
+   switch first. See the feasibility assessment.
+
+Lower value / defer: remaining `useAction` page migrations (cosmetic, ~½ day),
+NX-OS Flexible NetFlow (niche, no hw), manual topology link-drawing (~2 days),
+`driver.readCommands` abstraction (Hard, no payoff until a 3rd vendor), DHCP/IPAM
+correlation (~2 days, homelab-nice). Credential presets need a scoping decision
+first (likely duplicates the existing `credentials` table). All P4 items are
+Hard/niche. See sections below for detail.
+
 ## Deferred from external review (2026-07-02, round 2)
 
 - [ ] **Response schemas on routes.** `Medium`. 0/28 route files declare Fastify
@@ -77,10 +103,15 @@ message needed cleanup.
       ciscoMonitor read path (all parsers + capability gating: PoE command
       skipped on the non-PoE 24T, layer3 ARP taken, stack parsed) and the
       commit-confirm arm/cancel mechanics post-refactor. NX-OS still 501.
-      Remaining: (1) **collector end-to-end** - flow-export a switch at the
-      running platform and confirm `flow_records` populate (needs
-      `NETFLOW_ENABLED=true` + udp/2055 reachable from the switch); CLI
-      acceptance is proven, delivery is not yet.
+      Collector end-to-end **DONE 2026-07-03** (CRS326 7.12.1 -> dockerized LXC):
+      enabled NETFLOW on the LXC, pushed flow-export via the API, flows decode
+      and the Traffic API returns top-talkers + app breakdown. Found + fixed a
+      real bug - RouterOS exported from source 0.0.0.0 (no src-address), which
+      docker/kernel drops as a martian source; `flowExportLines` now pins
+      `src-address` to the device IP (commit d7d6acb). NetFlow left ENABLED on
+      the lab LXC. Remaining: only NX-OS Flexible NetFlow (still 501, niche, no
+      NX-OS hardware) and Cisco collector delivery (C9300 is on a different
+      subnet from the collector - not routable in the lab).
 - [ ] **Topology upgrades.** `Medium`. PARTIAL: orphan-node detection shipped
       (managed devices with no discovered neighbors are flagged on the map +
       counted). Still open: manual link drawing + persistence, MNDP dedup,
