@@ -192,9 +192,20 @@ message needed cleanup.
 
 ## P4 - Later (large, risky, or niche)
 
-- [ ] **RouterOS firmware.** `Hard`, risky. Package `.npk` upload +
-      `/system/reboot` (not `copy http` + `verify /md5`). Driver methods + UI.
-      Build + unit-test; do NOT auto-reboot.
+- [x] **RouterOS firmware.** `Hard`. **DONE 2026-07-03, hardware-validated.**
+      Reads both firmware layers - RouterOS package (version/channel/latest via
+      check-for-updates) and RouterBOARD bootloader (current vs bundled) - and
+      offers STAGED, non-disruptive upgrades: `/system package update download`
+      and `/system routerboard upgrade` stage without rebooting; a separate
+      explicit reboot (confirm=REBOOT, tolerates the self-disconnect) applies
+      them. Never auto-reboots. Netadmin + audited; MikroTik-only firmware panel
+      on the device page; parser + tests on real output. VALIDATED live on the
+      CRS326: staged + rebooted the bootloader 6.48.6 -> 7.12.1 via the API,
+      device came back in ~1 min, firmware confirmed upgraded, RouterOS version
+      unchanged. Not done: SwitchPilot-HOSTED .npk fetch (router pulls a pinned
+      package from the platform via /tool fetch, for air-gap / ring rollouts) -
+      the built-in updater is better for connected switches; the hosted path is
+      a future follow-up that would reuse the firmware library + campaigns.
 - [ ] **Golden config inheritance.** `Hard`. A hierarchy/inheritance model over
       templates + baseline (which already cover most of this).
 - [ ] **GitOps / intent-based config.** `Hard`. Declare desired VLANs/port
