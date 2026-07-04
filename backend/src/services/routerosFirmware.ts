@@ -7,7 +7,9 @@ import { audit, redactForAudit } from '../audit.js';
 import { withDeviceSession, evictDevice } from '../cisco/sshPool.js';
 import { getDevice, sshTargetFor } from './deviceComms.js';
 import { isMikrotik } from './routerosMonitor.js';
-import { parseResource, parseRouterboard, parsePackageUpdate } from '../routeros/parsers.js';
+import { setFwUpdate } from './firmwareState.js';
+import { publishEvent } from '../redis.js';
+import { parseResource, parseRouterboard, parsePackageUpdate, parseKeyValue, parseSize } from '../routeros/parsers.js';
 
 function assertMikrotik(device: { vendor?: string; capabilities?: unknown }): void {
   if (!isMikrotik(device as any)) {
@@ -22,11 +24,19 @@ export interface RouterosFirmwareStatus {
   latestVersion: string;       // newest on the channel ('' if unknown/none)
   updateStatus: string;        // human status from the updater
   osUpdateAvailable: boolean;  // a newer RouterOS package exists on the channel
+  updateDownloaded: boolean;   // the update is downloaded + staged (reboot to apply)
   routerboardModel: string;
   currentFirmware: string;     // installed bootloader firmware
   upgradeFirmware: string;     // bootloader firmware bundled with the OS
   routerboardUpgradeAvailable: boolean;   // bootloader is behind the bundled one
+  freeHddBytes: number;        // free storage - a package won't download without room
+  totalHddBytes: number;
+  lowDiskForUpdate: boolean;   // an OS update is available but free space looks too small to download it
 }
+
+// A RouterOS package is ~15-20 MB; flag when free storage clearly can't hold one
+// (the CRS3xx small-flash gotcha - the download silently fails on "no space").
+const MIN_UPDATE_FREE_BYTES = 20 * 1024 * 1024;
 
 /** Read both firmware layers. check-for-updates contacts MikroTik's servers to
  *  learn the latest version; it's best-effort (a device with no internet still
@@ -36,7 +46,11 @@ export async function getRouterosFirmware(deviceId: string): Promise<RouterosFir
   assertMikrotik(device);
   const target = await sshTargetFor(device);
   return withDeviceSession(target, async session => {
-    const resource = parseResource(await session.exec('/system resource print'));
+    const resourceRaw = await session.exec('/system resource print');
+    const resource = parseResource(resourceRaw);
+    const rkv = parseKeyValue(resourceRaw);
+    const freeHddBytes = parseSize(rkv['free-hdd-space']);
+    const totalHddBytes = parseSize(rkv['total-hdd-space']);
     const routerboard = parseRouterboard(await session.exec('/system routerboard print').catch(() => ''));
     // check-for-updates can be slow / fail offline; fall back to the cached print.
     const updateRaw = await session.exec('/system package update check-for-updates')
@@ -45,6 +59,7 @@ export async function getRouterosFirmware(deviceId: string): Promise<RouterosFir
     const upd = parsePackageUpdate(updateRaw);
 
     const osUpdateAvailable = !!upd.latestVersion && upd.latestVersion !== resource.version;
+    const updateDownloaded = /reboot|downloaded/i.test(upd.status);
     const rbUpgrade = routerboard.upgradeFirmware;
     const rbCurrent = routerboard.currentFirmware;
     return {
@@ -54,10 +69,14 @@ export async function getRouterosFirmware(deviceId: string): Promise<RouterosFir
       latestVersion: upd.latestVersion,
       updateStatus: upd.status,
       osUpdateAvailable,
+      updateDownloaded,
       routerboardModel: routerboard.model,
       currentFirmware: rbCurrent,
       upgradeFirmware: rbUpgrade,
       routerboardUpgradeAvailable: !!rbUpgrade && !!rbCurrent && rbUpgrade !== rbCurrent,
+      freeHddBytes,
+      totalHddBytes,
+      lowDiskForUpdate: osUpdateAvailable && !updateDownloaded && freeHddBytes > 0 && freeHddBytes < MIN_UPDATE_FREE_BYTES,
     };
   });
 }
@@ -69,8 +88,15 @@ export async function downloadRouterosPackage(deviceId: string, by: string, ip =
   const device = await getDevice(deviceId);
   assertMikrotik(device);
   const target = await sshTargetFor(device);
-  const out = await withDeviceSession(target, session =>
-    session.exec('/system package update download'));
+  const { out, latest } = await withDeviceSession(target, async session => {
+    const o = await session.exec('/system package update download');
+    // Capture the target version so the "reboot to apply / installing" UI can name it.
+    const upd = parsePackageUpdate(await session.exec('/system package update print').catch(() => ''));
+    return { out: o, latest: upd.latestVersion };
+  });
+  // Staged (downloaded, awaiting reboot). Long TTL - it stays until reboot.
+  await setFwUpdate(deviceId, 'downloaded', latest, 86400);
+  publishEvent({ type: 'device_updated', data: { deviceId } }).catch(() => {});
   await audit(by, 'firmware.routeros.download', deviceId, { output: redactForAudit(out) }, ip);
   return out;
 }
@@ -81,8 +107,13 @@ export async function stageRouterboardUpgrade(deviceId: string, by: string, ip =
   const device = await getDevice(deviceId);
   assertMikrotik(device);
   const target = await sshTargetFor(device);
-  const out = await withDeviceSession(target, session =>
-    session.exec('/system routerboard upgrade'));
+  const { out, upgrade } = await withDeviceSession(target, async session => {
+    const o = await session.exec('/system routerboard upgrade');
+    const rb = parseRouterboard(await session.exec('/system routerboard print').catch(() => ''));
+    return { out: o, upgrade: rb.upgradeFirmware };
+  });
+  await setFwUpdate(deviceId, 'downloaded', upgrade, 86400);
+  publishEvent({ type: 'device_updated', data: { deviceId } }).catch(() => {});
   await audit(by, 'firmware.routerboard.stage', deviceId, { output: redactForAudit(out) }, ip);
   return out;
 }
@@ -95,6 +126,10 @@ export async function rebootRouterosDevice(deviceId: string, by: string, ip = ''
   const device = await getDevice(deviceId);
   assertMikrotik(device);
   const target = await sshTargetFor(device);
+  // Mark "installing" up front (preserves the target version from the staged
+  // flag) so the device page shows the update in progress the moment it drops.
+  await setFwUpdate(deviceId, 'installing', '', 900);
+  publishEvent({ type: 'device_updated', data: { deviceId } }).catch(() => {});
   await audit(by, 'firmware.routeros.reboot', deviceId, {}, ip);
   try {
     await withDeviceSession(target, session => session.exec('/system reboot'));

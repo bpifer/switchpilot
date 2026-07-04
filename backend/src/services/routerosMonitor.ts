@@ -9,12 +9,14 @@ import { withDeviceSession } from '../cisco/sshPool.js';
 import { lookupVendor } from '../cisco/oui.js';
 import {
   parseResource, parseCpuLoad, parseHealth, parseInterfaces, parseBridgeHosts,
-  parseNeighbors, parseEthernetMonitor, parseTerse, parseSfpMonitor, type RosSfp,
+  parseNeighbors, parseEthernetMonitor, parseTerse, parseSfpMonitor, parseRouterboard,
+  parsePackageUpdate, type RosSfp,
 } from '../routeros/parsers.js';
 import { detectRouterOs } from '../routeros/detector.js';
 import { resolveRosCapabilities } from '../routeros/capabilities.js';
 import { getDevice, sshTargetFor, type DeviceRow } from './deviceComms.js';
 import { raiseAlert, resolveAlert } from './alertService.js';
+import { getFwUpdate, setFwUpdate, clearFwUpdate } from './firmwareState.js';
 import { publishDevice } from './mqttService.js';
 
 /** Full RouterOS refresh. Mirrors refreshDevice for MikroTik gear. */
@@ -48,6 +50,30 @@ export async function refreshRouterOsDevice(deviceId: string): Promise<void> {
       `INSERT INTO device_metrics (device_id, cpu_pct, mem_pct, temperature_c, poe_watts_used, poe_watts_capacity)
        VALUES ($1,$2,$3,$4,NULL,NULL)`,
       [deviceId, cpuPct, memPct, tempC]);
+
+    // Firmware-update reconcile (device is online here, so any reboot finished):
+    // detect a version change (an upgrade completed, from anywhere) and keep the
+    // "update staged / installing" flag in sync with the device's real state.
+    try {
+      const prevVersion = device.ios_version ?? '';
+      const rb = parseRouterboard(routerboard);
+      const upd = parsePackageUpdate(await session.exec('/system package update print').catch(() => ''));
+      const staged = /reboot|downloaded/i.test(upd.status)
+        || (!!rb.upgradeFirmware && !!rb.currentFirmware && rb.upgradeFirmware !== rb.currentFirmware);
+      const cur = await getFwUpdate(deviceId);
+      if (prevVersion && det.version && det.version !== prevVersion) {
+        await raiseAlert(deviceId, 'firmware_changed', 'info',
+          `${device.hostname} RouterOS updated ${prevVersion} → ${det.version}`);
+        await clearFwUpdate(deviceId);
+      } else if (cur?.state === 'installing') {
+        // We're refreshing => the device is back up, so the reboot is done.
+        await clearFwUpdate(deviceId);
+      } else if (staged) {
+        await setFwUpdate(deviceId, 'downloaded', upd.latestVersion || rb.upgradeFirmware, 86400);
+      } else if (cur) {
+        await clearFwUpdate(deviceId);
+      }
+    } catch { /* firmware reconcile is best-effort */ }
 
     if (cpuPct >= 90) await raiseAlert(deviceId, 'cpu_high', 'warning', `${device.hostname} CPU at ${cpuPct}%`);
     else await resolveAlert(deviceId, 'cpu_high');

@@ -8,6 +8,7 @@ import { detectDevice } from '../cisco/detector.js';
 import { listFamilies, resolveCapabilities, familyForModel } from '../cisco/capabilities.js';
 import { getDevice, sshTargetFor, snmpTargetFor, repinHostKey } from '../services/deviceComms.js';
 import { refreshDevice } from '../services/monitorService.js';
+import { getFwUpdate } from '../services/firmwareState.js';
 import { provisionDevice, buildProvisionPlan } from '../services/provisionService.js';
 
 export default async function deviceRoutes(app: FastifyInstance) {
@@ -192,7 +193,9 @@ export default async function deviceRoutes(app: FastifyInstance) {
       // window, this holds the ISO time the device-side auto-revert fires
       // (redis TTL matches the timer, so it self-clears). Null otherwise.
       const revertArmedUntil = await redis.get(`device:${device.id}:revertArmed`).catch(() => null);
-      return { ...device, revert_armed_until: revertArmedUntil };
+      // Firmware-update state (downloaded/staged or installing during a reboot).
+      const firmwareUpdate = await getFwUpdate(device.id);
+      return { ...device, revert_armed_until: revertArmedUntil, firmware_update: firmwareUpdate };
     });
 
   // Onboard a device — manual model or auto-detect

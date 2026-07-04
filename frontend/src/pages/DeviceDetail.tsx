@@ -80,6 +80,19 @@ export default function DeviceDetail({ me }: { me: Me }) {
         <div className="rounded-xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200/60">
           <div className="flex flex-wrap items-center gap-x-7 gap-y-2.5">
             <StatusBadge status={device.status} />
+            {device.firmware_update && (
+              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${
+                device.firmware_update.state === 'installing'
+                  ? 'bg-blue-100 text-blue-700 ring-blue-200'
+                  : 'bg-amber-100 text-amber-700 ring-amber-200'}`}
+                    title={device.firmware_update.state === 'installing'
+                      ? 'The device is rebooting to apply a firmware update.'
+                      : 'A firmware update is downloaded and will apply on the next reboot.'}>
+                {device.firmware_update.state === 'installing'
+                  ? <>🔄 Firmware updating{device.firmware_update.version ? ` → ${device.firmware_update.version}` : ''}…</>
+                  : <>⬇ Firmware update staged{device.firmware_update.version ? ` (${device.firmware_update.version})` : ''} — reboot to apply</>}
+              </span>
+            )}
             {device.revert_armed_until && new Date(device.revert_armed_until) > new Date() && (
               <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200"
                     title="A safe-apply config push is awaiting confirmation. If the platform cannot re-reach the device, it reverts itself at this time.">
@@ -329,9 +342,12 @@ function HostKeyStatus({ deviceId, fp, pinnedAt, canConfig, onChanged }: {
 interface RouterOsFw {
   version: string; architecture: string; channel: string;
   latestVersion: string; updateStatus: string; osUpdateAvailable: boolean;
+  updateDownloaded: boolean;
   routerboardModel: string; currentFirmware: string; upgradeFirmware: string;
   routerboardUpgradeAvailable: boolean;
+  freeHddBytes: number; totalHddBytes: number; lowDiskForUpdate: boolean;
 }
+const fmtMB = (b: number) => b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${(b / 1024).toFixed(0)} KB`;
 function RouterOsFirmwarePanel({ deviceId, canConfig }: { deviceId: string; canConfig: boolean }) {
   const [fw, setFw] = useState<RouterOsFw | null>(null);
   const { run, busy, isBusy } = useAction();
@@ -364,9 +380,17 @@ function RouterOsFirmwarePanel({ deviceId, canConfig }: { deviceId: string; canC
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">RouterOS</div>
                 <div className="font-mono text-slate-800">{fw.version} <span className="text-xs text-slate-400">({fw.channel || 'stable'}, {fw.architecture})</span></div>
-                <div className={`text-xs ${fw.osUpdateAvailable ? 'text-amber-600' : 'text-slate-400'}`}>
-                  {fw.osUpdateAvailable ? `Update available: ${fw.latestVersion}` : (fw.updateStatus || 'Up to date')}
+                <div className={`text-xs ${fw.updateDownloaded ? 'text-blue-600' : fw.osUpdateAvailable ? 'text-amber-600' : 'text-slate-400'}`}>
+                  {fw.updateDownloaded ? `${fw.latestVersion} downloaded — reboot to apply`
+                    : fw.osUpdateAvailable ? `${fw.latestVersion} available (not downloaded yet)`
+                    : (fw.updateStatus || 'Up to date')}
                 </div>
+                {fw.freeHddBytes > 0 && (
+                  <div className={`text-xs ${fw.lowDiskForUpdate ? 'text-red-600' : 'text-slate-400'}`}>
+                    {fmtMB(fw.freeHddBytes)} free of {fmtMB(fw.totalHddBytes)}
+                    {fw.lowDiskForUpdate && ' — likely too little space to download the update'}
+                  </div>
+                )}
               </div>
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">RouterBOARD firmware</div>
@@ -380,8 +404,10 @@ function RouterOsFirmwarePanel({ deviceId, canConfig }: { deviceId: string; canC
 
             {canConfig && (
               <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-                {fw.osUpdateAvailable && (
-                  <Button variant="secondary" disabled={busy} onClick={download}>{isBusy('download') ? 'Downloading…' : `Download ${fw.latestVersion}`}</Button>
+                {fw.osUpdateAvailable && !fw.updateDownloaded && (
+                  <Button variant="secondary" disabled={busy} onClick={download}>
+                    {isBusy('download') ? 'Downloading…' : `Download ${fw.latestVersion}`}
+                  </Button>
                 )}
                 {fw.routerboardUpgradeAvailable && (
                   <Button variant="secondary" disabled={busy} onClick={stageRb}>{isBusy('rb') ? 'Staging…' : 'Stage bootloader upgrade'}</Button>

@@ -12,6 +12,7 @@ import { publishDevice } from './mqttService.js';
 import { snmpProbe } from '../cisco/snmpClient.js';
 import { getDevice, sshTargetFor, snmpTargetFor, type DeviceRow } from './deviceComms.js';
 import { raiseAlert, resolveAlert } from './alertService.js';
+import { getFwUpdate, setFwUpdate } from './firmwareState.js';
 import { runAutomationTrigger } from './automationService.js';
 
 // Re-exported so existing importers (tests, routes) keep one import site for
@@ -60,6 +61,11 @@ export async function pollStatus(device: DeviceRow): Promise<void> {
     await query('UPDATE devices SET status=$1, last_seen_at=CASE WHEN $1=\'online\' THEN now() ELSE last_seen_at END WHERE id=$2',
       [newStatus, device.id]);
     if (newStatus === 'offline') {
+      // If a firmware update was staged (downloaded) and the device just went
+      // offline, it's almost certainly rebooting to apply it - surface that as
+      // "installing" so the page shows a firmware update, not a bare outage.
+      const fw = await getFwUpdate(device.id);
+      if (fw?.state === 'downloaded') await setFwUpdate(device.id, 'installing', fw.version, 900);
       await raiseAlert(device.id, 'device_offline', 'critical', `${device.hostname} is unreachable via SNMP and SSH`);
       await runAutomationTrigger('device_offline', { deviceId: device.id });
     } else {
