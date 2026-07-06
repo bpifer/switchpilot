@@ -144,13 +144,22 @@ export async function evaluateAllCompliance(
  *  is audited. A per-rule failure is logged and skipped, not fatal. */
 export async function autoRemediateDevice(deviceId: string): Promise<void> {
   if (!config.poll.complianceAutoRemediate) return;
-  if (await inMaintenanceWindow(deviceId)) return;
   const { rows } = await query<{ rule_id: string; name: string }>(
     `SELECT cr.id AS rule_id, cr.name
        FROM compliance_results r JOIN compliance_rules cr ON cr.id = r.rule_id
       WHERE r.device_id = $1 AND r.passed = false
         AND cr.enabled AND cr.auto_remediate AND COALESCE(cr.remediation, '') <> ''`,
     [deviceId]);
+  if (!rows.length) return;
+  // Suppressed by a maintenance window: audit the skip so an operator can see
+  // WHY a failing rule wasn't fixed (otherwise the sweep is silently inert).
+  // Only audited when there was actually something to remediate, so quiet
+  // devices don't spam the log on every sweep.
+  if (await inMaintenanceWindow(deviceId)) {
+    await audit('compliance-auto-remediate', 'compliance.auto_remediate.skipped', deviceId,
+      { reason: 'maintenance window', rules: rows.map(r => r.name) }).catch(() => {});
+    return;
+  }
   for (const r of rows) {
     try {
       const output = await remediate(deviceId, r.rule_id, 'compliance-auto-remediate');
