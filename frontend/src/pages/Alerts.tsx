@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { toast } from '../components/Toast';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, StatusBadge, Modal, Field, inputCls } from '../components/ui';
@@ -29,9 +30,18 @@ export default function Alerts({ me }: { me: Me }) {
 
   async function resolve(a: any) {
     if (!window.confirm(`Resolve this alert?\n\n${a.hostname ?? 'platform'}: ${a.message}`)) return;
-    await api(`/api/alerts/${a.id}/resolve`, { method: 'POST' });
-    load();
+    try { await api(`/api/alerts/${a.id}/resolve`, { method: 'POST' }); load(); }
+    catch (err: any) { toast.error(err.message); }
   }
+
+  // Rule enable-toggle and delete can be rejected server-side; toast instead of
+  // failing silently.
+  const toggleRule = (id: string, enabled: boolean) =>
+    api(`/api/automation/rules/${id}`, { method: 'PATCH', body: { enabled } }).then(load).catch((err: any) => toast.error(err.message));
+  const deleteRule = (r: any) => {
+    if (window.confirm(`Delete automation rule “${r.name}”?`))
+      api(`/api/automation/rules/${r.id}`, { method: 'DELETE' }).then(load).catch((err: any) => toast.error(err.message));
+  };
 
   return (
     <div>
@@ -79,13 +89,13 @@ export default function Alerts({ me }: { me: Me }) {
                     <span className="flex items-center gap-2">
                       <label className="flex items-center gap-1 text-xs text-gray-500">
                         <input type="checkbox" checked={r.enabled}
-                               onChange={e => api(`/api/automation/rules/${r.id}`, { method: 'PATCH', body: { enabled: e.target.checked } }).then(load)} />
+                               onChange={e => toggleRule(r.id, e.target.checked)} />
                         enabled
                       </label>
                       <button className="text-xs text-brand-600 hover:underline"
                               onClick={() => setEditRule(r)}>edit</button>
                       <button className="text-xs text-red-600 hover:underline"
-                              onClick={() => { if (window.confirm(`Delete automation rule “${r.name}”?`)) api(`/api/automation/rules/${r.id}`, { method: 'DELETE' }).then(load); }}>delete</button>
+                              onClick={() => deleteRule(r)}>delete</button>
                     </span>
                   )}
                 </div>

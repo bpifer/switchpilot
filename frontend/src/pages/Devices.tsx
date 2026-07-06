@@ -266,7 +266,8 @@ function CredentialManager({ credentials, onClose }: { credentials: any[]; onClo
                 <button className="text-xs text-brand-600 hover:text-brand-700 hover:underline" onClick={() => startEdit(c)}>Edit</button>
                 <button
                   className="text-xs text-red-500 hover:text-red-700 hover:underline"
-                  onClick={() => api(`/api/credentials/${c.id}`, { method: 'DELETE' }).then(onClose)}
+                  onClick={() => api(`/api/credentials/${c.id}`, { method: 'DELETE' }).then(onClose)
+                    .catch((err: any) => toast.error(err.message))}
                 >
                   Delete
                 </button>
