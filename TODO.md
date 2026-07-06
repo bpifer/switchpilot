@@ -24,11 +24,14 @@ subsystems. Best value-per-effort next, in order:
    speed, and live utilization % (port_metrics bandwidth vs speed, null-safe);
    link hover shows a detail card. Verified live (VLAN overlay renders the trunk
    link).
-4. **In-app DB backup/restore** — M (~1–2 days). DR completeness (pg_dump is
-   runbook-only today). Restore is destructive → guardrails. **Next up.**
+4. ~~In-app DB backup/restore~~ **DONE 2026-07-06.** Superadmin-only pg_dump
+   streaming download + destructive restore (confirm=RESTORE + safety dump of the
+   current DB first), on the Users page. Old pre-restore safety dumps pruned daily
+   (>7d). postgresql16-client bundled in the API image.
 5. **Aruba InstantOn 1930 (SNMP read-only, phase 1)** — M–H (~3–4 days). Real
    hardware on hand; needs a non-SSH transport abstraction + SNMP enabled on the
-   switch first. See the feasibility assessment. (User: "later this week.")
+   switch first. See the feasibility assessment. (User: "later this week.") **Next
+   big feature.**
 
 Lower value / defer: remaining `useAction` page migrations (cosmetic, ~½ day),
 NX-OS Flexible NetFlow (niche, no hw), manual topology link-drawing (~2 days),
@@ -61,8 +64,8 @@ Hard/niche. See sections below for detail.
       exponential backoff, and never retries a 4xx (permanent misconfig).
       `fireWebhooks` uses it (last_status now notes "gave up after N tries")
       and `dispatchNotifications` (Discord/ntfy/Gotify/Telegram/Pushover) too.
-      The built-in Teams/Slack/SMTP senders still fire once - a follow-up could
-      route them through the same helper.
+      Teams/Slack now route through `fetchWithRetry` as well (DONE 2026-07-06);
+      only SMTP still fires once (its own transport retry is a separate concern).
 
 Fixed this round (see Shipped): compliance staleness, automation vs maintenance
 windows, NetFlow row dedup, commit-confirm double-fetch, safe-apply label +
@@ -135,11 +138,15 @@ message needed cleanup.
       variant, and a regression for the once-silent restore failure) and the
       bulk port configuration flow (preview-first-port, per-port apply,
       continue-past-failure, read-back mismatch reporting, confirm-decline).
-      Still open: the remaining I/O paths of the vendor monitors, the
-      other big untested pages (`Compliance`, `Firmware`), and SSH chaos
-      cases the mocks don't simulate (mid-push disconnects, echo delays,
-      auth-prompt variants) - the one valid gap from the 2026-07-02 external
-      review. (External review.)
+      Compliance + Firmware page tests shipped (tasks 29/30). SSH chaos gap
+      CLOSED 2026-07-06: mockCiscoDevice gained enable-password prompts, command
+      echo, and --More-- pagination; ssh.chaos covers enable-password, skip-enable
+      pass-through, echo-in-separate-chunk stripping, and paging. Auto-remediation
+      safety default (off-by-default short-circuit) unit-tested. Devices
+      filter/sort + Alerts ack/resolve/edit page tests added. Still open: the
+      remaining I/O paths of the vendor monitors — a full `refreshCiscoDevice`
+      test needs a session-injection seam (sshTargetFor hard-codes port 22), a
+      hot-path refactor deferred as out of scope for a test-only change.
 
 ## P3 - Nice to have
 
@@ -239,6 +246,32 @@ message needed cleanup.
       P3.)
 
 ## Shipped
+
+**External review round (2026-07-06):** notifier hardening (Teams/Slack via
+`fetchWithRetry`); daily prune of pre-restore DB safety dumps (>7d); in-app DB
+backup/restore finished on the Users page; device notes (migration 029) + alert
+ack notes (migration 030) + resolve/delete confirmations + full automation-rule
+editing (not just the enable toggle); front-panel port filter (name/desc/VLAN);
+Devices search + status dropdown + sortable columns; SSH chaos tests
+(enable-password prompt, echo-in-separate-chunk, --More-- pagination) +
+auto-remediation off-by-default safety-gate test; Devices/Alerts page tests.
+Deliberately NOT done: a full `refreshCiscoDevice` integration test (needs a
+session-injection seam; `sshTargetFor` hard-codes port 22 — hot-path refactor,
+out of scope for a test). Reviewer over-weighted easy wins and worked from a
+partly-stale snapshot (claimed Compliance/Firmware had no tests; they did).
+
+**Alerts UX (2026-07-06):** ack/resolve now refresh the bell badge immediately
+(invalidate `/api/summary`) instead of lagging its 30s poll; the sidebar "Alerts"
+badge and the bell share one open-alert count (`useOpenAlerts`) so they always
+agree and both clear on ack — the divergent live-only counter is gone.
+
+**RouterOS firmware relocated (2026-07-06):** moved off the device detail page
+into a "RouterOS firmware (MikroTik)" section on the Firmware page (single home;
+reusable `components/RouterOsFirmwarePanel`). When a device is too full to update
+in place (`lowDiskForUpdate`), the futile Download button is hidden and the panel
+explains that the device must be reflashed via Netinstall (a 16 MB-flash CRS326
+can't hold the ~14 MB package; transferring from the platform doesn't help — the
+`.npk` still has to fit on flash). RouterBOARD bootloader upgrade still applies.
 
 **MikroTik bring-up:** onboard + validate CRS326 end-to-end; RouterOS port/VLAN
 write config (idempotent bridge-VLAN scripts) + vlan-filtering UI caveat;
