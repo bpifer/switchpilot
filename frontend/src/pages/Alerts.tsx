@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
@@ -14,9 +15,17 @@ export default function Alerts({ me }: { me: Me }) {
   const canRules = me.role === 'superadmin' || me.role === 'netadmin';
 
   const { siteId } = useSiteScope();
+  const queryClient = useQueryClient();
   const { data: alerts = [], refetch: refetchAlerts } = useApiQuery<any[]>(scoped(`/api/alerts?open=${!showAll}`, siteId), { refetchInterval: 20000 });
   const { data: rules = [], refetch: refetchRules } = useApiQuery<any[]>('/api/automation/rules');
-  const load = () => { refetchAlerts(); refetchRules(); };
+  // Ack/resolve changes the open-alert count that drives the global bell badge
+  // (/api/summary, polled every 30s). Invalidate it too so the badge updates
+  // immediately instead of lagging until its next poll.
+  const load = () => {
+    refetchAlerts();
+    refetchRules();
+    queryClient.invalidateQueries({ queryKey: ['/api/summary'] });
+  };
 
   async function resolve(a: any) {
     if (!window.confirm(`Resolve this alert?\n\n${a.hostname ?? 'platform'}: ${a.message}`)) return;
