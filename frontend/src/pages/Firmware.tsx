@@ -5,6 +5,7 @@ import { toast } from '../components/Toast';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
+import RouterOsFirmwarePanel from '../components/RouterOsFirmwarePanel';
 
 interface FirmwareImage {
   id: string;
@@ -31,6 +32,10 @@ export default function Firmware({ me }: { me: Me }) {
   const canManage = me.role === 'superadmin' || me.role === 'netadmin';
   const { data: images = [], refetch: refetchImages } = useApiQuery<FirmwareImage[]>('/api/firmware');
   const { data: report = [], refetch: refetchReport } = useApiQuery<ComplianceRow[]>('/api/firmware/compliance');
+  // MikroTik firmware is device-centric (live SSH check + staged upgrade, no
+  // uploadable image), so it gets its own section rather than the image library.
+  const { data: devices = [] } = useApiQuery<any[]>('/api/devices');
+  const mikrotiks = devices.filter(d => d.vendor === 'mikrotik');
   const [showUpload, setShowUpload] = useState(false);
   const [upgrading, setUpgrading] = useState<FirmwareImage | null>(null);
   const [settingTarget, setSettingTarget] = useState<string | null>(null); // family
@@ -95,6 +100,21 @@ export default function Firmware({ me }: { me: Me }) {
           </table>
           </div>
         </Card>
+
+        {mikrotiks.length > 0 && (
+          <Card title="RouterOS firmware (MikroTik)">
+            <p className="mb-2 text-xs text-slate-500">
+              MikroTik switches pull updates from MikroTik's servers — there's no image to upload. Check
+              each device's installed RouterOS package and RouterBOARD (bootloader) firmware, stage
+              upgrades non-disruptively, then reboot to apply.
+            </p>
+            <div className="divide-y divide-slate-100">
+              {mikrotiks.map(d => (
+                <RouterOsFirmwarePanel key={d.id} deviceId={d.id} hostname={d.hostname || d.mgmt_ip} canConfig={canManage} />
+              ))}
+            </div>
+          </Card>
+        )}
 
         <Card title="Image library">
           <div className="overflow-x-auto">
