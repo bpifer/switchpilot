@@ -70,3 +70,67 @@ describe('CiscoSshSession chaos', () => {
     session.close();
   }, 15000);
 });
+
+// enable() and exec() have to survive the small variations real IOS shells
+// throw at them: an interactive enable-password prompt, the device echoing the
+// typed command back (sometimes late), and long output paged behind --More--.
+describe('CiscoSshSession auth + echo variants', () => {
+  const enableTarget = () => ({ ...target(), enablePassword: 'secretEnable' });
+
+  it('answers the enable password prompt and reaches privileged mode', async () => {
+    device = await startMockDevice({
+      enablePassword: 'secretEnable',
+      responses: { 'show running-config': 'hostname core-sw-01\n!' },
+    });
+    const session = new CiscoSshSession(enableTarget());
+    await session.connect();
+    await session.enable();   // must send the enable password at "Password:"
+    // A privileged command now returns its canned output cleanly.
+    expect(await session.exec('show running-config')).toContain('hostname core-sw-01');
+    session.close();
+  }, 15000);
+
+  it('connects straight through when the device grants # without a password (skipEnable)', async () => {
+    device = await startMockDevice({ responses: { 'show clock': '12:00:00 UTC' } });
+    const session = new CiscoSshSession(target());
+    await session.connect();
+    // No enable() call; exec still works from the unprivileged prompt.
+    expect(await session.exec('show clock')).toContain('12:00:00');
+    session.close();
+  }, 15000);
+
+  it('strips the echoed command when the device echoes it back in a separate chunk', async () => {
+    device = await startMockDevice({
+      echoCommands: true,
+      responses: { 'show version': fx.SHOW_VERSION_IOSXE },
+    });
+    const session = new CiscoSshSession(target());
+    await session.connect();
+    await session.enable();
+    const out = await session.exec('show version');
+    expect(out).toContain('Cisco IOS XE Software');
+    // The echoed command line must not survive into the parsed output, and the
+    // trailing prompt must be stripped.
+    expect(out).not.toMatch(/^show version/m);
+    expect(out).not.toMatch(/core-sw-01[#>]\s*$/);
+    session.close();
+  }, 15000);
+
+  it('pages through --More-- output and returns the whole thing', async () => {
+    device = await startMockDevice({
+      pagedResponses: {
+        'show running-config': ['hostname core-sw-01', 'interface Gi1/0/1', ' description UPLINK', 'end'],
+      },
+    });
+    const session = new CiscoSshSession(target());
+    await session.connect();
+    await session.enable();
+    const out = await session.exec('show running-config');
+    // Every page made it through and no --More-- marker leaked into the result.
+    expect(out).toContain('hostname core-sw-01');
+    expect(out).toContain('description UPLINK');
+    expect(out).toContain('end');
+    expect(out).not.toContain('More');
+    session.close();
+  }, 15000);
+});
