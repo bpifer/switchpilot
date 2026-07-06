@@ -121,11 +121,15 @@ message needed cleanup.
       the lab LXC. Remaining: only NX-OS Flexible NetFlow (still 501, niche, no
       NX-OS hardware) and Cisco collector delivery (C9300 is on a different
       subnet from the collector - not routable in the lab).
-- [ ] **Topology upgrades.** `Medium`. PARTIAL: orphan-node detection shipped
-      (managed devices with no discovered neighbors are flagged on the map +
-      counted). Still open: manual link drawing + persistence, MNDP dedup,
-      link-utilization + VLAN overlays, and "what's plugged into what", on the
-      CDP/LLDP auto-graph (`routes/topology.ts`).
+- [x] **Topology upgrades.** `Medium`. **DONE 2026-07-06.** Orphan-node
+      detection, link-utilization + VLAN overlays (2026-07-03), and now manual
+      link drawing + persistence: `manual_topology_links` (migration 031),
+      netadmin CRUD (audited), dashed rendering with click-to-delete, external
+      free-text targets merging with discovered `ext:` nodes, and manually-linked
+      devices no longer flagged orphan. Node drag positions persist per browser
+      (localStorage). MNDP dedup was already covered: `/ip neighbor` merges
+      protocols on-device and the graph's edge key + ON CONFLICT dedupe the rest.
+      "What's plugged into what" is served by per-port learned MACs + Clients.
 - [ ] **Test the riskiest untested code.** `Medium`. PARTIAL: `jobService` retry/
       backoff (`decideJobOutcome`/`backoffMs`) and `monitorService` health-alert
       decisions (`evaluateHealth`) now have unit tests (pure logic extracted).
@@ -246,6 +250,18 @@ message needed cleanup.
       P3.)
 
 ## Shipped
+
+**Topology + discovery + polish (2026-07-06, round 2):** manual topology links
+(see P2 item above); Discovery one-click add (each CDP/LLDP suggestion row gets
+an "Add…" button opening the onboarding wizard with the IP prefilled);
+auto-remediation skips during maintenance windows are now audited
+(`compliance.auto_remediate.skipped`, only when work was actually suppressed);
+MikroTik low-disk firmware panel explains the Netinstall path and hides the
+futile Download button; silent-failure mutations fixed across Users (role/
+enable/unlock), Integrations (webhook delete, key revoke), Alerts (rule toggle/
+delete), Devices (credential delete); Devices + Alerts + Topology page tests
+(frontend suite 46 → 61). Deliberately skipped: splitting configs.ts (382 lines,
+17 cohesive routes - churn without payoff).
 
 **External review round (2026-07-06):** notifier hardening (Teams/Slack via
 `fetchWithRetry`); daily prune of pre-restore DB safety dumps (>7d); in-app DB
