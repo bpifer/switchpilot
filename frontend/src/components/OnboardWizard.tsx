@@ -25,11 +25,15 @@ interface OnboardResult {
   warnings: string[];
 }
 
-export default function OnboardWizard({ sites, onClose }: { sites: any[]; onClose: () => void }) {
+export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
+  sites: any[]; onClose: () => void;
+  /** Prefill the management IP (e.g. one-click add from a discovery suggestion). */
+  initialIp?: string;
+}) {
   const [step, setStep] = useState<'creds' | 'review' | 'done'>('creds');
   const { siteId: scopeSite } = useSiteScope();
   const [form, setForm] = useState({
-    mgmtIp: '', username: '', password: '', enablePassword: '',
+    mgmtIp: initialIp, username: '', password: '', enablePassword: '',
     // default the site to the currently selected scope (when it's a real site)
     siteId: scopeSite !== 'unassigned' ? scopeSite : '',
     location: ''

@@ -402,7 +402,7 @@ export default function App() {
           <Route path="/sites" element={<Sites me={me} />} />
           <Route path="/compliance" element={<Compliance me={me} />} />
           <Route path="/maintenance" element={<Maintenance />} />
-          <Route path="/discovery" element={<Discovery />} />
+          <Route path="/discovery" element={<Discovery me={me} />} />
           {roleRank(me.role) >= roleRank('netadmin') && <Route path="/integrations" element={<Integrations />} />}
           {me.role === 'superadmin' && <Route path="/users" element={<Users />} />}
           <Route path="*" element={<Navigate to="/" />} />

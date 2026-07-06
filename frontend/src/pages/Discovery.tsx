@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { api } from '../api';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useSiteScope, scoped } from '../context/SiteContext';
+import type { Me } from '../App';
 import { PageHeader, Card, Button } from '../components/ui';
+import OnboardWizard from '../components/OnboardWizard';
 
 interface Suggestion { neighbor_name: string; neighbor_ip: string; neighbor_platform: string; protocol: string; seen_by_hostname: string; seen_by_ip: string; }
 interface ImportResult { ip: string; id?: string; ok: boolean; error?: string; }
@@ -13,15 +15,19 @@ const CSV_EXAMPLE = `hostname,mgmt_ip,model,credential_id,site_id
 core-sw01,10.0.0.1,WS-C3750X-48P-L,,
 core-sw02,10.0.0.2,WS-C3750X-48P-L,,`;
 
-export default function Discovery() {
+export default function Discovery({ me }: { me: Me }) {
   const [tab, setTab] = useState<'suggest' | 'import'>('suggest');
   const [csv, setCsv] = useState('');
   const [importing, setImporting] = useState(false);
   const [importResults, setImportResults] = useState<ImportResult[] | null>(null);
+  // One-click add: open the onboarding wizard prefilled with a suggestion's IP.
+  const [addingIp, setAddingIp] = useState<string | null>(null);
+  const canAdd = me.role === 'superadmin' || me.role === 'netadmin';
 
   const { siteId } = useSiteScope();
   const { data: suggestions = [], isLoading: loadingSugg, refetch: loadSuggestions } =
     useApiQuery<Suggestion[]>(scoped('/api/discovery/suggest', siteId), { enabled: tab === 'suggest' });
+  const { data: sites = [] } = useApiQuery<any[]>('/api/sites', { enabled: canAdd });
 
   async function runImport() {
     setImporting(true); setImportResults(null);
@@ -73,7 +79,8 @@ export default function Discovery() {
                       <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">IP</th>
                       <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Platform</th>
                       <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Protocol</th>
-                      <th className="pb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Seen by</th>
+                      <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Seen by</th>
+                      {canAdd && <th className="pb-3"></th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -87,13 +94,23 @@ export default function Discovery() {
                             s.protocol === 'cdp' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
                           }`}>{s.protocol.toUpperCase()}</span>
                         </td>
-                        <td className="py-3 text-xs text-slate-500">{s.seen_by_hostname || s.seen_by_ip}</td>
+                        <td className="py-3 pr-4 text-xs text-slate-500">{s.seen_by_hostname || s.seen_by_ip}</td>
+                        {canAdd && (
+                          <td className="py-3 text-right">
+                            <Button variant="secondary" disabled={!s.neighbor_ip}
+                                    onClick={() => setAddingIp(s.neighbor_ip)}>
+                              Add…
+                            </Button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
                 </table>
                 <p className="mt-3 text-xs text-slate-400">
-                  Add these devices via the Devices page, or use the CSV Import tab to bulk-import them.
+                  {canAdd
+                    ? 'Add… opens onboarding with the IP prefilled, or use the CSV Import tab to bulk-import.'
+                    : 'A netadmin can add these from here or via the Devices page.'}
                 </p>
               </div>
             )}
@@ -147,6 +164,13 @@ export default function Discovery() {
           </div>
         )}
       </div>
+      {addingIp && (
+        <OnboardWizard
+          sites={sites}
+          initialIp={addingIp}
+          onClose={() => { setAddingIp(null); loadSuggestions(); }}
+        />
+      )}
     </div>
   );
 }
