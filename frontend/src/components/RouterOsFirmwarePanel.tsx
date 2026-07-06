@@ -83,9 +83,26 @@ export default function RouterOsFirmwarePanel({ deviceId, hostname, canConfig }:
             </div>
           </div>
 
+          {/* Too little flash to hold the new package: an in-place download can't
+              work (the .npk must physically fit on the device before a reboot
+              installs it), so hide the futile Download button and explain the
+              only real path for a device this full. */}
+          {fw.osUpdateAvailable && !fw.updateDownloaded && fw.lowDiskForUpdate && (
+            <div className="rounded-lg border border-red-200 bg-red-50/60 px-3 py-2 text-xs text-red-700">
+              <span className="font-semibold">Not enough free space to update in place.</span>{' '}
+              RouterOS must hold the ~{fw.latestVersion} package on the device's own flash before a reboot
+              installs it, and there isn't room. Transferring it from the platform won't help — the file still
+              has to fit. This device must be upgraded with{' '}
+              <a href="https://help.mikrotik.com/docs/display/ROS/Netinstall" target="_blank" rel="noreferrer"
+                 className="font-medium underline">Netinstall</a>{' '}
+              (a bootloader-level reflash over Ethernet that reformats first, so free space doesn't matter).
+              The RouterBOARD (bootloader) upgrade below is tiny and still applies normally.
+            </div>
+          )}
+
           {canConfig && (
             <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-              {fw.osUpdateAvailable && !fw.updateDownloaded && (
+              {fw.osUpdateAvailable && !fw.updateDownloaded && !fw.lowDiskForUpdate && (
                 <Button variant="secondary" disabled={busy} onClick={download}>
                   {isBusy('download') ? 'Downloading…' : `Download ${fw.latestVersion}`}
                 </Button>
