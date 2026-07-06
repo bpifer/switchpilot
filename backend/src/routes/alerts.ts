@@ -36,13 +36,16 @@ export default async function alertRoutes(app: FastifyInstance) {
     return rows;
   });
 
-  app.post('/api/alerts/:id/ack', { preHandler: requireRole('helpdesk'), schema: { tags: ['alerts'] } },
-    async (req) => {
-      const me = req.user as any;
-      await query('UPDATE alerts SET acknowledged=TRUE, acknowledged_by=$1 WHERE id=$2',
-        [me.username, (req.params as any).id]);
-      return { ok: true };
-    });
+  app.post('/api/alerts/:id/ack', {
+    preHandler: requireRole('helpdesk'),
+    schema: { tags: ['alerts'], body: { type: 'object', properties: { note: { type: 'string', maxLength: 1000 } } } }
+  }, async (req) => {
+    const me = req.user as any;
+    const note = ((req.body as any)?.note ?? '').toString();
+    await query('UPDATE alerts SET acknowledged=TRUE, acknowledged_by=$1, ack_note=$2 WHERE id=$3',
+      [me.username, note, (req.params as any).id]);
+    return { ok: true };
+  });
 
   app.post('/api/alerts/:id/resolve', { preHandler: requireRole('helpdesk'), schema: { tags: ['alerts'] } },
     async (req) => {
@@ -87,11 +90,42 @@ export default async function alertRoutes(app: FastifyInstance) {
 
   app.patch('/api/automation/rules/:id', {
     preHandler: requireRole('netadmin'),
-    schema: { tags: ['automation'], body: { type: 'object', properties: { enabled: { type: 'boolean' } } } }
+    schema: {
+      tags: ['automation'],
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          trigger: {
+            type: 'string',
+            enum: ['port_down', 'device_offline', 'cpu_high', 'config_drift', 'temp_high', 'psu_fail', 'fan_fail', 'port_flapping']
+          },
+          condition: { type: 'object' },
+          action: { type: 'string', enum: ['notify', 'restore_baseline', 'run_template', 'disable_port'] },
+          actionParams: { type: 'object' },
+          enabled: { type: 'boolean' }
+        }
+      }
+    }
   }, async (req) => {
-    const { enabled } = req.body as any;
-    if (enabled !== undefined) {
-      await query('UPDATE automation_rules SET enabled=$1 WHERE id=$2', [enabled, (req.params as any).id]);
+    const b = req.body as any;
+    const me = req.user as any;
+    // Build one atomic UPDATE from whichever fields were supplied. jsonb columns
+    // are stringified so a full edit (name/trigger/condition/action/params) and a
+    // simple enable/disable toggle share the same handler.
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    const add = (col: string, val: unknown) => { params.push(val); sets.push(`${col}=$${params.length}`); };
+    if (b.name !== undefined) add('name', b.name);
+    if (b.trigger !== undefined) add('trigger', b.trigger);
+    if (b.condition !== undefined) add('condition', JSON.stringify(b.condition));
+    if (b.action !== undefined) add('action', b.action);
+    if (b.actionParams !== undefined) add('action_params', JSON.stringify(b.actionParams));
+    if (b.enabled !== undefined) add('enabled', b.enabled);
+    if (sets.length) {
+      params.push((req.params as any).id);
+      await query(`UPDATE automation_rules SET ${sets.join(', ')} WHERE id=$${params.length}`, params);
+      await audit(me.username, 'automation.update', (req.params as any).id, b, req.ip);
     }
     return { ok: true };
   });

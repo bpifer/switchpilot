@@ -277,7 +277,8 @@ export default async function deviceRoutes(app: FastifyInstance) {
           siteId: { type: 'string', nullable: true }, location: { type: 'string' },
           credentialId: { type: 'string' }, monitorEnabled: { type: 'boolean' },
           rackName: { type: 'string' }, rackUnit: { type: 'integer', minimum: 1, maximum: 60, nullable: true },
-          rackHeight: { type: 'integer', minimum: 1, maximum: 20 }
+          rackHeight: { type: 'integer', minimum: 1, maximum: 20 },
+          notes: { type: 'string', maxLength: 5000 }
         }
       }
     }
@@ -296,6 +297,7 @@ export default async function deviceRoutes(app: FastifyInstance) {
     if (b.rackName !== undefined) add('rack_name', b.rackName);
     if (b.rackUnit !== undefined) add('rack_unit', b.rackUnit);
     if (b.rackHeight !== undefined) add('rack_height', b.rackHeight);
+    if (b.notes !== undefined) add('notes', b.notes);
     if (sets.length) {
       params.push(id);
       await query(`UPDATE devices SET ${sets.join(', ')} WHERE id=$${params.length}`, params);

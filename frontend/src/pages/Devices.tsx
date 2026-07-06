@@ -9,9 +9,15 @@ import OnboardWizard from '../components/OnboardWizard';
 import { useSiteScope, scoped } from '../context/SiteContext';
 
 
+type SortKey = 'status' | 'hostname' | 'model' | 'mgmt_ip' | 'serial_number' | 'ios_version' | 'uptime_seconds' | 'cpu_pct' | 'mem_pct' | 'site_name';
+
 export default function Devices({ me }: { me: Me }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showCred, setShowCred] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('hostname');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const canEdit = me.role === 'superadmin' || me.role === 'netadmin';
 
   const { siteId } = useSiteScope();
@@ -34,6 +40,43 @@ export default function Devices({ me }: { me: Me }) {
     } catch (err: any) { toast.error(err.message); }
   }
 
+  // Filter + sort are pure client-side over the already-fetched list, so they're
+  // instant and don't refire the query. Numeric columns sort numerically; the
+  // rest case-insensitively, with nulls always sorted last.
+  const numericKeys: SortKey[] = ['uptime_seconds', 'cpu_pct', 'mem_pct'];
+  const q = search.trim().toLowerCase();
+  const visible = devices
+    .filter(d => !statusFilter || d.status === statusFilter)
+    .filter(d => !q ||
+      (d.hostname ?? '').toLowerCase().includes(q) ||
+      (d.mgmt_ip ?? '').toLowerCase().includes(q) ||
+      (d.model ?? '').toLowerCase().includes(q) ||
+      (d.serial_number ?? '').toLowerCase().includes(q))
+    .slice()
+    .sort((a, b) => {
+      const av = a[sortKey], bv = b[sortKey];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      const cmp = numericKeys.includes(sortKey)
+        ? Number(av) - Number(bv)
+        : String(av).localeCompare(String(bv), undefined, { numeric: true });
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('asc'); }
+  }
+  const Th = ({ k, label, className = '' }: { k: SortKey; label: string; className?: string }) => (
+    <th className={`pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500 ${className}`}>
+      <button className="inline-flex items-center gap-1 hover:text-slate-700" onClick={() => toggleSort(k)}>
+        {label}
+        <span className="text-[9px] text-slate-400">{sortKey === k ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}</span>
+      </button>
+    </th>
+  );
+
   return (
     <div>
       <PageHeader title="Devices">
@@ -43,26 +86,39 @@ export default function Devices({ me }: { me: Me }) {
       </PageHeader>
 
       <div className="p-6">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <input className={`${inputCls} max-w-xs`} value={search} onChange={e => setSearch(e.target.value)}
+                 placeholder="Search hostname, IP, model, serial…" />
+          <select className={`${inputCls} w-auto`} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            <option value="">All statuses</option>
+            <option value="online">Online</option>
+            <option value="offline">Offline</option>
+            <option value="unknown">Unknown</option>
+          </select>
+          {(search || statusFilter) && (
+            <span className="text-xs text-slate-400">{visible.length} of {devices.length}</span>
+          )}
+        </div>
         <Card>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-left">
-                  <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
-                  <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Hostname</th>
-                  <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Model</th>
-                  <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">IP</th>
-                  <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Serial</th>
-                  <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">IOS</th>
-                  <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Uptime</th>
-                  <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">CPU</th>
-                  <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Mem</th>
-                  <th className="pb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Site</th>
+                  <Th k="status" label="Status" />
+                  <Th k="hostname" label="Hostname" />
+                  <Th k="model" label="Model" />
+                  <Th k="mgmt_ip" label="IP" />
+                  <Th k="serial_number" label="Serial" />
+                  <Th k="ios_version" label="IOS" />
+                  <Th k="uptime_seconds" label="Uptime" />
+                  <Th k="cpu_pct" label="CPU" />
+                  <Th k="mem_pct" label="Mem" />
+                  <Th k="site_name" label="Site" className="pr-0" />
                   {canEdit && <th className="pb-3"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {devices.map(d => (
+                {visible.map(d => (
                   <tr key={d.id} className="group transition hover:bg-slate-50/80">
                     <td className="py-3 pr-4"><StatusBadge status={d.status} /></td>
                     <td className="py-3 pr-4">
@@ -113,9 +169,16 @@ export default function Devices({ me }: { me: Me }) {
                     )}
                   </tr>
                 ))}
+                {visible.length === 0 && devices.length > 0 && (
+                  <tr>
+                    <td colSpan={11} className="py-12 text-center text-sm text-slate-400">
+                      No devices match the current filter.
+                    </td>
+                  </tr>
+                )}
                 {devices.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="py-12 text-center text-slate-400">
+                    <td colSpan={11} className="py-12 text-center text-slate-400">
                       <div className="flex flex-col items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
                              strokeWidth={1.5} stroke="currentColor" className="h-8 w-8 text-slate-300">

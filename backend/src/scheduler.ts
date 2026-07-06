@@ -10,6 +10,7 @@ import { drainJobQueue, reapStaleJobs } from './services/jobService.js';
 import { gitGc, pushMirror } from './services/configVersioning.js';
 import { checkDeviceCert } from './services/certCheck.js';
 import { evaluateAllCompliance } from './services/complianceService.js';
+import { pruneOldSafetyDumps } from './services/dbBackup.js';
 import { isLeader } from './leader.js';
 import { forEachLimit } from './util/concurrency.js';
 import type { DeviceRow } from './services/deviceComms.js';
@@ -102,6 +103,9 @@ export function startScheduler(): void {
     await query(`DELETE FROM device_availability WHERE hour < now() - interval '400 days'`);
     // clean up expired maintenance windows older than 30 days
     await query(`DELETE FROM maintenance_windows WHERE ends_at < now() - interval '30 days'`);
+    // drop pre-restore safety dumps older than 7 days so occasional restores
+    // don't slowly fill /data (each dump is the whole DB).
+    await pruneOldSafetyDumps(7);
     // keep the config-history git repo compact (runs --auto, so it's cheap on most days)
     await gitGc().catch(err => console.warn('git gc failed:', err.message));
   });

@@ -69,7 +69,8 @@ export default function DeviceDetail({ me }: { me: Me }) {
           deviceId={id!} sites={sites}
           current={{ siteId: device.site_id ?? '', location: device.location ?? '',
                      rackName: device.rack_name ?? '', rackUnit: device.rack_unit != null ? String(device.rack_unit) : '',
-                     rackHeight: device.rack_height != null ? String(device.rack_height) : '1' }}
+                     rackHeight: device.rack_height != null ? String(device.rack_height) : '1',
+                     notes: device.notes ?? '' }}
           onClose={() => setShowSettings(false)}
           onSaved={() => { setShowSettings(false); refetchDevice(); }}
         />
@@ -125,6 +126,14 @@ export default function DeviceDetail({ me }: { me: Me }) {
             <HardwareHealth label="PSU" items={psu} />
             <HardwareHealth label="Fans" items={fans} />
           </div>
+
+          {device.notes && (
+            <div className="mt-3.5 border-t border-slate-100 pt-3.5">
+              <p className="whitespace-pre-wrap text-sm text-slate-600">
+                <span className="mr-1.5 font-semibold text-slate-500">Notes:</span>{device.notes}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -169,7 +178,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
 function DeviceSettingsModal({ deviceId, sites, current, onClose, onSaved }: {
   deviceId: string;
   sites: { id: string; name: string }[];
-  current: { siteId: string; location: string; rackName: string; rackUnit: string; rackHeight: string };
+  current: { siteId: string; location: string; rackName: string; rackUnit: string; rackHeight: string; notes: string };
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -178,6 +187,7 @@ function DeviceSettingsModal({ deviceId, sites, current, onClose, onSaved }: {
   const [rackName, setRackName] = useState(current.rackName);
   const [rackUnit, setRackUnit] = useState(current.rackUnit);
   const [rackHeight, setRackHeight] = useState(current.rackHeight);
+  const [notes, setNotes] = useState(current.notes);
   const [logLevel, setLogLevel] = useState('');   // '' = leave unchanged
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -192,6 +202,7 @@ function DeviceSettingsModal({ deviceId, sites, current, onClose, onSaved }: {
           siteId: siteId || null, location,
           rackName, rackUnit: rackUnit ? parseInt(rackUnit, 10) : null,
           rackHeight: parseInt(rackHeight, 10) || 1,
+          notes,
         }
       });
       // Syslog level is a config push, only sent when explicitly chosen
@@ -228,6 +239,10 @@ function DeviceSettingsModal({ deviceId, sites, current, onClose, onSaved }: {
                  onChange={e => setRackHeight(e.target.value)} />
         </Field>
       </div>
+      <Field label="Notes">
+        <textarea className={inputCls} rows={3} value={notes} onChange={e => setNotes(e.target.value)}
+                  placeholder="Operator notes: cabling quirks, maintenance constraints, etc." />
+      </Field>
       <Field label="Syslog level (pushed to the switch)">
         <select className={inputCls} value={logLevel} onChange={e => setLogLevel(e.target.value)}>
           <option value="">Leave unchanged</option>
@@ -350,8 +365,13 @@ interface RouterOsFw {
 const fmtMB = (b: number) => b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${(b / 1024).toFixed(0)} KB`;
 function RouterOsFirmwarePanel({ deviceId, canConfig }: { deviceId: string; canConfig: boolean }) {
   const [fw, setFw] = useState<RouterOsFw | null>(null);
+  // Reboot-to-apply only becomes available once something is actually staged:
+  // the OS package reports downloaded, or the operator just staged the
+  // bootloader upgrade this session. Rebooting with nothing staged is a no-op.
+  const [rbStaged, setRbStaged] = useState(false);
   const { run, busy, isBusy } = useAction();
   const base = `/api/devices/${deviceId}/routeros-firmware`;
+  const canReboot = !!fw && (fw.updateDownloaded || rbStaged);
 
   const check = () => run(async () => setFw(await api<RouterOsFw>(base)), { key: 'check' });
   const download = () => run(async () => {
@@ -359,10 +379,11 @@ function RouterOsFirmwarePanel({ deviceId, canConfig }: { deviceId: string; canC
   }, { key: 'download', success: 'RouterOS package downloaded and staged. Reboot to apply.' });
   const stageRb = () => run(async () => {
     await api(`${base}/routerboard-upgrade`, { method: 'POST' });
+    setRbStaged(true);
   }, { key: 'rb', success: 'Bootloader firmware upgrade staged. Reboot to apply.' });
   const reboot = () => {
     if (!confirm('Reboot now to apply staged firmware? The device will be unreachable for 1–2 minutes.')) return;
-    run(async () => { await api(`${base}/reboot`, { method: 'POST', body: { confirm: 'REBOOT' } }); },
+    run(async () => { await api(`${base}/reboot`, { method: 'POST', body: { confirm: 'REBOOT' } }); setRbStaged(false); },
       { key: 'reboot', success: 'Reboot issued — the device will apply staged firmware and come back shortly.' });
   };
 
@@ -412,9 +433,14 @@ function RouterOsFirmwarePanel({ deviceId, canConfig }: { deviceId: string; canC
                 {fw.routerboardUpgradeAvailable && (
                   <Button variant="secondary" disabled={busy} onClick={stageRb}>{isBusy('rb') ? 'Staging…' : 'Stage bootloader upgrade'}</Button>
                 )}
-                <Button variant="danger" disabled={busy} onClick={reboot}>{isBusy('reboot') ? 'Rebooting…' : 'Reboot to apply'}</Button>
+                {canReboot && (
+                  <Button variant="danger" disabled={busy} onClick={reboot}>{isBusy('reboot') ? 'Rebooting…' : 'Reboot to apply'}</Button>
+                )}
                 <Button variant="secondary" disabled={busy} onClick={check}>↻</Button>
-                <span className="text-xs text-slate-400">Downloads/staging are non-disruptive; only a reboot applies them.</span>
+                <span className="text-xs text-slate-400">
+                  {canReboot ? 'Downloads/staging are non-disruptive; only a reboot applies them.'
+                    : 'Download or stage an upgrade first — the reboot button appears once something is staged.'}
+                </span>
               </div>
             )}
           </div>

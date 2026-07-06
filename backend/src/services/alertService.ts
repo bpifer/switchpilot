@@ -161,7 +161,9 @@ async function sendEmail(subject: string, body: string): Promise<void> {
 async function sendTeams(title: string, text: string, severity: Severity): Promise<void> {
   if (!config.teamsWebhook) return;
   const color = severity === 'critical' ? 'FF0000' : severity === 'warning' ? 'FFA500' : '0078D7';
-  await fetch(config.teamsWebhook, {
+  // fetchWithRetry: a briefly-down collector (restart / blip / 5xx) shouldn't
+  // drop a critical alert - retried with backoff like every other channel.
+  await fetchWithRetry(config.teamsWebhook, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -173,7 +175,7 @@ async function sendTeams(title: string, text: string, severity: Severity): Promi
 
 async function sendSlack(title: string, text: string): Promise<void> {
   if (!config.slackWebhook) return;
-  await fetch(config.slackWebhook, {
+  await fetchWithRetry(config.slackWebhook, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ text: `*${title}*\n${text}` })

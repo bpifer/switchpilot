@@ -33,16 +33,34 @@ export default function PortsTab({ deviceId, ports, canOperate, onChanged }: {
   deviceId: string; ports: Port[]; canOperate: boolean; onChanged: () => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
+  const [filter, setFilter] = useState('');
   const port = ports.find(p => p.name === selected) ?? null;
+
+  // Filter the grid by name/description/VLAN so a "where's the AP on vlan 100"
+  // question is a quick type, not a scan of 48 ports.
+  const q = filter.trim().toLowerCase();
+  const shown = q
+    ? ports.filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        (p.description ?? '').toLowerCase().includes(q) ||
+        String(p.vlan ?? '').toLowerCase().includes(q))
+    : ports;
 
   return (
     <div className="space-y-4">
       <Card title="Front panel">
+        {ports.length > 0 && (
+          <div className="mb-3 flex items-center gap-2">
+            <input className={`${inputCls} max-w-xs`} value={filter} onChange={e => setFilter(e.target.value)}
+                   placeholder="Filter ports by name, description, or VLAN…" />
+            {q && <span className="text-xs text-slate-400">{shown.length} of {ports.length}</span>}
+          </div>
+        )}
         <div className="flex flex-wrap items-start gap-8">
-          <PortGrid ports={ports} selected={selected} onSelect={setSelected} />
+          <PortGrid ports={shown} selected={selected} onSelect={setSelected} />
           {!port && ports.length > 0 && (
             <div className="self-center text-sm text-gray-400">
-              Click a port to view details and manage it.
+              {shown.length === 0 ? 'No ports match the filter.' : 'Click a port to view details and manage it.'}
             </div>
           )}
         </div>

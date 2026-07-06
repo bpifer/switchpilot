@@ -4,6 +4,7 @@
 // are superadmin-only, audited operations; restore is destructive and always
 // takes a safety dump of the current DB first.
 import { spawn } from 'node:child_process';
+import { readdir, stat, unlink } from 'node:fs/promises';
 import type { Readable } from 'node:stream';
 import { config } from '../config.js';
 
@@ -89,4 +90,21 @@ export async function restoreDump(dumpPath: string): Promise<RestoreResult> {
     return `pg_restore reported issues (often benign drop/ownership notices):\n${(err as Error).message}`;
   });
   return { safetyBackupPath, log };
+}
+
+/** Delete pre-restore safety dumps older than maxAgeDays so occasional restores
+ *  don't silently fill /data. Best-effort; a failure is logged, never thrown. */
+export async function pruneOldSafetyDumps(maxAgeDays = 7): Promise<void> {
+  const cutoff = Date.now() - maxAgeDays * 86_400_000;
+  try {
+    const entries = await readdir('/data');
+    for (const name of entries) {
+      if (!/^pre-restore-\d+\.dump$/.test(name)) continue;
+      const p = `/data/${name}`;
+      const st = await stat(p).catch(() => null);
+      if (st && st.mtimeMs < cutoff) await unlink(p).catch(() => {});
+    }
+  } catch (err) {
+    console.warn('safety dump prune failed:', (err as Error).message);
+  }
 }
