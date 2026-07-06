@@ -386,7 +386,7 @@ export default function App() {
           <Route path="/templates" element={<Templates me={me} />} />
           <Route path="/jobs" element={<Jobs />} />
           <Route path="/alerts" element={<Alerts me={me} />} />
-          <Route path="/topology" element={<Topology />} />
+          <Route path="/topology" element={<Topology me={me} />} />
           <Route path="/rack" element={<Rack />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/traffic" element={<Traffic me={me} />} />

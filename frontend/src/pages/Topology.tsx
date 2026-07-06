@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../api';
+import { toast } from '../components/Toast';
 import { useApiQuery } from '../hooks/useApiQuery';
-import { PageHeader, Card, Button } from '../components/ui';
+import type { Me } from '../App';
+import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
 import { useSiteScope, scoped } from '../context/SiteContext';
 
 interface Node { id: string; label: string; model: string; status: string; managed: boolean; ip: string; stackSize: number; orphan?: boolean; }
@@ -9,6 +12,7 @@ interface Edge {
   source: string; target: string; sourcePort: string; targetPort: string; protocol: string;
   vlan?: string | null; speedMbps?: number | null;
   inBps?: number | null; outBps?: number | null; utilizationPct?: number | null;
+  manual?: boolean; manualId?: string; note?: string;
 }
 type Pos = { x: number; y: number };
 type Overlay = 'none' | 'util' | 'vlan';
@@ -44,12 +48,23 @@ const CANVAS = { cx: 520, cy: 340 };
 // object to the position-seeding effect every render (which looped it forever).
 const EMPTY_GRAPH: { nodes: Node[]; edges: Edge[] } = { nodes: [], edges: [] };
 
-export default function Topology() {
+export default function Topology({ me }: { me: Me }) {
   const { siteId } = useSiteScope();
-  const { data: graph = EMPTY_GRAPH } =
+  const { data: graph = EMPTY_GRAPH, refetch } =
     useApiQuery<{ nodes: Node[]; edges: Edge[] }>(scoped('/api/topology', siteId), { refetchInterval: 60000 });
   const navigate = useNavigate();
   const svgRef = useRef<SVGSVGElement>(null);
+  const canEdit = me.role === 'superadmin' || me.role === 'netadmin';
+  const [addingLink, setAddingLink] = useState(false);
+
+  // Delete an operator-drawn link (discovered CDP/LLDP links can't be deleted -
+  // the next sweep would just re-add them).
+  async function removeManual(e: Edge) {
+    if (!e.manualId) return;
+    if (!window.confirm(`Delete this manual link?\n\n${e.sourcePort || '?'} ↔ ${e.targetPort || '?'}${e.note ? `\n(${e.note})` : ''}`)) return;
+    try { await api(`/api/topology/manual-links/${e.manualId}`, { method: 'DELETE' }); refetch(); }
+    catch (err: any) { toast.error(err.message); }
+  }
 
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
   const [pos, setPos] = useState<Map<string, Pos>>(new Map());
@@ -150,6 +165,7 @@ export default function Topology() {
         <Button variant="secondary" onClick={() => zoom(1.2)}>+</Button>
         <Button variant="secondary" onClick={() => zoom(1 / 1.2)}>−</Button>
         <Button variant="secondary" onClick={reset}>Reset</Button>
+        {canEdit && <Button onClick={() => setAddingLink(true)}>+ Link</Button>}
       </PageHeader>
       <div className="p-6">
         <Card title={`Layer-2 map — ${graph.nodes.length} nodes, ${graph.edges.length} links (CDP/LLDP)${orphans ? `, ${orphans} with no neighbors` : ''}. Drag to pan, scroll to zoom, drag a node to move it.`}>
@@ -179,11 +195,14 @@ export default function Topology() {
                     : hl ? 2.5 : 1.5;
                   const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
                   return (
-                    <g key={i} onMouseEnter={() => setHoverEdge(i)} onMouseLeave={() => setHoverEdge(null)}>
+                    <g key={i} onMouseEnter={() => setHoverEdge(i)} onMouseLeave={() => setHoverEdge(null)}
+                       onClick={() => { if (e.manual && canEdit) void removeManual(e); }}
+                       className={e.manual && canEdit ? 'cursor-pointer' : undefined}>
                       {/* wide invisible hit target so thin links are easy to hover */}
                       <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={12} />
                       <line x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-                            stroke={stroke} strokeWidth={width} vectorEffect="non-scaling-stroke" />
+                            stroke={e.manual && !hl ? '#94a3b8' : stroke} strokeWidth={width} vectorEffect="non-scaling-stroke"
+                            strokeDasharray={e.manual ? '6 4' : undefined} />
                       {/* Overlay label at the link midpoint */}
                       {overlay === 'util' && e.utilizationPct != null && (
                         <text x={mid.x} y={mid.y - 3} fontSize="9" fontWeight="600" fill={utilColor(e.utilizationPct)} textAnchor="middle">{e.utilizationPct}%</text>
@@ -256,11 +275,14 @@ export default function Topology() {
               return (
                 <div className="pointer-events-none absolute z-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg"
                      style={{ left: view.x + mx * view.k + 8, top: view.y + my * view.k - 10 }}>
-                  <div className="font-mono text-slate-700">{e.sourcePort} ↔ {e.targetPort}</div>
+                  <div className="font-mono text-slate-700">{e.sourcePort || '?'} ↔ {e.targetPort || '?'}</div>
                   <div className="mt-0.5 text-slate-500">
-                    {e.speedMbps ? `${e.speedMbps >= 1000 ? e.speedMbps / 1000 + 'G' : e.speedMbps + 'M'} link` : 'speed n/a'}
-                    {e.vlan ? ` · VLAN ${e.vlan}` : ''} · {e.protocol?.toUpperCase()}
+                    {e.manual
+                      ? <>manually drawn{e.note ? ` — ${e.note}` : ''}</>
+                      : <>{e.speedMbps ? `${e.speedMbps >= 1000 ? e.speedMbps / 1000 + 'G' : e.speedMbps + 'M'} link` : 'speed n/a'}
+                        {e.vlan ? ` · VLAN ${e.vlan}` : ''} · {e.protocol?.toUpperCase()}</>}
                   </div>
+                  {e.manual && canEdit && <div className="mt-0.5 text-red-500">click the link to delete</div>}
                   {(e.inBps != null || e.outBps != null) && (
                     <div className="mt-0.5 text-slate-500">↓ {fmtBps(e.inBps)} · ↑ {fmtBps(e.outBps)}
                       {e.utilizationPct != null && <span className="ml-1 font-semibold" style={{ color: utilColor(e.utilizationPct) }}>({e.utilizationPct}%)</span>}
@@ -296,13 +318,101 @@ export default function Topology() {
                     <span className="inline-block h-3 w-4 rounded-sm border-2 border-dashed border-amber-500" />
                     No neighbors (orphan)
                   </span>
+                  <span className="flex items-center gap-1.5">
+                    <svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="#94a3b8" strokeWidth="2" strokeDasharray="5 3" /></svg>
+                    Manual link
+                  </span>
                 </>
               )}
             </div>
           </div>
         </Card>
       </div>
+      {addingLink && (
+        <AddLinkModal
+          devices={graph.nodes.filter(n => n.managed)}
+          onClose={() => setAddingLink(false)}
+          onDone={() => { setAddingLink(false); refetch(); }}
+        />
+      )}
     </div>
+  );
+}
+
+// Draw a link CDP/LLDP can't discover: from a managed device to another managed
+// device or a free-text external box (firewall, unmanaged switch, hypervisor).
+function AddLinkModal({ devices, onClose, onDone }: {
+  devices: Node[]; onClose: () => void; onDone: () => void;
+}) {
+  const [form, setForm] = useState({ fromDeviceId: '', fromPort: '', toDeviceId: '', toLabel: '', toPort: '', note: '' });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const external = form.toDeviceId === 'external';
+
+  async function save() {
+    setBusy(true); setError('');
+    try {
+      await api('/api/topology/manual-links', {
+        method: 'POST',
+        body: {
+          fromDeviceId: form.fromDeviceId, fromPort: form.fromPort,
+          toDeviceId: external ? null : form.toDeviceId || null,
+          toLabel: external ? form.toLabel : '',
+          toPort: form.toPort, note: form.note,
+        }
+      });
+      onDone();
+    } catch (err: any) { setError(err.message); setBusy(false); }
+  }
+
+  const canSave = !!form.fromDeviceId && (external ? !!form.toLabel.trim() : !!form.toDeviceId);
+  return (
+    <Modal title="Add a manual link" onClose={onClose}>
+      <p className="mb-3 text-sm text-slate-500">
+        For connections discovery can't see — an unmanaged switch, a firewall, a hypervisor, a WAN handoff.
+        Manual links render dashed and survive monitor sweeps.
+      </p>
+      {error && <div className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="From device">
+          <select className={inputCls} value={form.fromDeviceId} onChange={e => setForm({ ...form, fromDeviceId: e.target.value })}>
+            <option value="">Select…</option>
+            {devices.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+          </select>
+        </Field>
+        <Field label="From port (optional)">
+          <input className={inputCls} value={form.fromPort} onChange={e => setForm({ ...form, fromPort: e.target.value })} placeholder="e.g. Gi1/0/24" />
+        </Field>
+        <Field label="To">
+          <select className={inputCls} value={form.toDeviceId} onChange={e => setForm({ ...form, toDeviceId: e.target.value })}>
+            <option value="">Select…</option>
+            {devices.filter(d => d.id !== form.fromDeviceId).map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+            <option value="external">Something unmanaged…</option>
+          </select>
+        </Field>
+        {external ? (
+          <Field label="External label">
+            <input className={inputCls} value={form.toLabel} onChange={e => setForm({ ...form, toLabel: e.target.value })} placeholder="e.g. pfSense, ISP ONT" />
+          </Field>
+        ) : (
+          <Field label="To port (optional)">
+            <input className={inputCls} value={form.toPort} onChange={e => setForm({ ...form, toPort: e.target.value })} placeholder="e.g. ether1" />
+          </Field>
+        )}
+      </div>
+      {external && (
+        <Field label="To port (optional)">
+          <input className={inputCls} value={form.toPort} onChange={e => setForm({ ...form, toPort: e.target.value })} placeholder="e.g. LAN1" />
+        </Field>
+      )}
+      <Field label="Note (optional)">
+        <input className={inputCls} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="e.g. 10G DAC in rack 2" />
+      </Field>
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button onClick={save} disabled={busy || !canSave}>{busy ? 'Saving…' : 'Add link'}</Button>
+      </div>
+    </Modal>
   );
 }
 
