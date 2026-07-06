@@ -124,12 +124,21 @@ function Initials({ name }: { name: string }) {
   );
 }
 
-function AlertsBell() {
-  const navigate = useNavigate();
-  // Deliberately unscoped: a critical alert on another site must still light the bell
+// Single source of truth for the open-alert count that drives BOTH the top-bar
+// bell and the sidebar "Alerts" badge. Deliberately unscoped: a critical alert
+// on another site must still light the indicators. Keyed by path, so the two
+// consumers share one request/cache entry (and one 30s poll); ack/resolve on
+// the Alerts page invalidates ['/api/summary'] to update both immediately.
+function useOpenAlerts() {
   const { data: summary } = useApiQuery<{ openAlerts: Record<string, number> }>('/api/summary', { refetchInterval: 30000 });
   const open = summary ? Object.values(summary.openAlerts).reduce((a, b) => a + b, 0) : 0;
   const critical = (summary?.openAlerts?.critical ?? 0) > 0;
+  return { open, critical };
+}
+
+function AlertsBell() {
+  const navigate = useNavigate();
+  const { open, critical } = useOpenAlerts();
   return (
     <button
       title={open > 0 ? `${open} open alert${open !== 1 ? 's' : ''} (all sites)` : 'No open alerts (all sites)'}
@@ -177,7 +186,6 @@ function SiteSelector() {
 export default function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
-  const [liveAlertCount, setLiveAlertCount] = useState(0);
   // Mobile nav drawer: the sidebar is a static column on lg+, an off-canvas
   // drawer below that. Closes automatically on navigation (route change).
   const [navOpen, setNavOpen] = useState(false);
@@ -185,11 +193,14 @@ export default function App() {
   const location = useLocation();
   useEffect(() => { setNavOpen(false); }, [location.pathname]);
   const queryClient = useQueryClient();
+  // Same open-alert count the bell shows, so the sidebar "Alerts" badge and the
+  // bell always agree and both clear the instant an alert is acked/resolved.
+  const { open: openAlerts } = useOpenAlerts();
 
   const wsStatus = useWebSocket(msg => {
     if (msg.type === 'alert') {
-      setLiveAlertCount(n => n + 1);
-      // keep the global bell count fresh the moment an alert fires
+      // A new alert fired: refresh the shared open-alert count that drives the
+      // bell and the sidebar badge.
       queryClient.invalidateQueries({ queryKey: ['/api/summary'] });
     } else if (msg.type === 'device_updated') {
       // A monitor sweep refreshed this device (or its status flipped): refetch
@@ -305,9 +316,9 @@ export default function App() {
                       <>
                         <Icon d={n.icon} className={`h-4 w-4 shrink-0 ${isActive ? 'text-brand-400' : ''}`} />
                         <span className="flex-1">{n.label}</span>
-                        {n.to === '/alerts' && liveAlertCount > 0 && (
+                        {n.to === '/alerts' && openAlerts > 0 && (
                           <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                            {liveAlertCount > 99 ? '99+' : liveAlertCount}
+                            {openAlerts > 99 ? '99+' : openAlerts}
                           </span>
                         )}
                       </>
