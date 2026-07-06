@@ -33,7 +33,8 @@ function Webhooks() {
 
   async function remove(id: string) {
     if (!confirm('Delete this webhook?')) return;
-    await api(`/api/webhooks/${id}`, { method: 'DELETE' }); refetch();
+    try { await api(`/api/webhooks/${id}`, { method: 'DELETE' }); refetch(); }
+    catch (err: any) { toast.error(err.message); }
   }
 
   return (
@@ -138,7 +139,8 @@ function ApiKeys() {
 
   async function remove(id: string) {
     if (!confirm('Revoke this API key? Scripts using it will stop working immediately.')) return;
-    await api(`/api/keys/${id}`, { method: 'DELETE' }); refetch();
+    try { await api(`/api/keys/${id}`, { method: 'DELETE' }); refetch(); }
+    catch (err: any) { toast.error(err.message); }
   }
 
   return (

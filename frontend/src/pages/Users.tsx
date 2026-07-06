@@ -13,7 +13,12 @@ export default function Users() {
   const { data: audit = [], refetch: reloadAudit } = useApiQuery<any[]>('/api/audit?limit=50', { refetchInterval: 30000 });
   const load = () => { reloadUsers(); reloadAudit(); };
 
-  const unlock = (id: string) => api(`/api/security/unlock/${id}`, { method: 'POST' }).then(load).catch(() => {});
+  const unlock = (id: string) =>
+    api(`/api/security/unlock/${id}`, { method: 'POST' }).then(load).catch((err: any) => toast.error(err.message));
+  // Role/enable changes can be rejected server-side (e.g. can't demote or disable
+  // the last superadmin); surface that instead of silently doing nothing.
+  const patchUser = (id: string, body: any) =>
+    api(`/api/users/${id}`, { method: 'PATCH', body }).then(load).catch((err: any) => toast.error(err.message));
 
   return (
     <div>
@@ -45,11 +50,11 @@ export default function Users() {
                       <button className="text-xs font-medium text-amber-600 hover:underline" onClick={() => unlock(u.id)}>unlock</button>
                     )}
                     <select className="rounded border px-1 py-0.5 text-xs" value={u.role}
-                            onChange={e => api(`/api/users/${u.id}`, { method: 'PATCH', body: { role: e.target.value } }).then(load)}>
+                            onChange={e => patchUser(u.id, { role: e.target.value })}>
                       {['superadmin', 'netadmin', 'helpdesk', 'readonly'].map(r => <option key={r}>{r}</option>)}
                     </select>
                     <button className="text-xs text-gray-500 hover:underline"
-                            onClick={() => api(`/api/users/${u.id}`, { method: 'PATCH', body: { enabled: !u.enabled } }).then(load)}>
+                            onClick={() => patchUser(u.id, { enabled: !u.enabled })}>
                       {u.enabled ? 'disable' : 'enable'}
                     </button>
                   </td>
