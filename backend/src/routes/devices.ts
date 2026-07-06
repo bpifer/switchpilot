@@ -236,11 +236,13 @@ export default async function deviceRoutes(app: FastifyInstance) {
 
     const { rows } = await query(
       `INSERT INTO devices (hostname, mgmt_ip, model, family, serial_number, ios_version,
-         uptime_seconds, site_id, location, credential_id, capabilities, status, last_seen_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'online', now()) RETURNING *`,
+         uptime_seconds, site_id, location, credential_id, capabilities, vendor, status, last_seen_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'online', now()) RETURNING *`,
       [detected.hostname || b.hostname || b.mgmtIp, b.mgmtIp, detected.model, detected.family ?? '',
        detected.serial ?? '', detected.iosVersion ?? '', detected.uptimeSeconds,
-       b.siteId ?? null, b.location ?? '', b.credentialId, JSON.stringify(detected.capabilities ?? {})]);
+       b.siteId ?? null, b.location ?? '', b.credentialId, JSON.stringify(detected.capabilities ?? {}),
+       // SNMP detection can identify a non-Cisco vendor (aruba); default stays cisco
+       detected.vendor ?? 'cisco']);
     await audit(me.username, 'device.create', b.mgmtIp, { model: detected.model, via: b.model ? 'manual' : detected.detectedVia }, req.ip);
 
     // kick off a full refresh in the background (ports, env, stack, neighbors)

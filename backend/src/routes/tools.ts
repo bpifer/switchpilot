@@ -15,7 +15,10 @@ export default async function toolRoutes(app: FastifyInstance) {
   app.get('/api/devices/:id/tools', { preHandler: requireRole('readonly'), schema: { tags: ['tools'] } },
     async (req) => {
       const device = await getDevice((req.params as any).id);
-      return { tools: driverFor(device).tools };
+      // Vendors with no CLI driver (Aruba Instant On, SNMP-only) support no
+      // device-side tools; an empty list renders as such instead of a 501.
+      try { return { tools: driverFor(device).tools }; }
+      catch { return { tools: [] }; }
     });
 
   // Run a diagnostic tool against a target and return the raw device output.

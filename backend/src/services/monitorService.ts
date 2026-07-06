@@ -7,6 +7,7 @@ import { publishEvent } from '../redis.js';
 import { CiscoSshSession } from '../cisco/sshClient.js';
 import { RouterOsSshSession } from '../routeros/sshClient.js';
 import { refreshRouterOsDevice, isMikrotik } from './routerosMonitor.js';
+import { refreshArubaDevice, isAruba } from './arubaMonitor.js';
 import { refreshCiscoDevice } from './ciscoMonitor.js';
 import { publishDevice } from './mqttService.js';
 import { snmpProbe } from '../cisco/snmpClient.js';
@@ -33,7 +34,9 @@ export async function pollStatus(device: DeviceRow): Promise<void> {
       await query('UPDATE devices SET uptime_seconds=$1 WHERE id=$2', [probe.uptimeSeconds, device.id]);
     }
   }
-  if (!reachable) {
+  // SNMP-only vendors (Aruba Instant On) have no SSH to fall back to - a
+  // failed SNMP probe IS the answer, so don't burn 8s on a doomed connect.
+  if (!reachable && !isAruba(device)) {
     // fall back to a quick SSH connect (vendor-specific session class)
     try {
       const t = { ...(await sshTargetFor(device)), timeoutMs: 8000 };
@@ -81,7 +84,8 @@ export async function pollStatus(device: DeviceRow): Promise<void> {
  *  neighbors. Dispatches to the device's vendor monitor. */
 export async function refreshDevice(deviceId: string): Promise<void> {
   const device = await getDevice(deviceId);
-  if (isMikrotik(device)) await refreshRouterOsDevice(deviceId);
+  if (isAruba(device)) await refreshArubaDevice(deviceId);
+  else if (isMikrotik(device)) await refreshRouterOsDevice(deviceId);
   else await refreshCiscoDevice(device);
   // Notify connected dashboards that this device's inventory/port data changed,
   // so open pages refetch immediately instead of waiting out their poll interval.

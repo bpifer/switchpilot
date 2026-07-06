@@ -2,6 +2,7 @@ import { runCommands, type SshTarget } from './sshClient.js';
 import { snmpGet, snmpProbe, OIDS, type SnmpTarget } from './snmpClient.js';
 import { parseShowVersion } from './parsers.js';
 import { familyForModel, resolveCapabilities } from './capabilities.js';
+import { detectAruba } from '../aruba/snmp.js';
 
 export interface DetectionResult {
   hostname: string;
@@ -12,6 +13,9 @@ export interface DetectionResult {
   uptimeSeconds: number;
   detectedVia: 'ssh' | 'snmp';
   capabilities: Record<string, unknown>;
+  /** Set when SNMP identifies a non-Cisco vendor (e.g. 'aruba'); routes the
+   *  device to the right monitor from the first refresh. */
+  vendor?: string;
 }
 
 /**
@@ -55,6 +59,22 @@ export async function detectDevice(
         model = vals[0] ?? '';
         serial = vals[1] ?? '';
       } catch { /* ENTITY-MIB not available */ }
+      // Aruba Instant On: SNMP-only management (phase 1). Tag the vendor so the
+      // dispatcher sends refreshes to the SNMP monitor, not the Cisco SSH path.
+      const aruba = detectAruba(probe.sysDescr);
+      if (aruba.isAruba) {
+        return {
+          hostname: probe.sysName.split('.')[0],
+          model: model || aruba.model,
+          family: 'aruba-instanton',
+          serial,
+          iosVersion: aruba.version,
+          uptimeSeconds: probe.uptimeSeconds,
+          detectedVia: 'snmp',
+          vendor: 'aruba',
+          capabilities: { os: 'aos-instanton', transport: 'snmp' }
+        };
+      }
       const iosVersion = probe.sysDescr.match(/Version\s+([\w.():]+?)[,\s]/)?.[1] ?? '';
       return {
         hostname: probe.sysName.split('.')[0],

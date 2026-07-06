@@ -30,7 +30,11 @@ export async function backupDevice(
   takenBy = 'scheduler',
   opts: BackupOptions = {}
 ): Promise<{ id: string; changed: boolean }> {
-  const cmd = driverFor(await getDevice(deviceId)).configCommand;
+  const device = await getDevice(deviceId);
+  // SNMP-only vendors (Aruba Instant On) expose no config over their transport;
+  // skip quietly so the nightly sweep doesn't log an error per Aruba per night.
+  if (device.vendor === 'aruba') return { id: '', changed: false };
+  const cmd = driverFor(device).configCommand;
   const out = await deviceExec(deviceId, [cmd]);
   const content = Object.values(out)[0] ?? '';
   if (!content || content.length < 50) throw new Error('Backup returned empty configuration — aborting');
