@@ -43,6 +43,20 @@ function fmtBps(bps: number | null | undefined): string {
 }
 
 const CANVAS = { cx: 520, cy: 340 };
+const POS_KEY = 'sp.topology.positions';
+
+// Hand-arranged node positions persist across reloads (localStorage; layout is
+// per-browser cosmetic state, not shared config). Corrupt/missing data -> empty.
+function loadPositions(): Map<string, Pos> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(POS_KEY) ?? '{}');
+    return new Map(Object.entries(raw).filter(([, v]: [string, any]) =>
+      typeof v?.x === 'number' && typeof v?.y === 'number') as [string, Pos][]);
+  } catch { return new Map(); }
+}
+function savePositions(pos: Map<string, Pos>) {
+  try { localStorage.setItem(POS_KEY, JSON.stringify(Object.fromEntries(pos))); } catch { /* quota/private mode */ }
+}
 
 // Stable default so a loading/empty response doesn't hand a fresh {nodes:[]}
 // object to the position-seeding effect every render (which looped it forever).
@@ -67,7 +81,7 @@ export default function Topology({ me }: { me: Me }) {
   }
 
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
-  const [pos, setPos] = useState<Map<string, Pos>>(new Map());
+  const [pos, setPos] = useState<Map<string, Pos>>(loadPositions);
   const [hover, setHover] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<Overlay>('none');
   const [hoverEdge, setHoverEdge] = useState<number | null>(null);
@@ -126,7 +140,11 @@ export default function Topology({ me }: { me: Me }) {
       setPos(prev => new Map(prev).set(d.id!, { x: nx, y: ny }));
     }
   }
-  const onPointerUp = () => { drag.current = null; };
+  const onPointerUp = () => {
+    // Persist the layout when a node drag ends (not on pans - nothing moved).
+    if (drag.current?.mode === 'node') savePositions(pos);
+    drag.current = null;
+  };
 
   function onWheel(e: React.WheelEvent) {
     e.preventDefault();
