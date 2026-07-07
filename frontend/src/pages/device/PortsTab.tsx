@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
 import { useApiQuery } from '../../hooks/useApiQuery';
-import { Card, Button, StatusBadge, Modal, Field, inputCls } from '../../components/ui';
+import { Card, Button, StatusBadge, Modal, Field, inputCls, rowActionCls } from '../../components/ui';
 import PortGrid, { type Port } from '../../components/PortGrid';
 import ConfigPreviewModal, { type PreviewData } from '../../components/ConfigPreviewModal';
 
@@ -120,7 +120,7 @@ function BulkConfigPanel({ deviceId, ports, onChanged }: {
   // continuing past failures and reporting each port's outcome.
   async function applyAll() {
     if (!pendingBody) return;
-    if (!confirm(`Apply this configuration to ${sel.length} port(s)?\n\n${sel.join(', ')}`)) return;
+    if (!confirm(`Apply this configuration to ${sel.length} port${sel.length === 1 ? '' : 's'}?\n\n${sel.join(', ')}`)) return;
     setPreview(null); setBusy(true); setResults([]);
     const out: string[] = [];
     for (const [i, name] of sel.entries()) {
@@ -171,7 +171,9 @@ function BulkConfigPanel({ deviceId, ports, onChanged }: {
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => { setOpen(false); setSel([]); setResults([]); }}>Cancel</Button>
             <Button onClick={() => setShowModal(true)} disabled={busy || sel.length === 0}>
-              {busy && !preview && !progress ? 'Checking…' : `Configure ${sel.length || ''} port(s)…`}
+              {busy && !preview && !progress ? 'Checking…'
+                : sel.length === 0 ? 'Configure ports…'
+                : `Configure ${sel.length} port${sel.length === 1 ? '' : 's'}…`}
             </Button>
           </div>
           {progress && <p className="text-xs font-medium text-slate-500">{progress}</p>}
@@ -281,7 +283,7 @@ function LagPanel({ deviceId, ports, onChanged }: { deviceId: string; ports: Por
                 <StatusBadge status={l.oper_status} />
                 {l.speed && <span className="text-xs text-slate-500">{l.speed}</span>}
                 {l.description && <span className="truncate text-xs text-slate-400">{l.description}</span>}
-                <button className="ml-auto text-xs text-red-600 hover:underline disabled:opacity-50"
+                <button className={`${rowActionCls} ml-auto text-red-600 disabled:opacity-50`}
                         disabled={busy} onClick={() => startDelete(l)}>
                   delete
                 </button>

@@ -4,7 +4,7 @@ import { api } from '../api';
 import { toast } from '../components/Toast';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
-import { PageHeader, Card, Button, StatusBadge, Modal, Field, inputCls } from '../components/ui';
+import { PageHeader, Card, Button, StatusBadge, Modal, Field, inputCls, rowActionCls } from '../components/ui';
 import { useSiteScope, scoped } from '../context/SiteContext';
 
 export default function Alerts({ me }: { me: Me }) {
@@ -61,9 +61,9 @@ export default function Alerts({ me }: { me: Me }) {
                   <span className="text-xs text-gray-400">{new Date(a.created_at).toLocaleString()}</span>
                   {a.resolved_at ? <span className="text-xs text-green-600">resolved</span> : canAck && (
                     <span className="flex gap-2">
-                      {!a.acknowledged && <button className="text-xs text-brand-600 hover:underline"
+                      {!a.acknowledged && <button className={`${rowActionCls} text-brand-600`}
                         onClick={() => setAckTarget(a)}>ack</button>}
-                      <button className="text-xs text-gray-500 hover:underline"
+                      <button className={`${rowActionCls} text-gray-500`}
                         onClick={() => resolve(a)}>resolve</button>
                     </span>
                   )}
@@ -92,9 +92,9 @@ export default function Alerts({ me }: { me: Me }) {
                                onChange={e => toggleRule(r.id, e.target.checked)} />
                         enabled
                       </label>
-                      <button className="text-xs text-brand-600 hover:underline"
+                      <button className={`${rowActionCls} text-brand-600`}
                               onClick={() => setEditRule(r)}>edit</button>
-                      <button className="text-xs text-red-600 hover:underline"
+                      <button className={`${rowActionCls} text-red-600`}
                               onClick={() => deleteRule(r)}>delete</button>
                     </span>
                   )}

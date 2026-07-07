@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import { toast } from '../components/Toast';
 import { useApiQuery } from '../hooks/useApiQuery';
-import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
+import { PageHeader, Card, Button, Modal, Field, inputCls, rowActionCls } from '../components/ui';
 
 export default function Integrations() {
   return (
@@ -64,11 +64,11 @@ function Webhooks() {
                 {h.last_fired_at ? `${new Date(h.last_fired_at).toLocaleString()} · ${h.last_status}` : 'never'}
               </td>
               <td className="space-x-2 text-right">
-                <button className="text-xs text-brand-600 hover:underline" onClick={() => test(h.id)} disabled={testing === h.id}>
+                <button className={`${rowActionCls} text-brand-600`} onClick={() => test(h.id)} disabled={testing === h.id}>
                   {testing === h.id ? 'testing…' : 'test'}
                 </button>
-                <button className="text-xs text-slate-500 hover:underline" onClick={() => setEditing({ ...h, minSeverity: h.min_severity })}>edit</button>
-                <button className="text-xs text-red-600 hover:underline" onClick={() => remove(h.id)}>delete</button>
+                <button className={`${rowActionCls} text-slate-500`} onClick={() => setEditing({ ...h, minSeverity: h.min_severity })}>edit</button>
+                <button className={`${rowActionCls} text-red-600`} onClick={() => remove(h.id)}>delete</button>
               </td>
             </tr>
           ))}
@@ -179,7 +179,7 @@ function ApiKeys() {
               <td className="pr-3 text-xs capitalize">{k.role}</td>
               <td className="pr-3 text-xs text-slate-500">{k.created_by}</td>
               <td className="pr-3 text-xs text-slate-500">{k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'never'}</td>
-              <td className="text-right"><button className="text-xs text-red-600 hover:underline" onClick={() => remove(k.id)}>revoke</button></td>
+              <td className="text-right"><button className={`${rowActionCls} text-red-600`} onClick={() => remove(k.id)}>revoke</button></td>
             </tr>
           ))}
           {keys.length === 0 && <tr><td colSpan={5} className="py-4 text-center text-slate-400">No API keys</td></tr>}

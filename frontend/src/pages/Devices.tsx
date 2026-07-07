@@ -4,7 +4,7 @@ import { api, getToken } from '../api';
 import { toast } from '../components/Toast';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
-import { PageHeader, Card, Button, StatusBadge, Modal, Field, inputCls, fmtUptime } from '../components/ui';
+import { PageHeader, Card, Button, StatusBadge, Modal, Field, inputCls, rowActionCls, fmtUptime } from '../components/ui';
 import OnboardWizard from '../components/OnboardWizard';
 import { useSiteScope, scoped } from '../context/SiteContext';
 
@@ -157,7 +157,7 @@ export default function Devices({ me }: { me: Me }) {
                     {canEdit && (
                       <td className="py-3 pl-2 text-right">
                         <button
-                          className="text-xs text-slate-300 opacity-0 transition hover:text-red-600 hover:underline group-hover:opacity-100"
+                          className={`${rowActionCls} text-slate-300 opacity-0 transition hover:text-red-600 group-hover:opacity-100 max-lg:opacity-100 max-lg:text-slate-400`}
                           onClick={async () => {
                             if (!confirm(`Remove ${d.hostname || d.mgmt_ip} from SwitchPilot?\n\nThis deletes its history (ports, metrics, backups, alerts) from the platform. The switch itself is not touched.`)) return;
                             try { await api(`/api/devices/${d.id}`, { method: 'DELETE' }); load(); }
@@ -263,9 +263,9 @@ function CredentialManager({ credentials, onClose }: { credentials: any[]; onClo
                 <span className="ml-2 text-slate-400">ssh: {c.ssh_username || '—'} · snmp v{c.snmp_version}</span>
               </div>
               <div className="flex items-center gap-3">
-                <button className="text-xs text-brand-600 hover:text-brand-700 hover:underline" onClick={() => startEdit(c)}>Edit</button>
+                <button className={`${rowActionCls} text-brand-600 hover:text-brand-700`} onClick={() => startEdit(c)}>Edit</button>
                 <button
-                  className="text-xs text-red-500 hover:text-red-700 hover:underline"
+                  className={`${rowActionCls} text-red-500 hover:text-red-700`}
                   onClick={() => api(`/api/credentials/${c.id}`, { method: 'DELETE' }).then(onClose)
                     .catch((err: any) => toast.error(err.message))}
                 >

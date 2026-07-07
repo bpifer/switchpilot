@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
 export function Icon({ d, className = 'w-4 h-4' }: { d: string; className?: string }) {
   return (
@@ -31,9 +31,11 @@ export function Card({ title, children, className = '' }: { title?: string; chil
   );
 }
 
-export function Button({ children, onClick, variant = 'primary', disabled, type = 'button' }: {
+export function Button({ children, onClick, variant = 'primary', disabled, type = 'button', ariaLabel }: {
   children: ReactNode; onClick?: () => void; disabled?: boolean;
   variant?: 'primary' | 'secondary' | 'danger'; type?: 'button' | 'submit';
+  /** Accessible name for icon-only buttons (e.g. "↻"). */
+  ariaLabel?: string;
 }) {
   const styles = {
     primary:   'bg-brand-600 text-white hover:bg-brand-700 shadow-sm',
@@ -44,6 +46,8 @@ export function Button({ children, onClick, variant = 'primary', disabled, type 
     <button
       type={type}
       disabled={disabled}
+      aria-label={ariaLabel}
+      title={ariaLabel}
       onClick={onClick}
       className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${styles[variant]}`}
     >
@@ -81,19 +85,34 @@ export function StatusBadge({ status }: { status: string }) {
 }
 
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  // Dialog semantics + keyboard support: Escape closes, initial focus moves
+  // into the dialog so keyboard/screen-reader users aren't left behind it.
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    panelRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="max-h-[88vh] w-[38rem] max-w-[94vw] overflow-auto rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200/60"
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
+        className="max-h-[88vh] w-[38rem] max-w-[94vw] overflow-auto rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200/60 focus:outline-none"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <h2 className="font-semibold text-slate-800">{title}</h2>
           <button
             className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            aria-label="Close dialog"
             onClick={onClose}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
@@ -120,6 +139,12 @@ export const inputCls =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 ' +
   'placeholder:text-slate-400 transition ' +
   'focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20';
+
+// Inline row actions ("ack", "delete", "remove"…): visually a small text link,
+// but with a padded hit area so it's tappable on a phone at the rack (the
+// negative margins keep table row heights unchanged).
+export const rowActionCls =
+  'inline-flex min-h-7 -my-1.5 items-center rounded px-1.5 -mx-1.5 text-xs hover:underline';
 
 export function fmtUptime(seconds: number | null): string {
   if (!seconds) return '—';

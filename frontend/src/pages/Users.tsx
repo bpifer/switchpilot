@@ -3,7 +3,7 @@ import { api, apiUpload, getToken } from '../api';
 import { toast } from '../components/Toast';
 import { useAction } from '../hooks/useAction';
 import { useApiQuery } from '../hooks/useApiQuery';
-import { PageHeader, Card, Button, Modal, Field, inputCls, StatusBadge } from '../components/ui';
+import { PageHeader, Card, Button, Modal, Field, inputCls, rowActionCls, StatusBadge } from '../components/ui';
 
 export default function Users() {
   const [showAdd, setShowAdd] = useState(false);
@@ -47,13 +47,13 @@ export default function Users() {
                   <td className="text-xs">{u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'never'}</td>
                   <td className="space-x-2 text-right">
                     {u.locked && (
-                      <button className="text-xs font-medium text-amber-600 hover:underline" onClick={() => unlock(u.id)}>unlock</button>
+                      <button className={`${rowActionCls} font-medium text-amber-600`} onClick={() => unlock(u.id)}>unlock</button>
                     )}
                     <select className="rounded border px-1 py-0.5 text-xs" value={u.role}
                             onChange={e => patchUser(u.id, { role: e.target.value })}>
                       {['superadmin', 'netadmin', 'helpdesk', 'readonly'].map(r => <option key={r}>{r}</option>)}
                     </select>
-                    <button className="text-xs text-gray-500 hover:underline"
+                    <button className={`${rowActionCls} text-gray-500`}
                             onClick={() => patchUser(u.id, { enabled: !u.enabled })}>
                       {u.enabled ? 'disable' : 'enable'}
                     </button>

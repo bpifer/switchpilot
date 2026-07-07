@@ -41,7 +41,7 @@ describe('Bulk port configuration', () => {
     await userEvent.click(screen.getByRole('button', { name: /configure 2 port/i }));
 
     // One shared config modal (titled with the selection count, not a port name)
-    expect(await screen.findByText(/configure 2 ports/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /configure 2 ports/i })).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/access vlan/i), '20');
     await userEvent.click(screen.getByRole('button', { name: /^apply$/i }));
 

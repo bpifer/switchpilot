@@ -113,7 +113,7 @@ export default function RouterOsFirmwarePanel({ deviceId, hostname, canConfig }:
               {canReboot && (
                 <Button variant="danger" disabled={busy} onClick={reboot}>{isBusy('reboot') ? 'Rebooting…' : 'Reboot to apply'}</Button>
               )}
-              <Button variant="secondary" disabled={busy} onClick={check}>↻</Button>
+              <Button variant="secondary" disabled={busy} onClick={check} ariaLabel="Re-check firmware">↻</Button>
               <span className="text-xs text-slate-400">
                 {canReboot ? 'Downloads/staging are non-disruptive; only a reboot applies them.'
                   : 'Download or stage an upgrade first — the reboot button appears once something is staged.'}
