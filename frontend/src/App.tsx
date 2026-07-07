@@ -312,8 +312,13 @@ export default function App() {
         {/* Site scope */}
         <SiteSelector />
 
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-3 px-2">
+        {/* Nav. min-h-0 is required: a flex child with overflow-y-auto still
+            defaults to sizing itself by content (min-height: auto) unless this
+            is set, so with ~20 links the nav can grow past its allotted space
+            instead of scrolling - pushing the footer rows (connection status,
+            user, theme toggle) off the bottom of the fixed-height drawer on
+            shorter phones, with no way to scroll down to them. */}
+        <nav className="min-h-0 flex-1 overflow-y-auto py-3 px-2">
           {NAV.map((section, si) => {
             const items = section.items.filter(n => !n.role || roleRank(me.role) >= roleRank(n.role));
             if (items.length === 0) return null;
