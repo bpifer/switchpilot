@@ -28,10 +28,15 @@ subsystems. Best value-per-effort next, in order:
    streaming download + destructive restore (confirm=RESTORE + safety dump of the
    current DB first), on the Users page. Old pre-restore safety dumps pruned daily
    (>7d). postgresql16-client bundled in the API image.
-5. **Aruba InstantOn 1930 (SNMP read-only, phase 1)** — M–H (~3–4 days). Real
-   hardware on hand; needs a non-SSH transport abstraction + SNMP enabled on the
-   switch first. See the feasibility assessment. (User: "later this week.") **Next
-   big feature.**
+5. **Aruba InstantOn 1930 (SNMP read-only, phase 1)** — SCAFFOLD BUILT
+   2026-07-06 (device was offline). `aruba/snmp.ts` pure mappers (detect,
+   IF-MIB interfaces, HC-counter→bps rates, LLDP neighbors; 11 unit tests) +
+   `services/arubaMonitor.ts` + dispatcher branch + SNMP vendor detection at
+   onboarding + guardrails (driverFor 501s for aruba, backup sweep skips,
+   tools list empty, pollStatus skips SSH fallback). REMAINING (needs the
+   live 1930 + SNMP enabled): validate ENTITY chassis index, LLDP local-port
+   numbering, CPU/mem/temp vendor OIDs, onboarding end-to-end, and per-tab
+   frontend gating for a config-less device.
 
 Lower value / defer: remaining `useAction` page migrations (cosmetic, ~½ day),
 NX-OS Flexible NetFlow (niche, no hw), manual topology link-drawing (~2 days),
