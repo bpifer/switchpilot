@@ -251,7 +251,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
+      <div className="flex h-dvh items-center justify-center bg-slate-50 dark:bg-slate-950">
         <div className="flex flex-col items-center gap-3 text-slate-400 dark:text-slate-500">
           <svg className="h-8 w-8 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -287,12 +287,24 @@ export default function App() {
     <SiteScopeProvider>
     <CommandPalette />
     <Toaster />
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-950">
+    {/* h-dvh (dynamic viewport height), not h-screen (100vh): mobile browsers
+        show/hide their address bar as you scroll, and 100vh is measured
+        against the LARGEST possible viewport, ignoring that chrome - so a
+        fixed-position child (the drawer) can render taller than what's
+        actually visible, hiding its bottom rows (footer, theme toggle) behind
+        the browser's own UI. This is exactly why it worked in an emulated
+        desktop preview but not on a real phone. dvh tracks the real, current
+        visible viewport. */}
+    <div className="flex h-dvh bg-slate-50 dark:bg-slate-950">
       {/* Mobile drawer backdrop */}
       {navOpen && (
         <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" aria-hidden onClick={() => setNavOpen(false)} />
       )}
-      <aside className={`fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col bg-slate-900 text-white transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${navOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* h-dvh in addition to inset-y-0: fixed-position height tracking against
+          the address-bar-inclusive viewport has been historically inconsistent
+          across mobile browser engines, so pin it explicitly rather than rely
+          on inset alone (same dvh reasoning as the h-screen fix above). */}
+      <aside className={`fixed inset-y-0 left-0 z-40 flex h-dvh w-60 shrink-0 flex-col bg-slate-900 text-white transition-transform duration-200 lg:static lg:h-screen lg:z-auto lg:translate-x-0 ${navOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         {/* Logo */}
         <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-800">
           <LogoMark className="h-9 w-9 shrink-0" />

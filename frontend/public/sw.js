@@ -2,7 +2,7 @@
 // offline shell. Network-first for navigations (so a fresh deploy is picked up
 // the moment the device is back online); cache-first for hashed build assets.
 // Live data is never cached: /api requests and non-GET requests bypass the SW.
-const CACHE = 'switchpilot-v1';
+const CACHE = 'switchpilot-v2';
 const SHELL = [
   '/',
   '/index.html',
