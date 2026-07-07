@@ -4,6 +4,11 @@
 
 @layer base {
   body {
-    @apply antialiased bg-slate-50 text-slate-900;
+    @apply antialiased bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
+  }
+  /* Native form controls (checkboxes, date pickers, scrollbars) follow the
+     app theme instead of always rendering light-mode chrome. */
+  .dark {
+    color-scheme: dark;
   }
 }

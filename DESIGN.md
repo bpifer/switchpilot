@@ -7,11 +7,25 @@ cool slate canvas, one deep green brand color, status hues reserved for state.
 
 ## Theme
 
-Light. A network tool read in lit rooms on desktops and phones; content
-(tables, diffs, terminal output) provides the contrast, not the chrome. The two
-deliberate dark surfaces are the sidebar (`slate-900` band with `white/10`
-hovers) and device-output panes (`bg-gray-900` + `text-green-300` — terminal
-semantics, quoting the device).
+Light by default, dark available as an explicit, remembered opt-in — never a
+redefault. A network tool is read in lit rooms on desktops and phones as often
+as at a dim rack; content (tables, diffs, terminal output) provides the
+contrast, not the chrome, in either mode. Toggle lives at the bottom of the
+sidebar (`components/ThemeToggle.tsx`); `hooks/useTheme.ts` persists the choice
+to `localStorage` and applies a `dark` class to `<html>` (Tailwind
+`darkMode: 'class'`), set synchronously by an inline script in `index.html`
+before first paint so there's no flash of the wrong theme. Defaults to the OS
+`prefers-color-scheme` on first visit, then the explicit choice wins.
+
+Dark surfaces (canvas `slate-950`, cards/modals `slate-800`, borders
+`slate-700`) are reached via a `dark:` variant next to nearly every light-mode
+color utility — see Color below for the exact ladder. Two surfaces stay fixed
+regardless of the toggle because they're already "dark" by their own logic,
+not by app theme: the sidebar (`slate-900` band with `white/10` hovers) and
+device-output panes (`bg-gray-900` + `text-green-300` — terminal semantics,
+quoting the device). Native form controls (checkboxes, file pickers,
+scrollbars) follow `color-scheme: dark` rather than needing per-control
+overrides.
 
 ## Color
 
@@ -31,6 +45,19 @@ semantics, quoting the device).
   - slate — unknown, disabled, notconnect
 - **Port speed colors (front panel)**: 10G blue, 1G green, 10/100 orange —
   mirrors physical-world labeling conventions.
+- **Dark-mode ladder** (each light utility pairs with a `dark:` sibling):
+  surfaces `bg-white → dark:bg-slate-800`, `bg-slate-50 → dark:bg-slate-800/50`
+  (canvas fills), `bg-slate-100 → dark:bg-slate-700/50`; borders
+  `border-slate-200 → dark:border-slate-700`; ink `text-slate-900/800 →
+  dark:text-slate-100`, `text-slate-700 → dark:text-slate-300`,
+  `text-slate-500/600 → dark:text-slate-400`, `text-slate-400 →
+  dark:text-slate-500` (each step gets one notch lighter as the ladder
+  descends, keeping the same relative contrast against its dark surface).
+  Status-hue tints swap the light `bg-{color}-50/100` fill for a translucent
+  `dark:bg-{color}-500/10` and brighten text to `dark:text-{color}-400` —
+  never the light `-50/100` tint verbatim on a dark surface (reads as a washed
+  pastel box). Saturated `-500` dot/fill colors (status dots, sparkline lines,
+  port-speed swatches) are left unpaired — already legible on both surfaces.
 
 ## Typography
 

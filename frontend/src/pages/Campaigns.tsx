@@ -36,17 +36,17 @@ interface RingCount {
 }
 
 const STATUS_COLOR: Record<Campaign['status'], string> = {
-  draft:     'bg-slate-100 text-slate-600',
-  running:   'bg-blue-100 text-blue-700',
-  paused:    'bg-amber-100 text-amber-700',
-  completed: 'bg-green-100 text-green-700',
-  aborted:   'bg-red-100 text-red-700',
+  draft:     'bg-slate-100 text-slate-600 dark:bg-slate-700/50 dark:text-slate-400',
+  running:   'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400',
+  paused:    'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400',
+  completed: 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400',
+  aborted:   'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400',
 };
 
 const RING_COLOR: Record<string, string> = {
-  pilot:      'bg-violet-100 text-violet-700',
-  production: 'bg-blue-100 text-blue-700',
-  critical:   'bg-red-100 text-red-700',
+  pilot:      'bg-violet-100 text-violet-700 dark:bg-violet-500/10 dark:text-violet-400',
+  production: 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400',
+  critical:   'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400',
 };
 
 function daysElapsed(since: string | null): number | null {
@@ -110,18 +110,18 @@ export default function Campaigns() {
               <div className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide mb-2 ${RING_COLOR[r]}`}>
                 {r}
               </div>
-              <div className="text-2xl font-bold text-slate-800">{(ringCounts as any)[r] ?? '—'}</div>
-              <div className="text-xs text-slate-400">switch{((ringCounts as any)[r] ?? 0) !== 1 ? 'es' : ''} assigned</div>
+              <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{(ringCounts as any)[r] ?? '—'}</div>
+              <div className="text-xs text-slate-400 dark:text-slate-500">switch{((ringCounts as any)[r] ?? 0) !== 1 ? 'es' : ''} assigned</div>
             </Card>
           ))}
         </div>
 
         {/* Campaign list */}
         {loading ? (
-          <p className="text-sm text-slate-400 py-4">Loading campaigns…</p>
+          <p className="text-sm text-slate-400 py-4 dark:text-slate-500">Loading campaigns…</p>
         ) : campaigns.length === 0 ? (
           <Card>
-            <p className="text-sm text-slate-400 py-8 text-center">No campaigns yet. Create one to stage a firmware rollout.</p>
+            <p className="text-sm text-slate-400 py-8 text-center dark:text-slate-500">No campaigns yet. Create one to stage a firmware rollout.</p>
           </Card>
         ) : (
           <div className="space-y-3">
@@ -136,9 +136,9 @@ export default function Campaigns() {
                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase ${STATUS_COLOR[c.status]}`}>
                           {c.status}
                         </span>
-                        <h3 className="font-semibold text-slate-800 truncate">{c.name}</h3>
+                        <h3 className="font-semibold text-slate-800 truncate dark:text-slate-100">{c.name}</h3>
                       </div>
-                      <div className="text-xs text-slate-500 mb-3">
+                      <div className="text-xs text-slate-500 mb-3 dark:text-slate-400">
                         {c.image_family && <span className="mr-3">Family: <strong>{c.image_family}</strong></span>}
                         {c.image_version && <span className="mr-3">Target: <strong className="font-mono">{c.image_version}</strong></span>}
                         <span>Wait: <strong>{c.wait_days}d between rings</strong></span>
@@ -148,13 +148,13 @@ export default function Campaigns() {
                       <div className="flex items-center gap-2 mb-3">
                         {c.rings.map((r, idx) => (
                           <div key={r} className="flex items-center gap-1">
-                            {idx > 0 && <div className="w-6 h-px bg-slate-300" />}
+                            {idx > 0 && <div className="w-6 h-px bg-slate-300 dark:bg-slate-600" />}
                             <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                               c.current_ring === r && c.status === 'running'
                                 ? RING_COLOR[r] + ' ring-2 ring-offset-1 ring-current'
                                 : c.rings.indexOf(c.current_ring) > idx
-                                  ? 'bg-green-100 text-green-700'
-                                  : 'bg-slate-100 text-slate-400'
+                                  ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400'
+                                  : 'bg-slate-100 text-slate-400 dark:bg-slate-700/50 dark:text-slate-500'
                             }`}>
                               {r}
                             </span>
@@ -164,23 +164,23 @@ export default function Campaigns() {
 
                       {c.total > 0 && (
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden dark:bg-slate-700/50">
                             <div className="flex h-full">
                               <div className="bg-green-500 h-full" style={{ width: `${c.total ? c.succeeded / c.total * 100 : 0}%` }} />
                               <div className="bg-red-500 h-full" style={{ width: `${c.total ? c.failed / c.total * 100 : 0}%` }} />
                             </div>
                           </div>
-                          <span className="text-xs text-slate-500 shrink-0">
+                          <span className="text-xs text-slate-500 shrink-0 dark:text-slate-400">
                             {c.succeeded}/{c.total} succeeded{c.failed > 0 && `, ${c.failed} failed`}
                           </span>
                         </div>
                       )}
 
                       {elapsed !== null && c.status === 'running' && (
-                        <p className="text-xs text-slate-400 mt-2">
+                        <p className="text-xs text-slate-400 mt-2 dark:text-slate-500">
                           Current ring started {elapsed}d ago
                           {elapsed >= c.wait_days && (
-                            <span className="ml-1 text-amber-600 font-medium">— ready to advance</span>
+                            <span className="ml-1 text-amber-600 font-medium dark:text-amber-400">— ready to advance</span>
                           )}
                         </p>
                       )}
@@ -229,25 +229,25 @@ export default function Campaigns() {
         {/* Create modal */}
         {showCreate && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-              <h2 className="text-base font-semibold text-slate-800 mb-4">New Firmware Campaign</h2>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 dark:bg-slate-800">
+              <h2 className="text-base font-semibold text-slate-800 mb-4 dark:text-slate-100">New Firmware Campaign</h2>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Campaign name</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1 dark:text-slate-400">Campaign name</label>
                   <input
                     type="text"
                     value={form.name}
                     onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                     placeholder="Q1 2025 Catalyst 9300 Upgrade"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-slate-600 dark:focus:ring-brand-500/30"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Firmware image</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1 dark:text-slate-400">Firmware image</label>
                   <select
                     value={form.imageId}
                     onChange={e => setForm(f => ({ ...f, imageId: e.target.value }))}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:border-brand-500"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:border-brand-500 dark:border-slate-600"
                   >
                     <option value="">— select image —</option>
                     {images.map(img => (
@@ -256,7 +256,7 @@ export default function Campaigns() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-2">Deployment rings (in order)</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-2 dark:text-slate-400">Deployment rings (in order)</label>
                   <div className="flex gap-2">
                     {(['pilot', 'production', 'critical'] as const).map(r => (
                       <label key={r} className="flex items-center gap-1.5 text-sm cursor-pointer">
@@ -264,7 +264,7 @@ export default function Campaigns() {
                           type="checkbox"
                           checked={form.rings.includes(r)}
                           onChange={() => toggleRing(r)}
-                          className="rounded border-slate-300"
+                          className="rounded border-slate-300 dark:border-slate-600"
                         />
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${RING_COLOR[r]}`}>{r}</span>
                       </label>
@@ -272,16 +272,16 @@ export default function Campaigns() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Wait days between rings</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1 dark:text-slate-400">Wait days between rings</label>
                   <input
                     type="number"
                     min={0}
                     max={90}
                     value={form.waitDays}
                     onChange={e => setForm(f => ({ ...f, waitDays: parseInt(e.target.value) || 0 }))}
-                    className="w-24 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:border-brand-500"
+                    className="w-24 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:border-brand-500 dark:border-slate-600"
                   />
-                  <span className="ml-2 text-xs text-slate-400">0 = advance manually only</span>
+                  <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">0 = advance manually only</span>
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-5">

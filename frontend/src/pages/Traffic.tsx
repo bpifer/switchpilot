@@ -64,15 +64,15 @@ export default function Traffic({ me }: { me: Me }) {
       <PageHeader title="Traffic" />
 
       <div className="flex flex-wrap items-center gap-3 px-6 py-4">
-        <select className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
+        <select className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                 value={deviceId} onChange={e => setDeviceId(e.target.value)}>
           <option value="">All exporters</option>
           {devices.map(d => <option key={d.id} value={d.id}>{d.hostname || d.mgmt_ip}</option>)}
         </select>
-        <div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
           {RANGES.map(r => (
             <button key={r.value} onClick={() => setRange(r.value)}
-              className={`px-3 py-1.5 text-sm transition ${range === r.value ? 'bg-brand-600 font-medium text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+              className={`px-3 py-1.5 text-sm transition ${range === r.value ? 'bg-brand-600 font-medium text-white dark:bg-brand-500' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-700'}`}>
               {r.label}
             </button>
           ))}
@@ -83,7 +83,7 @@ export default function Traffic({ me }: { me: Me }) {
           </Button>
         )}
         {status && (
-          <span className="ml-auto text-xs text-slate-400">
+          <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">
             {status.enabled ? `Collector on udp/${status.port}` : 'Collector disabled'}
             {status.latest ? ` · last flow ${new Date(status.latest).toLocaleTimeString()}` : ''}
           </span>
@@ -93,18 +93,18 @@ export default function Traffic({ me }: { me: Me }) {
       {noData ? (
         <div className="px-6 pb-6">
           <Card>
-            <div className="py-8 text-center text-sm text-slate-500">
-              <p className="font-medium text-slate-700">No flow data yet.</p>
+            <div className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+              <p className="font-medium text-slate-700 dark:text-slate-300">No flow data yet.</p>
               <p className="mt-1">
                 {status?.enabled
                   ? <>The collector is listening on <span className="font-mono">udp/{status.port}</span>. Point a switch's NetFlow / traffic-flow export at this host.</>
                   : <>Set <span className="font-mono">NETFLOW_ENABLED=true</span> and restart, then point a switch's export at <span className="font-mono">udp/{status?.port ?? 2055}</span>.</>}
               </p>
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
                 MikroTik: <span className="font-mono">/ip traffic-flow</span> (version 5 or 9). Cisco: a flow exporter to this host.
               </p>
               {canConfig && status?.enabled && (
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                   Or select a device above and click <span className="font-medium">Enable export on this device</span> to configure it automatically.
                 </p>
               )}
@@ -137,16 +137,16 @@ export default function Traffic({ me }: { me: Me }) {
             <Card title="Top talkers">
               {talkers.length === 0 ? <Empty /> : (
                 <table className="w-full text-sm">
-                  <tbody className="divide-y divide-slate-50">
+                  <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                     {talkers.map(t => (
                       <tr key={t.host}>
-                        <td className="py-1.5 pr-3 font-mono text-xs text-slate-700">{t.host}</td>
+                        <td className="py-1.5 pr-3 font-mono text-xs text-slate-700 dark:text-slate-300">{t.host}</td>
                         <td className="w-1/2 py-1.5">
                           <div className="flex items-center gap-2">
-                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/50">
                               <div className="h-full rounded-full bg-brand-500" style={{ width: `${Number(t.bytes) / talkerMax * 100}%` }} />
                             </div>
-                            <span className="w-16 text-right tabular-nums text-slate-600">{fmtBytes(Number(t.bytes))}</span>
+                            <span className="w-16 text-right tabular-nums text-slate-600 dark:text-slate-400">{fmtBytes(Number(t.bytes))}</span>
                           </div>
                         </td>
                       </tr>
@@ -161,11 +161,11 @@ export default function Traffic({ me }: { me: Me }) {
                 <div className="space-y-2">
                   {apps.map(a => (
                     <div key={a.app} className="flex items-center gap-2 text-sm">
-                      <span className="w-20 shrink-0 capitalize text-slate-700">{a.app}</span>
-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <span className="w-20 shrink-0 capitalize text-slate-700 dark:text-slate-300">{a.app}</span>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/50">
                         <div className="h-full rounded-full bg-brand-500" style={{ width: `${Number(a.bytes) / appMax * 100}%` }} />
                       </div>
-                      <span className="w-16 text-right tabular-nums text-slate-500">{fmtBytes(Number(a.bytes))}</span>
+                      <span className="w-16 text-right tabular-nums text-slate-500 dark:text-slate-400">{fmtBytes(Number(a.bytes))}</span>
                     </div>
                   ))}
                 </div>
@@ -179,5 +179,5 @@ export default function Traffic({ me }: { me: Me }) {
 }
 
 function Empty() {
-  return <div className="py-10 text-center text-sm text-slate-400">No data in this range.</div>;
+  return <div className="py-10 text-center text-sm text-slate-400 dark:text-slate-500">No data in this range.</div>;
 }

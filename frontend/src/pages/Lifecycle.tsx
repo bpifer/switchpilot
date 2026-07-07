@@ -32,9 +32,9 @@ function LifecycleBadge({ date, label }: { date: string | null; label: string })
   const soon = !past && (days ?? 9999) <= 365;
   return (
     <div className={`inline-flex flex-col items-center rounded-lg px-3 py-1.5 text-center ${
-      past ? 'bg-red-100 text-red-800'
-      : soon ? 'bg-amber-100 text-amber-800'
-      : 'bg-slate-100 text-slate-600'
+      past ? 'bg-red-100 text-red-800 dark:bg-red-500/10 dark:text-red-400'
+      : soon ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/10 dark:text-amber-400'
+      : 'bg-slate-100 text-slate-600 dark:bg-slate-700/50 dark:text-slate-400'
     }`}>
       <span className="text-[10px] font-semibold uppercase tracking-wide">{label}</span>
       <span className="text-xs font-medium">{new Date(date).toLocaleDateString()}</span>
@@ -79,10 +79,10 @@ export default function Lifecycle({ me }: { me: Me }) {
         {/* Summary chips */}
         <div className="flex flex-wrap gap-3">
           {[
-            { key: 'all',        label: `All (${devices.length})`,        color: 'bg-slate-100 text-slate-700' },
-            { key: 'eol_passed', label: `EOL passed (${eolPassed})`,      color: eolPassed > 0  ? 'bg-red-100 text-red-800'   : 'bg-slate-100 text-slate-400' },
-            { key: 'eol_soon',   label: `EOL within 1yr (${eolSoon})`,    color: eolSoon > 0    ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-400' },
-            { key: 'eos_passed', label: `EOS passed (${eosPassed})`,      color: eosPassed > 0  ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-400' },
+            { key: 'all',        label: `All (${devices.length})`,        color: 'bg-slate-100 text-slate-700 dark:bg-slate-700/50 dark:text-slate-300' },
+            { key: 'eol_passed', label: `EOL passed (${eolPassed})`,      color: eolPassed > 0  ? 'bg-red-100 text-red-800 dark:bg-red-500/10 dark:text-red-400'   : 'bg-slate-100 text-slate-400 dark:bg-slate-700/50 dark:text-slate-500' },
+            { key: 'eol_soon',   label: `EOL within 1yr (${eolSoon})`,    color: eolSoon > 0    ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/10 dark:text-amber-400' : 'bg-slate-100 text-slate-400 dark:bg-slate-700/50 dark:text-slate-500' },
+            { key: 'eos_passed', label: `EOS passed (${eosPassed})`,      color: eosPassed > 0  ? 'bg-orange-100 text-orange-800 dark:bg-orange-500/10 dark:text-orange-400' : 'bg-slate-100 text-slate-400 dark:bg-slate-700/50 dark:text-slate-500' },
           ].map(f => (
             <button
               key={f.key}
@@ -98,9 +98,9 @@ export default function Lifecycle({ me }: { me: Me }) {
 
         <Card>
           {loading ? (
-            <p className="text-sm text-slate-400 py-4 text-center">Loading lifecycle data…</p>
+            <p className="text-sm text-slate-400 py-4 text-center dark:text-slate-500">Loading lifecycle data…</p>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-slate-400 py-8 text-center">
+            <p className="text-sm text-slate-400 py-8 text-center dark:text-slate-500">
               {devices.length === 0
                 ? 'No lifecycle data yet — appears after the first device refresh.'
                 : 'No devices match this filter.'}
@@ -109,33 +109,33 @@ export default function Lifecycle({ me }: { me: Me }) {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 text-left">
-                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Device</th>
-                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Model</th>
-                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">IOS Version</th>
-                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Site</th>
-                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">End of Sale</th>
-                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">End of Life</th>
-                    <th className="pb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Recommended</th>
+                  <tr className="border-b border-slate-100 text-left dark:border-slate-800">
+                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Device</th>
+                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Model</th>
+                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">IOS Version</th>
+                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Site</th>
+                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">End of Sale</th>
+                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">End of Life</th>
+                    <th className="pb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Recommended</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50">
+                <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                   {filtered.map(d => (
-                    <tr key={d.id} className="hover:bg-slate-50/80 transition">
+                    <tr key={d.id} className="hover:bg-slate-50/80 transition dark:hover:bg-slate-800/60">
                       <td className="py-3 pr-4">
-                        <Link to={`/devices/${d.id}`} className="font-medium text-brand-600 hover:underline">
+                        <Link to={`/devices/${d.id}`} className="font-medium text-brand-600 hover:underline dark:text-brand-400">
                           {d.hostname || d.mgmt_ip}
                         </Link>
-                        <div className="text-xs text-slate-400 font-mono">{d.mgmt_ip}</div>
+                        <div className="text-xs text-slate-400 font-mono dark:text-slate-500">{d.mgmt_ip}</div>
                       </td>
-                      <td className="py-3 pr-4 text-slate-700 text-xs font-mono">{d.model || '—'}</td>
-                      <td className="py-3 pr-4 text-slate-500 text-xs font-mono">{d.ios_version || '—'}</td>
-                      <td className="py-3 pr-4 text-xs text-slate-500">{d.site_name}</td>
+                      <td className="py-3 pr-4 text-slate-700 text-xs font-mono dark:text-slate-300">{d.model || '—'}</td>
+                      <td className="py-3 pr-4 text-slate-500 text-xs font-mono dark:text-slate-400">{d.ios_version || '—'}</td>
+                      <td className="py-3 pr-4 text-xs text-slate-500 dark:text-slate-400">{d.site_name}</td>
                       <td className="py-3 pr-4"><LifecycleBadge date={d.eos_date} label="EOS" /></td>
                       <td className="py-3 pr-4"><LifecycleBadge date={d.eol_date} label="EOL" /></td>
                       <td className="py-3">
                         {d.recommended_release ? (
-                          <span className="font-mono text-xs text-brand-600 bg-brand-50 px-2 py-0.5 rounded">
+                          <span className="font-mono text-xs text-brand-600 bg-brand-50 px-2 py-0.5 rounded dark:text-brand-400 dark:bg-brand-500/10">
                             {d.recommended_release}
                           </span>
                         ) : '—'}
@@ -203,7 +203,7 @@ function CatalogEditor({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="Lifecycle catalog" onClose={onClose}>
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           Model-prefix → EOS/EOL dates. Longest prefix wins at match time. Changes apply on the next device refresh.
         </p>
         <Button onClick={() => setEditing({ model_prefix: '', eos_date: '', eol_date: '', recommended_release: '', notes: '' })}>
@@ -212,12 +212,12 @@ function CatalogEditor({ onClose }: { onClose: () => void }) {
       </div>
 
       {loading ? (
-        <p className="py-6 text-center text-sm text-slate-400">Loading catalog…</p>
+        <p className="py-6 text-center text-sm text-slate-400 dark:text-slate-500">Loading catalog…</p>
       ) : (
         <div className="max-h-[55vh] overflow-auto">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-white">
-              <tr className="border-b text-left text-xs uppercase text-slate-500">
+            <thead className="sticky top-0 bg-white dark:bg-slate-800">
+              <tr className="border-b text-left text-xs uppercase text-slate-500 dark:text-slate-400">
                 <th className="py-1.5 pr-3">Prefix</th><th className="pr-3">EOS</th><th className="pr-3">EOL</th>
                 <th className="pr-3">Recommended</th><th></th>
               </tr>
@@ -225,26 +225,26 @@ function CatalogEditor({ onClose }: { onClose: () => void }) {
             <tbody>
               {rows.map(r => (
                 <tr key={r.model_prefix} className="border-b last:border-0">
-                  <td className="py-1.5 pr-3 font-mono text-xs text-slate-700">{r.model_prefix}</td>
-                  <td className="pr-3 text-xs text-slate-600">{fmtDate(r.eos_date) || '—'}</td>
-                  <td className="pr-3 text-xs text-slate-600">{fmtDate(r.eol_date) || '—'}</td>
-                  <td className="pr-3 font-mono text-xs text-slate-600">{r.recommended_release || '—'}</td>
+                  <td className="py-1.5 pr-3 font-mono text-xs text-slate-700 dark:text-slate-300">{r.model_prefix}</td>
+                  <td className="pr-3 text-xs text-slate-600 dark:text-slate-400">{fmtDate(r.eos_date) || '—'}</td>
+                  <td className="pr-3 text-xs text-slate-600 dark:text-slate-400">{fmtDate(r.eol_date) || '—'}</td>
+                  <td className="pr-3 font-mono text-xs text-slate-600 dark:text-slate-400">{r.recommended_release || '—'}</td>
                   <td className="space-x-2 text-right">
-                    <button className="text-xs text-brand-600 hover:underline"
+                    <button className="text-xs text-brand-600 hover:underline dark:text-brand-400"
                             onClick={() => setEditing({ ...r, eos_date: fmtDate(r.eos_date), eol_date: fmtDate(r.eol_date) })}>edit</button>
-                    <button className="text-xs text-red-600 hover:underline" onClick={() => remove(r.model_prefix)}>delete</button>
+                    <button className="text-xs text-red-600 hover:underline dark:text-red-400" onClick={() => remove(r.model_prefix)}>delete</button>
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={5} className="py-4 text-center text-slate-400">Catalog is empty</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={5} className="py-4 text-center text-slate-400 dark:text-slate-500">Catalog is empty</td></tr>}
             </tbody>
           </table>
         </div>
       )}
 
       {editing && (
-        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+          <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
             {rows.some(r => r.model_prefix === editing.model_prefix) ? 'Edit entry' : 'New entry'}
           </h3>
           <Field label="Model prefix">

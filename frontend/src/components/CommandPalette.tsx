@@ -79,7 +79,7 @@ export default function CommandPalette() {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center bg-black/40 pt-[12vh]" onClick={() => setOpen(false)}>
-      <div className="w-[40rem] max-w-[94vw] overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-slate-200"
+      <div className="w-[40rem] max-w-[94vw] overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700"
            onClick={e => e.stopPropagation()}>
         <input
           ref={inputRef}
@@ -87,28 +87,28 @@ export default function CommandPalette() {
           onChange={e => setQ(e.target.value)}
           onKeyDown={onInputKey}
           placeholder="Search devices, ports, alerts, logs…"
-          className="w-full border-b border-slate-100 px-5 py-4 text-sm outline-none placeholder:text-slate-400"
+          className="w-full border-b border-slate-100 px-5 py-4 text-sm outline-none placeholder:text-slate-400 dark:border-slate-800 dark:placeholder:text-slate-500"
         />
         <div className="max-h-[50vh] overflow-auto">
           {q.trim() && items.length === 0 && (
-            <div className="px-5 py-8 text-center text-sm text-slate-400">No matches for "{q}"</div>
+            <div className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">No matches for "{q}"</div>
           )}
           {items.map((it, i) => (
             <button
               key={i}
               onMouseEnter={() => setActive(i)}
               onClick={() => { it.go(); setOpen(false); }}
-              className={`flex w-full items-center gap-3 px-5 py-2.5 text-left ${i === active ? 'bg-brand-50' : ''}`}
+              className={`flex w-full items-center gap-3 px-5 py-2.5 text-left ${i === active ? 'bg-brand-50 dark:bg-brand-500/10' : ''}`}
             >
-              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-500">{it.tag}</span>
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-500 dark:bg-slate-700/50 dark:text-slate-400">{it.tag}</span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm text-slate-800">{it.label}</span>
-                <span className="block truncate text-xs text-slate-400">{it.sub}</span>
+                <span className="block truncate text-sm text-slate-800 dark:text-slate-100">{it.label}</span>
+                <span className="block truncate text-xs text-slate-400 dark:text-slate-500">{it.sub}</span>
               </span>
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-3 border-t border-slate-100 px-5 py-2 text-[11px] text-slate-400">
+        <div className="flex items-center gap-3 border-t border-slate-100 px-5 py-2 text-[11px] text-slate-400 dark:border-slate-800 dark:text-slate-500">
           <span>↑↓ navigate</span><span>↵ open</span><span>esc close</span>
         </div>
       </div>

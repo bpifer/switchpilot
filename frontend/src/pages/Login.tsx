@@ -46,19 +46,19 @@ export default function Login({ onLogin }: { onLogin: (me: Me) => void }) {
         {/* Form card */}
         <form
           onSubmit={submit}
-          className="rounded-2xl bg-white p-8 shadow-2xl ring-1 ring-white/10"
+          className="rounded-2xl bg-white p-8 shadow-2xl ring-1 ring-white/10 dark:bg-slate-800"
         >
           {error && (
-            <div className="mb-5 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">
+            <div className="mb-5 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100 dark:bg-red-500/10 dark:text-red-400 dark:ring-red-500/20">
               {error}
             </div>
           )}
 
           <div className="mb-4">
-            <label htmlFor="login-username" className="mb-1.5 block text-sm font-medium text-slate-700">Username</label>
+            <label htmlFor="login-username" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Username</label>
             <input
               id="login-username"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-brand-400/30"
               value={username}
               onChange={e => setUsername(e.target.value)}
               autoFocus
@@ -67,11 +67,11 @@ export default function Login({ onLogin }: { onLogin: (me: Me) => void }) {
           </div>
 
           <div className="mb-5">
-            <label htmlFor="login-password" className="mb-1.5 block text-sm font-medium text-slate-700">Password</label>
+            <label htmlFor="login-password" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Password</label>
             <input
               id="login-password"
               type="password"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-brand-400/30"
               value={password}
               onChange={e => setPassword(e.target.value)}
               autoComplete="current-password"
@@ -80,15 +80,15 @@ export default function Login({ onLogin }: { onLogin: (me: Me) => void }) {
 
           {mfaRequired && (
             <div className="mb-5">
-              <label htmlFor="login-totp" className="mb-1.5 block text-sm font-medium text-slate-700">MFA code</label>
+              <label htmlFor="login-totp" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">MFA code</label>
               <input
                 id="login-totp"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-brand-400/30"
                 value={totp}
                 onChange={e => setTotp(e.target.value)}
                 autoFocus
               />
-              <p className="mt-1 text-xs text-slate-400">6-digit authenticator code, or a saved recovery code.</p>
+              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">6-digit authenticator code, or a saved recovery code.</p>
             </div>
           )}
 

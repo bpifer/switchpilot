@@ -26,8 +26,8 @@ export default function Rack() {
       <div className="p-6">
         {rackNames.length === 0 ? (
           <Card>
-            <p className="py-8 text-center text-sm text-slate-400">
-              No devices placed in a rack yet. Open a device, click <span className="font-medium text-slate-600">Settings</span>,
+            <p className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">
+              No devices placed in a rack yet. Open a device, click <span className="font-medium text-slate-600 dark:text-slate-400">Settings</span>,
               and set its rack name + U position.
             </p>
           </Card>
@@ -39,11 +39,11 @@ export default function Rack() {
 
         {unracked.length > 0 && (
           <Card className="mt-6">
-            <div className="mb-2 text-sm font-semibold text-slate-700">Unracked ({unracked.length})</div>
+            <div className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">Unracked ({unracked.length})</div>
             <div className="flex flex-wrap gap-2">
               {unracked.map(d => (
                 <Link key={d.id} to={`/devices/${d.id}`}
-                      className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50">
+                      className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800/50">
                   {d.hostname || d.mgmt_ip}
                 </Link>
               ))}
@@ -76,13 +76,13 @@ function RackColumn({ name, devs }: { name: string; devs: Dev[] }) {
           <span className={`h-2 w-2 shrink-0 rounded-full ${
             d.status === 'online' ? 'bg-green-500' : d.status === 'offline' ? 'bg-red-500' : 'bg-slate-400'}`} />
           <span className="truncate text-xs font-medium">{d.hostname || d.mgmt_ip}</span>
-          <span className="ml-auto shrink-0 truncate text-[10px] text-slate-400">{d.model}</span>
+          <span className="ml-auto shrink-0 truncate text-[10px] text-slate-400 dark:text-slate-500">{d.model}</span>
         </Link>
       );
     } else if (!spanned.has(u)) {
       rows.push(
         <div key={u} style={{ height: U_PX }}
-             className="flex items-center border-b border-slate-200 bg-slate-50 px-2 text-[10px] text-slate-300">
+             className="flex items-center border-b border-slate-200 bg-slate-50 px-2 text-[10px] text-slate-300 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-600">
           {u}
         </div>
       );
@@ -92,8 +92,8 @@ function RackColumn({ name, devs }: { name: string; devs: Dev[] }) {
 
   return (
     <div>
-      <div className="mb-2 text-sm font-semibold text-slate-700">{name}</div>
-      <div className="w-64 overflow-hidden rounded-lg border-2 border-slate-300">{rows}</div>
+      <div className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">{name}</div>
+      <div className="w-64 overflow-hidden rounded-lg border-2 border-slate-300 dark:border-slate-600">{rows}</div>
     </div>
   );
 }

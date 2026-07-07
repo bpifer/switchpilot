@@ -26,28 +26,28 @@ export default function TimelineTab({ deviceId }: { deviceId: string }) {
   return (
     <Card title="Activity timeline">
       {isLoading ? (
-        <p className="text-sm text-slate-400">Loading…</p>
+        <p className="text-sm text-slate-400 dark:text-slate-500">Loading…</p>
       ) : events.length === 0 ? (
-        <p className="py-6 text-center text-sm text-slate-400">
+        <p className="py-6 text-center text-sm text-slate-400 dark:text-slate-500">
           No recorded activity yet. Config changes, alerts, jobs, and audited actions appear here.
         </p>
       ) : (
-        <ol className="relative space-y-3 border-l border-slate-200 pl-5">
+        <ol className="relative space-y-3 border-l border-slate-200 pl-5 dark:border-slate-700">
           {events.map((e, i) => {
             const s = KIND[e.kind] ?? KIND.audit;
             const dot = e.kind === 'alert' && e.severity === 'critical' ? 'bg-red-500' : s.dot;
-            const metaTone = e.meta === 'failed' || e.meta === 'open' ? 'text-amber-600' : 'text-slate-400';
+            const metaTone = e.meta === 'failed' || e.meta === 'open' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-500';
             return (
               <li key={i} className="relative">
-                <span className={`absolute -left-[1.42rem] top-1.5 h-2 w-2 rounded-full ring-2 ring-white ${dot}`} />
+                <span className={`absolute -left-[1.42rem] top-1.5 h-2 w-2 rounded-full ring-2 ring-white dark:ring-slate-900 ${dot}`} />
                 <div className="flex items-baseline justify-between gap-3">
                   <div className="min-w-0">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{s.label}</span>{' '}
-                    <span className="text-sm text-slate-700">{e.title}</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">{s.label}</span>{' '}
+                    <span className="text-sm text-slate-700 dark:text-slate-300">{e.title}</span>
                     {e.meta && <span className={`ml-2 text-xs ${metaTone}`}>{e.meta}</span>}
-                    {e.by && <span className="ml-2 text-xs text-slate-400">by {e.by}</span>}
+                    {e.by && <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">by {e.by}</span>}
                   </div>
-                  <span className="shrink-0 text-xs tabular-nums text-slate-400">{new Date(e.ts).toLocaleString()}</span>
+                  <span className="shrink-0 text-xs tabular-nums text-slate-400 dark:text-slate-500">{new Date(e.ts).toLocaleString()}</span>
                 </div>
               </li>
             );

@@ -7,7 +7,7 @@ export default function NeighborsTab({ deviceId }: { deviceId: string }) {
     <Card title="CDP / LLDP neighbors">
       <div className="overflow-x-auto">
       <table className="w-full text-sm">
-        <thead><tr className="border-b text-left text-xs uppercase text-gray-500">
+        <thead><tr className="border-b text-left text-xs uppercase text-gray-500 dark:text-slate-400">
           <th className="py-1">Local port</th><th>Neighbor</th><th>Neighbor port</th><th>IP</th><th>Platform</th><th>Via</th></tr></thead>
         <tbody>
           {neighbors.map(n => (
@@ -17,10 +17,10 @@ export default function NeighborsTab({ deviceId }: { deviceId: string }) {
               <td className="font-mono text-xs">{n.neighbor_port}</td>
               <td className="font-mono text-xs">{n.neighbor_ip}</td>
               <td>{n.neighbor_platform}</td>
-              <td className="uppercase text-xs text-gray-500">{n.protocol}</td>
+              <td className="uppercase text-xs text-gray-500 dark:text-slate-400">{n.protocol}</td>
             </tr>
           ))}
-          {neighbors.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-gray-400">No neighbors discovered yet</td></tr>}
+          {neighbors.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-gray-400 dark:text-slate-500">No neighbors discovered yet</td></tr>}
         </tbody>
       </table>
       </div>

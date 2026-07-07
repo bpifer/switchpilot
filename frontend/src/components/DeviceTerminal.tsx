@@ -94,7 +94,7 @@ export default function DeviceTerminal({ deviceId, hostname, onClose }: {
   return (
     <Modal title={`Terminal — ${hostname}`} onClose={onClose}>
       <div className="mb-2 flex items-center justify-between">
-        <span className={`text-xs font-medium ${status === 'open' ? 'text-green-600' : status === 'connecting' ? 'text-amber-600' : 'text-slate-400'}`}>
+        <span className={`text-xs font-medium ${status === 'open' ? 'text-green-600 dark:text-green-400' : status === 'connecting' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-500'}`}>
           {status === 'open' ? '● connected' : status === 'connecting' ? '○ connecting…' : '○ disconnected'}
         </span>
         <Button variant="secondary" onClick={download}>Download log</Button>
@@ -104,11 +104,11 @@ export default function DeviceTerminal({ deviceId, hostname, onClose }: {
         tabIndex={0}
         onKeyDown={sendKey}
         onPaste={onPaste}
-        className="h-[60vh] w-full cursor-text overflow-auto rounded-lg bg-gray-950 p-3 font-mono text-xs leading-snug text-green-200 outline-none focus:ring-2 focus:ring-brand-500/40"
+        className="h-[60vh] w-full cursor-text overflow-auto rounded-lg bg-gray-950 p-3 font-mono text-xs leading-snug text-green-200 outline-none focus:ring-2 focus:ring-brand-500/40 dark:focus:ring-brand-400/40"
       >
         {lines.map((l, i) => <div key={i} className="whitespace-pre-wrap break-all">{l || ' '}</div>)}
       </div>
-      <p className="mt-2 text-xs text-slate-400">
+      <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
         Click the screen and type. Keystrokes go straight to the switch (Tab, ↑ history, Ctrl-C all work).
         This session is audited.
       </p>

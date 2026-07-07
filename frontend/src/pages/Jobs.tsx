@@ -80,7 +80,7 @@ export default function Jobs() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b text-left text-xs uppercase text-slate-500">
+                <tr className="border-b text-left text-xs uppercase text-slate-500 dark:text-slate-400">
                   <th className="py-2 pr-4">Status</th>
                   <th className="pr-4">Name</th>
                   <th className="pr-4">Type</th>
@@ -94,7 +94,7 @@ export default function Jobs() {
               </thead>
               <tbody>
                 {jobs.map(j => (
-                  <tr key={j.id} className="cursor-pointer border-b last:border-0 hover:bg-slate-50"
+                  <tr key={j.id} className="cursor-pointer border-b last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/50"
                       onClick={() => openDetail(j.id)}>
                     <td className="py-2 pr-4">
                       <span className="inline-flex items-center gap-1.5">
@@ -108,22 +108,22 @@ export default function Jobs() {
                       </span>
                     </td>
                     <td className="pr-4">
-                      <div className="font-medium text-slate-800">{j.name}</div>
+                      <div className="font-medium text-slate-800 dark:text-slate-100">{j.name}</div>
                       {j.status === 'running' && j.stage && (
-                        <div className="mt-0.5 text-xs text-blue-600">{j.stage}</div>
+                        <div className="mt-0.5 text-xs text-blue-600 dark:text-blue-400">{j.stage}</div>
                       )}
                     </td>
-                    <td className="pr-4 text-slate-600">{j.type}</td>
-                    <td className="pr-4 text-slate-600">{(j.device_ids ?? []).length}</td>
-                    <td className="pr-4 text-slate-600">
+                    <td className="pr-4 text-slate-600 dark:text-slate-400">{j.type}</td>
+                    <td className="pr-4 text-slate-600 dark:text-slate-400">{(j.device_ids ?? []).length}</td>
+                    <td className="pr-4 text-slate-600 dark:text-slate-400">
                       {j.attempts}{j.max_attempts > 1 ? `/${j.max_attempts}` : ''}
                       {j.status === 'pending' && j.attempts > 0 && (
-                        <span className="ml-1 text-xs text-amber-600">retry queued</span>
+                        <span className="ml-1 text-xs text-amber-600 dark:text-amber-400">retry queued</span>
                       )}
                     </td>
-                    <td className="pr-4 text-slate-600">{j.created_by}</td>
-                    <td className="pr-4 text-slate-600">{j.schedule_at ? new Date(j.schedule_at).toLocaleString() : 'immediate'}</td>
-                    <td className="pr-4 text-slate-600">{j.finished_at ? new Date(j.finished_at).toLocaleString() : '—'}</td>
+                    <td className="pr-4 text-slate-600 dark:text-slate-400">{j.created_by}</td>
+                    <td className="pr-4 text-slate-600 dark:text-slate-400">{j.schedule_at ? new Date(j.schedule_at).toLocaleString() : 'immediate'}</td>
+                    <td className="pr-4 text-slate-600 dark:text-slate-400">{j.finished_at ? new Date(j.finished_at).toLocaleString() : '—'}</td>
                     <td className="pr-2 text-right" onClick={e => e.stopPropagation()}>
                       {j.status === 'failed' && (
                         <Button variant="secondary" onClick={() => retry(j.id)} disabled={retrying === j.id}>
@@ -134,7 +134,7 @@ export default function Jobs() {
                   </tr>
                 ))}
                 {jobs.length === 0 && (
-                  <tr><td colSpan={9} className="py-8 text-center text-slate-400">No jobs yet</td></tr>
+                  <tr><td colSpan={9} className="py-8 text-center text-slate-400 dark:text-slate-500">No jobs yet</td></tr>
                 )}
               </tbody>
             </table>
@@ -146,11 +146,11 @@ export default function Jobs() {
         <Modal title={`Job: ${detail.name}`} onClose={() => setDetail(null)}>
           <div className="mb-3 flex items-center gap-2 text-sm">
             <StatusBadge status={detail.status} />
-            <span className="text-slate-600">{detail.type}</span>
-            <span className="text-slate-400">·</span>
-            <span className="text-slate-600">attempt {detail.attempts}{detail.max_attempts > 1 ? ` of ${detail.max_attempts}` : ''}</span>
-            <span className="text-slate-400">·</span>
-            <span className="text-slate-600">{detail.results?.length ?? 0} result(s)</span>
+            <span className="text-slate-600 dark:text-slate-400">{detail.type}</span>
+            <span className="text-slate-400 dark:text-slate-500">·</span>
+            <span className="text-slate-600 dark:text-slate-400">attempt {detail.attempts}{detail.max_attempts > 1 ? ` of ${detail.max_attempts}` : ''}</span>
+            <span className="text-slate-400 dark:text-slate-500">·</span>
+            <span className="text-slate-600 dark:text-slate-400">{detail.results?.length ?? 0} result(s)</span>
             {detail.status === 'failed' && (
               <span className="ml-auto">
                 <Button variant="secondary" onClick={() => retry(detail.id)} disabled={retrying === detail.id}>
@@ -161,7 +161,7 @@ export default function Jobs() {
           </div>
 
           {detail.status === 'running' && detail.stage && (
-            <div className="mb-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            <div className="mb-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">
               <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -170,23 +170,23 @@ export default function Jobs() {
             </div>
           )}
           {detail.last_error && detail.status === 'failed' && (
-            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-500/10 dark:text-red-400">
               {detail.last_error}
             </div>
           )}
           {detail.status === 'pending' && detail.run_after && new Date(detail.run_after) > new Date() && (
-            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
               Retry scheduled for {new Date(detail.run_after).toLocaleString()}
             </div>
           )}
 
           <div className="max-h-96 space-y-2 overflow-auto">
             {(detail.results ?? []).map(r => (
-              <div key={r.id} className="rounded-lg border border-slate-200 p-2 text-sm">
+              <div key={r.id} className="rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-700">
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-slate-800">{r.hostname ?? r.device_id}</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-100">{r.hostname ?? r.device_id}</span>
                   <span className="flex items-center gap-2">
-                    {r.attempt > 1 && <span className="text-xs text-slate-400">attempt {r.attempt}</span>}
+                    {r.attempt > 1 && <span className="text-xs text-slate-400 dark:text-slate-500">attempt {r.attempt}</span>}
                     <StatusBadge status={r.success ? 'done' : 'failed'} />
                   </span>
                 </div>
@@ -196,7 +196,7 @@ export default function Jobs() {
               </div>
             ))}
             {isActive(detail.status) && (detail.results?.length ?? 0) === 0 && (
-              <p className="py-4 text-center text-xs text-slate-400">Waiting for results…</p>
+              <p className="py-4 text-center text-xs text-slate-400 dark:text-slate-500">Waiting for results…</p>
             )}
           </div>
         </Modal>

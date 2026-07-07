@@ -172,10 +172,10 @@ export default function Topology({ me }: { me: Me }) {
   return (
     <div>
       <PageHeader title="Network topology">
-        <div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
+        <div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-800">
           {([['none', 'Plain'], ['util', 'Utilization'], ['vlan', 'VLAN']] as [Overlay, string][]).map(([v, label]) => (
             <button key={v} onClick={() => setOverlay(v)}
-              className={`px-3 py-1.5 transition ${overlay === v ? 'bg-brand-600 font-medium text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+              className={`px-3 py-1.5 transition ${overlay === v ? 'bg-brand-600 font-medium text-white dark:bg-brand-500' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-700'}`}>
               {label}
             </button>
           ))}
@@ -190,7 +190,7 @@ export default function Topology({ me }: { me: Me }) {
           <div className="relative">
             <svg
               ref={svgRef}
-              className="h-[70vh] w-full touch-none select-none rounded bg-slate-50"
+              className="h-[70vh] w-full touch-none select-none rounded bg-slate-50 dark:bg-slate-800/50"
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
@@ -232,8 +232,8 @@ export default function Topology({ me }: { me: Me }) {
                       )}
                       {hl && (
                         <>
-                          <text x={(a.x * 2 + b.x) / 3} y={(a.y * 2 + b.y) / 3 - 3} fontSize="9" fill="#475569" textAnchor="middle">{e.sourcePort}</text>
-                          <text x={(a.x + b.x * 2) / 3} y={(a.y + b.y * 2) / 3 - 3} fontSize="9" fill="#475569" textAnchor="middle">{e.targetPort}</text>
+                          <text x={(a.x * 2 + b.x) / 3} y={(a.y * 2 + b.y) / 3 - 3} fontSize="9" className="fill-slate-600 dark:fill-slate-400" textAnchor="middle">{e.sourcePort}</text>
+                          <text x={(a.x + b.x * 2) / 3} y={(a.y + b.y * 2) / 3 - 3} fontSize="9" className="fill-slate-600 dark:fill-slate-400" textAnchor="middle">{e.targetPort}</text>
                         </>
                       )}
                     </g>
@@ -256,13 +256,13 @@ export default function Topology({ me }: { me: Me }) {
                         : <circle cx={p.x} cy={p.y} r="10" fill={nodeFill(n)}
                                   stroke={hover === n.id ? '#0d7a5f' : 'transparent'} strokeWidth="2" />}
                       {n.stackSize > 1 && <text x={p.x} y={p.y + 4} fontSize="9" fill="white" textAnchor="middle">×{n.stackSize}</text>}
-                      <text x={p.x} y={p.y + 27} fontSize="11" fontWeight="600" fill="#1f2937" textAnchor="middle">{n.label}</text>
+                      <text x={p.x} y={p.y + 27} fontSize="11" fontWeight="600" className="fill-slate-800 dark:fill-slate-100" textAnchor="middle">{n.label}</text>
                     </g>
                   );
                 })}
               </g>
               {graph.nodes.length === 0 && (
-                <text x="50%" y="50%" textAnchor="middle" fill="#9ca3af" fontSize="14">
+                <text x="50%" y="50%" textAnchor="middle" className="fill-slate-400 dark:fill-slate-500" fontSize="14">
                   No topology yet — add devices and wait for the first CDP/LLDP poll.
                 </text>
               )}
@@ -270,17 +270,17 @@ export default function Topology({ me }: { me: Me }) {
 
             {/* hover detail card, positioned at the node's screen coords */}
             {hoverNode && hoverPos && (
-              <div className="pointer-events-none absolute z-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg"
+              <div className="pointer-events-none absolute z-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-800"
                    style={{ left: view.x + hoverPos.x * view.k + 14, top: view.y + hoverPos.y * view.k - 10 }}>
-                <div className="font-medium text-slate-800">{hoverNode.label}</div>
-                <div className="mt-0.5 text-slate-500">{hoverNode.model || (hoverNode.managed ? 'managed' : 'neighbor')}</div>
-                {hoverNode.ip && <div className="font-mono text-slate-400">{hoverNode.ip}</div>}
+                <div className="font-medium text-slate-800 dark:text-slate-100">{hoverNode.label}</div>
+                <div className="mt-0.5 text-slate-500 dark:text-slate-400">{hoverNode.model || (hoverNode.managed ? 'managed' : 'neighbor')}</div>
+                {hoverNode.ip && <div className="font-mono text-slate-400 dark:text-slate-500">{hoverNode.ip}</div>}
                 <div className="mt-0.5">
-                  <span className={hoverNode.status === 'online' ? 'text-green-600' : hoverNode.status === 'offline' ? 'text-red-600' : 'text-slate-400'}>
+                  <span className={hoverNode.status === 'online' ? 'text-green-600 dark:text-green-400' : hoverNode.status === 'offline' ? 'text-red-600 dark:text-red-400' : 'text-slate-400 dark:text-slate-500'}>
                     {hoverNode.managed ? hoverNode.status : 'unmanaged neighbor'}
                   </span>
                 </div>
-                {hoverNode.managed && <div className="mt-1 text-brand-600">double-click to open</div>}
+                {hoverNode.managed && <div className="mt-1 text-brand-600 dark:text-brand-400">double-click to open</div>}
               </div>
             )}
 
@@ -291,18 +291,18 @@ export default function Topology({ me }: { me: Me }) {
               if (!a || !b) return null;
               const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
               return (
-                <div className="pointer-events-none absolute z-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg"
+                <div className="pointer-events-none absolute z-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-800"
                      style={{ left: view.x + mx * view.k + 8, top: view.y + my * view.k - 10 }}>
-                  <div className="font-mono text-slate-700">{e.sourcePort || '?'} ↔ {e.targetPort || '?'}</div>
-                  <div className="mt-0.5 text-slate-500">
+                  <div className="font-mono text-slate-700 dark:text-slate-300">{e.sourcePort || '?'} ↔ {e.targetPort || '?'}</div>
+                  <div className="mt-0.5 text-slate-500 dark:text-slate-400">
                     {e.manual
                       ? <>manually drawn{e.note ? ` — ${e.note}` : ''}</>
                       : <>{e.speedMbps ? `${e.speedMbps >= 1000 ? e.speedMbps / 1000 + 'G' : e.speedMbps + 'M'} link` : 'speed n/a'}
                         {e.vlan ? ` · VLAN ${e.vlan}` : ''} · {e.protocol?.toUpperCase()}</>}
                   </div>
-                  {e.manual && canEdit && <div className="mt-0.5 text-red-500">click the link to delete</div>}
+                  {e.manual && canEdit && <div className="mt-0.5 text-red-500 dark:text-red-400">click the link to delete</div>}
                   {(e.inBps != null || e.outBps != null) && (
-                    <div className="mt-0.5 text-slate-500">↓ {fmtBps(e.inBps)} · ↑ {fmtBps(e.outBps)}
+                    <div className="mt-0.5 text-slate-500 dark:text-slate-400">↓ {fmtBps(e.inBps)} · ↑ {fmtBps(e.outBps)}
                       {e.utilizationPct != null && <span className="ml-1 font-semibold" style={{ color: utilColor(e.utilizationPct) }}>({e.utilizationPct}%)</span>}
                     </div>
                   )}
@@ -310,10 +310,10 @@ export default function Topology({ me }: { me: Me }) {
               );
             })()}
 
-            <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+            <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
               {overlay === 'util' ? (
                 <>
-                  <span className="font-medium text-slate-600">Link utilization:</span>
+                  <span className="font-medium text-slate-600 dark:text-slate-400">Link utilization:</span>
                   <Legend color="#16a34a" label="< 20%" />
                   <Legend color="#eab308" label="20–50%" />
                   <Legend color="#f59e0b" label="50–80%" />
@@ -322,7 +322,7 @@ export default function Topology({ me }: { me: Me }) {
                 </>
               ) : overlay === 'vlan' ? (
                 <>
-                  <span className="font-medium text-slate-600">Access VLAN of the local port;</span>
+                  <span className="font-medium text-slate-600 dark:text-slate-400">Access VLAN of the local port;</span>
                   <Legend color="#7c3aed" label="trunk" />
                   <Legend color="#0891b2" label="routed (L3)" />
                   <span>each access VLAN gets its own colour · hover a link for detail</span>
@@ -386,11 +386,11 @@ function AddLinkModal({ devices, onClose, onDone }: {
   const canSave = !!form.fromDeviceId && (external ? !!form.toLabel.trim() : !!form.toDeviceId);
   return (
     <Modal title="Add a manual link" onClose={onClose}>
-      <p className="mb-3 text-sm text-slate-500">
+      <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
         For connections discovery can't see — an unmanaged switch, a firewall, a hypervisor, a WAN handoff.
         Manual links render dashed and survive monitor sweeps.
       </p>
-      {error && <div className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {error && <div className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400">{error}</div>}
       <div className="grid grid-cols-2 gap-3">
         <Field label="From device">
           <select className={inputCls} value={form.fromDeviceId} onChange={e => setForm({ ...form, fromDeviceId: e.target.value })}>

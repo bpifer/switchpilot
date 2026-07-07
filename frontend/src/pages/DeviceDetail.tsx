@@ -52,7 +52,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
     refetchDevice();
   }, { key: 'accept', success: 'Change accepted — revert timer cancelled and config saved.' });
 
-  if (!device) return <div className="p-6 text-gray-400">Loading…</div>;
+  if (!device) return <div className="p-6 text-gray-400 dark:text-slate-500">Loading…</div>;
 
   const psu = (device.psu_status ?? []) as { id: string; status: string }[];
   const fans = (device.fan_status ?? []) as { id: string; status: string }[];
@@ -85,14 +85,14 @@ export default function DeviceDetail({ me }: { me: Me }) {
 
       {/* Identity + health summary band */}
       <div className="px-6 pt-5">
-        <div className="rounded-xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200/60">
+        <div className="rounded-xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200/60 dark:bg-slate-800 dark:ring-slate-700/60">
           <div className="flex flex-wrap items-center gap-x-7 gap-y-2.5">
             <StatusBadge status={device.status} />
             {device.firmware_update && (
               <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${
                 device.firmware_update.state === 'installing'
-                  ? 'bg-blue-100 text-blue-700 ring-blue-200'
-                  : 'bg-amber-100 text-amber-700 ring-amber-200'}`}
+                  ? 'bg-blue-100 text-blue-700 ring-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:ring-blue-500/20'
+                  : 'bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:ring-amber-500/20'}`}
                     title={device.firmware_update.state === 'installing'
                       ? 'The device is rebooting to apply a firmware update.'
                       : 'A firmware update is downloaded and will apply on the next reboot.'}>
@@ -102,7 +102,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
               </span>
             )}
             {device.revert_armed_until && new Date(device.revert_armed_until) > new Date() && (
-              <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200"
+              <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:ring-amber-500/20"
                     title="A config change is inside its revert window. Unless it is confirmed (automatically for safe apply, or by you in test mode), the device reverts itself to the pre-change config at this time.">
                 ⏳ auto-revert armed until {new Date(device.revert_armed_until).toLocaleTimeString()}
                 {canConfig && (
@@ -133,7 +133,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
                            canConfig={canConfig} onChanged={refetchDevice} />
           </div>
 
-          <div className="mt-3.5 flex flex-wrap items-center gap-x-7 gap-y-3 border-t border-slate-100 pt-3.5">
+          <div className="mt-3.5 flex flex-wrap items-center gap-x-7 gap-y-3 border-t border-slate-100 pt-3.5 dark:border-slate-800">
             <Gauge label="CPU" pct={device.cpu_pct} />
             <Gauge label="Memory" pct={device.mem_pct} />
             <Meta label="Temp" value={device.temperature_c != null ? `${device.temperature_c}°C` : null}
@@ -143,9 +143,9 @@ export default function DeviceDetail({ me }: { me: Me }) {
           </div>
 
           {device.notes && (
-            <div className="mt-3.5 border-t border-slate-100 pt-3.5">
-              <p className="whitespace-pre-wrap text-sm text-slate-600">
-                <span className="mr-1.5 font-semibold text-slate-500">Notes:</span>{device.notes}
+            <div className="mt-3.5 border-t border-slate-100 pt-3.5 dark:border-slate-800">
+              <p className="whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-400">
+                <span className="mr-1.5 font-semibold text-slate-500 dark:text-slate-400">Notes:</span>{device.notes}
               </p>
             </div>
           )}
@@ -154,20 +154,20 @@ export default function DeviceDetail({ me }: { me: Me }) {
 
       {/* Tabs */}
       <div className="px-4 pt-4 sm:px-6">
-        <div className="flex items-center justify-between gap-2 border-b border-slate-200">
+        <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700">
           <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
             {TABS.map(t => (
               <button key={t} onClick={() => setTab(t)}
                       className={`shrink-0 whitespace-nowrap px-3 py-2 text-sm capitalize transition-colors sm:px-4 ${tab === t
-                        ? 'border-b-2 border-brand-600 font-medium text-brand-700'
-                        : 'text-gray-500 hover:text-gray-700'}`}>
+                        ? 'border-b-2 border-brand-600 font-medium text-brand-700 dark:border-brand-400 dark:text-brand-400'
+                        : 'text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-300'}`}>
                 {t === 'vlans' ? <span className="normal-case">VLANs</span> : t}
               </button>
             ))}
           </div>
           {canConfig && (
             <button onClick={() => setShowTerminal(true)}
-                    className="mb-1 inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                    className="mb-1 inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/50">
               <span className="font-mono">›_</span> <span className="hidden sm:inline">Terminal</span>
             </button>
           )}
@@ -269,7 +269,7 @@ function DeviceSettingsModal({ deviceId, sites, current, onClose, onSaved }: {
           <option value="debugging">7 - debugging</option>
         </select>
       </Field>
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
         <Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
@@ -295,26 +295,26 @@ function ProvisionModal({ deviceId, onClose }: { deviceId: string; onClose: () =
 
   return (
     <Modal title="Baseline configuration" onClose={onClose}>
-      <p className="mb-3 text-sm text-slate-500">
+      <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
         These settings let SwitchPilot use all its features against this switch. A pre-change
         backup is taken automatically, and the push runs as a job you can watch and retry.
       </p>
       {!plan ? (
-        <p className="py-4 text-center text-sm text-slate-400">Building plan…</p>
+        <p className="py-4 text-center text-sm text-slate-400 dark:text-slate-500">Building plan…</p>
       ) : (
         <>
           <pre className="mb-3 rounded-lg bg-gray-900 p-3 text-xs leading-relaxed text-green-300">
             {plan.lines.join('\n')}
           </pre>
-          <ul className="mb-4 space-y-1 text-xs text-slate-500">
+          <ul className="mb-4 space-y-1 text-xs text-slate-500 dark:text-slate-400">
             {plan.notes.map((n, i) => <li key={i}>• {n}</li>)}
           </ul>
         </>
       )}
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {done ? (
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-green-700">Job queued - see the Jobs page for progress.</span>
+          <span className="text-sm font-medium text-green-700 dark:text-green-400">Job queued - see the Jobs page for progress.</span>
           <Button onClick={onClose}>Close</Button>
         </div>
       ) : (
@@ -345,18 +345,18 @@ function HostKeyStatus({ deviceId, fp, pinnedAt, canConfig, onChanged }: {
 
   return (
     <div className="flex items-baseline gap-1.5">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">SSH key</span>
+      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">SSH key</span>
       {pinned ? (
-        <span className="font-mono text-xs text-slate-700"
+        <span className="font-mono text-xs text-slate-700 dark:text-slate-300"
               title={`${fp}${pinnedAt ? ` — pinned ${new Date(pinnedAt).toLocaleString()}` : ''}`}>
           🔒 {fp!.replace(/^SHA256:/, '').slice(0, 12)}…
         </span>
       ) : (
-        <span className="text-sm text-amber-600" title="Pins automatically on the next successful SSH connection">not pinned</span>
+        <span className="text-sm text-amber-600 dark:text-amber-400" title="Pins automatically on the next successful SSH connection">not pinned</span>
       )}
       {canConfig && pinned && (
         <button onClick={repin} disabled={busy}
-                className="ml-0.5 text-xs text-brand-600 hover:underline disabled:opacity-50">
+                className="ml-0.5 text-xs text-brand-600 hover:underline disabled:opacity-50 dark:text-brand-400">
           {busy ? '…' : 're-pin'}
         </button>
       )}
@@ -379,8 +379,8 @@ function Meta({ label, value, mono = false, tone }: {
   if (!value) return null;
   return (
     <div className="flex items-baseline gap-1.5">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</span>
-      <span className={`text-sm ${mono ? 'font-mono text-xs' : ''} ${tone === 'warn' ? 'font-medium text-amber-600' : 'text-slate-700'}`}>
+      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</span>
+      <span className={`text-sm ${mono ? 'font-mono text-xs' : ''} ${tone === 'warn' ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-300'}`}>
         {value}
       </span>
     </div>
@@ -392,11 +392,11 @@ function Gauge({ label, pct }: { label: string; pct: number | null }) {
   const color = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-400' : 'bg-green-500';
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</span>
-      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</span>
+      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/50">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
-      <span className="text-sm tabular-nums text-slate-700">{pct}%</span>
+      <span className="text-sm tabular-nums text-slate-700 dark:text-slate-300">{pct}%</span>
     </div>
   );
 }
@@ -407,13 +407,13 @@ function HardwareHealth({ label, items }: { label: string; items: { id: string; 
   const bad = items.filter(i => !ok(i.status));
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</span>
+      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</span>
       {bad.length === 0 ? (
-        <span className="inline-flex items-center gap-1 text-sm text-green-600">
+        <span className="inline-flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
           <span className="h-1.5 w-1.5 rounded-full bg-green-500" /> OK
         </span>
       ) : (
-        <span className="text-sm font-medium text-red-600">
+        <span className="text-sm font-medium text-red-600 dark:text-red-400">
           {bad.map(b => `${b.id}: ${b.status}`).join(', ')}
         </span>
       )}

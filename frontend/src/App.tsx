@@ -8,6 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import CommandPalette from './components/CommandPalette';
 import { Toaster } from './components/Toast';
 import { LogoMark } from './components/Logo';
+import ThemeToggle from './components/ThemeToggle';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApiQuery } from './hooks/useApiQuery';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -136,14 +137,23 @@ function useOpenAlerts() {
   return { open, critical };
 }
 
-function AlertsBell() {
+// onDark: the sidebar rail is ALWAYS dark regardless of the app theme, so its
+// hover treatment (white/10 overlay) must NOT be gated behind dark:. The
+// mobile top bar instead follows the app theme, so it needs the dark:
+// variant form - without this split, the bell's text went white-on-white on
+// hover in the (light-mode) mobile header, a real pre-existing bug.
+function AlertsBell({ onDark = false }: { onDark?: boolean }) {
   const navigate = useNavigate();
   const { open, critical } = useOpenAlerts();
   return (
     <button
       title={open > 0 ? `${open} open alert${open !== 1 ? 's' : ''} (all sites)` : 'No open alerts (all sites)'}
       onClick={() => navigate('/alerts')}
-      className="relative rounded-lg p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-white"
+      className={`relative rounded-lg p-1.5 transition ${
+        onDark
+          ? 'text-slate-400 hover:bg-white/10 hover:text-white'
+          : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white'
+      }`}
     >
       <Icon d={ICONS.alerts} className="h-5 w-5" />
       {open > 0 && (
@@ -190,10 +200,10 @@ function NotFound() {
   const location = useLocation();
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-      <Icon d={ICONS.alerts} className="h-8 w-8 text-slate-300" />
-      <p className="text-sm font-medium text-slate-600">No page at <span className="font-mono text-slate-400">{location.pathname}</span></p>
-      <p className="text-sm text-slate-400">Check the address, or it may have moved.</p>
-      <Link to="/" className="text-sm font-medium text-brand-600 hover:text-brand-700 hover:underline">← Back to Dashboard</Link>
+      <Icon d={ICONS.alerts} className="h-8 w-8 text-slate-300 dark:text-slate-600" />
+      <p className="text-sm font-medium text-slate-600 dark:text-slate-300">No page at <span className="font-mono text-slate-400 dark:text-slate-500">{location.pathname}</span></p>
+      <p className="text-sm text-slate-400 dark:text-slate-500">Check the address, or it may have moved.</p>
+      <Link to="/" className="text-sm font-medium text-brand-600 hover:text-brand-700 hover:underline dark:text-brand-400 dark:hover:text-brand-300">← Back to Dashboard</Link>
     </div>
   );
 }
@@ -241,8 +251,8 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center gap-3 text-slate-400">
+      <div className="flex h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <div className="flex flex-col items-center gap-3 text-slate-400 dark:text-slate-500">
           <svg className="h-8 w-8 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -277,7 +287,7 @@ export default function App() {
     <SiteScopeProvider>
     <CommandPalette />
     <Toaster />
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-950">
       {/* Mobile drawer backdrop */}
       {navOpen && (
         <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" aria-hidden onClick={() => setNavOpen(false)} />
@@ -290,7 +300,7 @@ export default function App() {
             <div className="text-sm font-semibold leading-none">SwitchPilot</div>
             <div className="mt-0.5 text-[10px] text-slate-400 leading-none">Network Management</div>
           </div>
-          <AlertsBell />
+          <AlertsBell onDark />
           {/* Close drawer (mobile only) */}
           <button className="lg:hidden -mr-1 rounded p-1 text-slate-400 hover:text-white" aria-label="Close menu" onClick={() => setNavOpen(false)}>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-5 w-5">
@@ -376,24 +386,29 @@ export default function App() {
             Sign out
           </button>
         </div>
+
+        {/* Theme - bottom of the sidebar, so it's the last thing in the app frame */}
+        <div className="border-t border-slate-800 px-2 py-2">
+          <ThemeToggle />
+        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile top bar (hidden on lg+, where the sidebar is always visible) */}
-        <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2.5 lg:hidden">
-          <button className="-ml-1 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100" aria-label="Open menu" onClick={() => setNavOpen(true)}>
+        <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2.5 lg:hidden dark:border-slate-800 dark:bg-slate-900">
+          <button className="-ml-1 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5" aria-label="Open menu" onClick={() => setNavOpen(true)}>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="h-6 w-6">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
             </svg>
           </button>
           <LogoMark className="h-7 w-7 shrink-0" />
-          <span className="font-semibold text-slate-800">SwitchPilot</span>
+          <span className="font-semibold text-slate-800 dark:text-slate-100">SwitchPilot</span>
           <div className="ml-auto"><AlertsBell /></div>
         </header>
 
         <main className="flex-1 overflow-auto">
         <ErrorBoundary>
-        <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading…</div>}>
+        <Suspense fallback={<div className="p-8 text-sm text-slate-400 dark:text-slate-500">Loading…</div>}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/devices" element={<Devices me={me} />} />

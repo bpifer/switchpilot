@@ -96,12 +96,12 @@ export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
   return (
     <Modal title="Add switch" onClose={onClose}>
       {error && (
-        <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{error}</div>
+        <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100 dark:bg-red-500/10 dark:text-red-400 dark:ring-red-500/20">{error}</div>
       )}
 
       {step === 'creds' && (
         <>
-          <p className="mb-4 text-sm text-slate-500">
+          <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
             Enter the management IP and an account with management privileges. SwitchPilot connects
             over SSH, identifies the switch, and reviews its config before changing anything.
           </p>
@@ -141,16 +141,16 @@ export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
 
       {step === 'review' && analysis && (
         <>
-          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-sm">
-            <div className="font-medium text-slate-800">{analysis.identity.hostname || form.mgmtIp}</div>
-            <div className="mt-0.5 font-mono text-xs text-slate-500">
+          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-sm dark:border-slate-700 dark:bg-slate-800/40">
+            <div className="font-medium text-slate-800 dark:text-slate-100">{analysis.identity.hostname || form.mgmtIp}</div>
+            <div className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">
               {analysis.identity.model} · {analysis.identity.iosVersion} · SN {analysis.identity.serial}
             </div>
             {analysis.hostKeyFingerprint && (
-              <div className="mt-2 border-t border-slate-200 pt-2">
-                <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">SSH host key</div>
-                <div className="mt-0.5 break-all font-mono text-xs text-slate-600">{analysis.hostKeyFingerprint}</div>
-                <div className="mt-0.5 text-[11px] text-slate-400">
+              <div className="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700">
+                <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">SSH host key</div>
+                <div className="mt-0.5 break-all font-mono text-xs text-slate-600 dark:text-slate-400">{analysis.hostKeyFingerprint}</div>
+                <div className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
                   Verify this matches the switch (e.g. <span className="font-mono">ssh-keygen -lf</span> on its host key)
                   before onboarding. It is pinned on first connect; a later change is then refused.
                 </div>
@@ -159,62 +159,62 @@ export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
           </div>
 
           {requirementsMet && (
-            <div className="mb-4 flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-3 py-2.5 text-sm font-medium text-green-800">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-200 text-xs font-bold text-green-800">✓</span>
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-3 py-2.5 text-sm font-medium text-green-800 dark:bg-green-500/10 dark:text-green-400">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-200 text-xs font-bold text-green-800 dark:text-green-400">✓</span>
               This switch already meets the onboarding requirements.
             </div>
           )}
 
-          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Config review</div>
+          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Config review</div>
           <div className="mb-4 space-y-1.5">
             {analysis.checklist.map(c => (
-              <div key={c.key} className="flex items-start gap-2.5 rounded-lg border border-slate-100 px-3 py-2">
+              <div key={c.key} className="flex items-start gap-2.5 rounded-lg border border-slate-100 px-3 py-2 dark:border-slate-800">
                 {c.present ? (
-                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-green-100 text-[10px] font-bold text-green-700">✓</span>
+                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-green-100 text-[10px] font-bold text-green-700 dark:bg-green-500/10 dark:text-green-400">✓</span>
                 ) : (
-                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[10px] font-bold text-amber-700">!</span>
+                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[10px] font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">!</span>
                 )}
                 <div className="min-w-0">
-                  <div className="text-sm text-slate-700">
+                  <div className="text-sm text-slate-700 dark:text-slate-300">
                     {c.label}
-                    {!c.present && <span className="ml-2 text-xs font-medium text-amber-600">missing</span>}
+                    {!c.present && <span className="ml-2 text-xs font-medium text-amber-600 dark:text-amber-400">missing</span>}
                   </div>
-                  <div className="text-xs text-slate-400">{c.why}</div>
+                  <div className="text-xs text-slate-400 dark:text-slate-500">{c.why}</div>
                 </div>
               </div>
             ))}
           </div>
 
           {isMikrotik ? (
-            <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">
               RouterOS device - SwitchPilot will manage it with the "{form.username}" account you provided.
               There is no separate platform account to create.
             </div>
           ) : (
           <>
-          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Admin accounts</div>
+          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Admin accounts</div>
           <div className="mb-4 flex flex-wrap gap-1.5">
             {analysis.users.map(u => (
               <span key={u.name}
-                className={`rounded px-2 py-0.5 font-mono text-xs ${u.priv15 ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' : 'bg-slate-100 text-slate-500'}`}>
+                className={`rounded px-2 py-0.5 font-mono text-xs ${u.priv15 ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:ring-blue-500/20' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/50 dark:text-slate-400'}`}>
                 {u.name}{u.priv15 ? ' (priv 15)' : ''}
               </span>
             ))}
-            {analysis.users.length === 0 && <span className="text-xs text-slate-400">none found in running config</span>}
+            {analysis.users.length === 0 && <span className="text-xs text-slate-400 dark:text-slate-500">none found in running config</span>}
           </div>
 
           {analysis.usingPlatformAccount ? (
-            <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">
               You supplied the SPAdmin account - SwitchPilot will use it as-is.
               {analysis.otherAdmins.length === 0 &&
                 ' Warning: no other privilege-15 account exists. Create a break-glass admin so you cannot be locked out.'}
             </div>
           ) : analysis.spAdminExists ? (
-            <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-green-200 bg-green-50 p-3">
-              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-green-200 text-[10px] font-bold text-green-800">✓</span>
+            <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-green-200 bg-green-50 p-3 dark:bg-green-500/10">
+              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-green-200 text-[10px] font-bold text-green-800 dark:text-green-400">✓</span>
               <span className="text-sm">
-                <span className="font-medium text-green-800">SPAdmin account already present</span>
-                <span className="mt-0.5 block text-xs text-green-700">
+                <span className="font-medium text-green-800 dark:text-green-400">SPAdmin account already present</span>
+                <span className="mt-0.5 block text-xs text-green-700 dark:text-green-400">
                   Account creation is disabled so its password isn't reset out from under you.
                   Onboard with the "{form.username}" account (used as-is), or go back and enter the
                   existing SPAdmin credentials directly to manage as SPAdmin.
@@ -222,12 +222,12 @@ export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
               </span>
             </div>
           ) : (
-            <label className="mb-3 flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-              <input type="checkbox" className="mt-0.5 rounded border-slate-300"
+            <label className="mb-3 flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+              <input type="checkbox" className="mt-0.5 rounded border-slate-300 dark:border-slate-600"
                      checked={createAccount} onChange={e => setCreateAccount(e.target.checked)} />
               <span className="text-sm">
-                <span className="font-medium text-slate-700">Create dedicated SPAdmin account</span>
-                <span className="mt-0.5 block text-xs text-slate-500">
+                <span className="font-medium text-slate-700 dark:text-slate-300">Create dedicated SPAdmin account</span>
+                <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
                   Adds a <span className="font-mono">SPAdmin</span> privilege-15 user with a random password
                   (stored encrypted), verifies it can log in, and uses it for all future management - so
                   platform changes are attributable in the switch's logs instead of appearing as
@@ -240,22 +240,22 @@ export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
           )}
 
           {baselineComplete ? (
-            <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-green-200 bg-green-50 p-3">
-              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-green-200 text-[10px] font-bold text-green-800">✓</span>
+            <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-green-200 bg-green-50 p-3 dark:bg-green-500/10">
+              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-green-200 text-[10px] font-bold text-green-800 dark:text-green-400">✓</span>
               <span className="text-sm">
-                <span className="font-medium text-green-800">Baseline already applied</span>
-                <span className="mt-0.5 block text-xs text-green-700">
+                <span className="font-medium text-green-800 dark:text-green-400">Baseline already applied</span>
+                <span className="mt-0.5 block text-xs text-green-700 dark:text-green-400">
                   All baseline items are present - nothing to push.
                 </span>
               </span>
             </div>
           ) : (
-            <label className="mb-4 flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-              <input type="checkbox" className="mt-0.5 rounded border-slate-300"
+            <label className="mb-4 flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+              <input type="checkbox" className="mt-0.5 rounded border-slate-300 dark:border-slate-600"
                      checked={applyBaseline} onChange={e => setApplyBaseline(e.target.checked)} />
               <span className="text-sm">
-                <span className="font-medium text-slate-700">Apply missing baseline config</span>
-                <span className="mt-0.5 block text-xs text-slate-500">
+                <span className="font-medium text-slate-700 dark:text-slate-300">Apply missing baseline config</span>
+                <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
                   Pushes the items marked missing above as a job (with a pre-change backup).
                 </span>
               </span>
@@ -274,18 +274,18 @@ export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
 
       {step === 'done' && result && (
         <>
-          <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:bg-green-500/10 dark:text-green-400">
             <span className="font-medium">{result.device.hostname}</span> onboarded successfully.
           </div>
 
           {result.generatedPassword && (
-            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
-              <div className="text-sm font-medium text-amber-800">SPAdmin password (shown once)</div>
-              <div className="mt-1 text-xs text-amber-700">
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:bg-amber-500/10">
+              <div className="text-sm font-medium text-amber-800 dark:text-amber-400">SPAdmin password (shown once)</div>
+              <div className="mt-1 text-xs text-amber-700 dark:text-amber-400">
                 Stored encrypted in SwitchPilot - save it in your password manager as a backup.
               </div>
               <div className="mt-2 flex items-center gap-2">
-                <code className="flex-1 rounded bg-white px-3 py-2 font-mono text-sm ring-1 ring-amber-200">
+                <code className="flex-1 rounded bg-white px-3 py-2 font-mono text-sm ring-1 ring-amber-200 dark:bg-slate-800 dark:ring-amber-500/20">
                   {result.generatedPassword}
                 </code>
                 <Button variant="secondary" onClick={() => {
@@ -297,7 +297,7 @@ export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
           )}
 
           {result.warnings.map((w, i) => (
-            <div key={i} className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">{w}</div>
+            <div key={i} className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">{w}</div>
           ))}
 
           <div className="flex justify-end gap-2">

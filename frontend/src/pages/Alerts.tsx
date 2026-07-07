@@ -57,26 +57,26 @@ export default function Alerts({ me }: { me: Me }) {
                 <div className="flex items-center gap-3">
                   <StatusBadge status={a.severity} />
                   <span className="font-medium">{a.hostname ?? 'platform'}</span>
-                  <span className="flex-1 text-gray-600">{a.message}</span>
-                  <span className="text-xs text-gray-400">{new Date(a.created_at).toLocaleString()}</span>
-                  {a.resolved_at ? <span className="text-xs text-green-600">resolved</span> : canAck && (
+                  <span className="flex-1 text-gray-600 dark:text-slate-400">{a.message}</span>
+                  <span className="text-xs text-gray-400 dark:text-slate-500">{new Date(a.created_at).toLocaleString()}</span>
+                  {a.resolved_at ? <span className="text-xs text-green-600 dark:text-green-400">resolved</span> : canAck && (
                     <span className="flex gap-2">
-                      {!a.acknowledged && <button className={`${rowActionCls} text-brand-600`}
+                      {!a.acknowledged && <button className={`${rowActionCls} text-brand-600 dark:text-brand-400`}
                         onClick={() => setAckTarget(a)}>ack</button>}
-                      <button className={`${rowActionCls} text-gray-500`}
+                      <button className={`${rowActionCls} text-gray-500 dark:text-slate-400`}
                         onClick={() => resolve(a)}>resolve</button>
                     </span>
                   )}
                 </div>
                 {a.acknowledged && (a.acknowledged_by || a.ack_note) && (
-                  <div className="mt-1 pl-9 text-xs text-gray-400">
+                  <div className="mt-1 pl-9 text-xs text-gray-400 dark:text-slate-500">
                     ack’d{a.acknowledged_by ? ` by ${a.acknowledged_by}` : ''}
                     {a.ack_note ? ` — “${a.ack_note}”` : ''}
                   </div>
                 )}
               </li>
             ))}
-            {alerts.length === 0 && <li className="py-6 text-center text-sm text-gray-400">No alerts</li>}
+            {alerts.length === 0 && <li className="py-6 text-center text-sm text-gray-400 dark:text-slate-500">No alerts</li>}
           </ul>
         </Card>
         <Card title="Automation rules">
@@ -87,22 +87,22 @@ export default function Alerts({ me }: { me: Me }) {
                   <span className="font-medium">{r.name}</span>
                   {canRules && (
                     <span className="flex items-center gap-2">
-                      <label className="flex items-center gap-1 text-xs text-gray-500">
+                      <label className="flex items-center gap-1 text-xs text-gray-500 dark:text-slate-400">
                         <input type="checkbox" checked={r.enabled}
                                onChange={e => toggleRule(r.id, e.target.checked)} />
                         enabled
                       </label>
-                      <button className={`${rowActionCls} text-brand-600`}
+                      <button className={`${rowActionCls} text-brand-600 dark:text-brand-400`}
                               onClick={() => setEditRule(r)}>edit</button>
-                      <button className={`${rowActionCls} text-red-600`}
+                      <button className={`${rowActionCls} text-red-600 dark:text-red-400`}
                               onClick={() => deleteRule(r)}>delete</button>
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-gray-500">when <b>{r.trigger}</b> → <b>{r.action}</b></div>
+                <div className="text-xs text-gray-500 dark:text-slate-400">when <b>{r.trigger}</b> → <b>{r.action}</b></div>
               </li>
             ))}
-            {rules.length === 0 && <li className="py-4 text-center text-sm text-gray-400">No rules. Example: “if a port goes down, notify Teams”.</li>}
+            {rules.length === 0 && <li className="py-4 text-center text-sm text-gray-400 dark:text-slate-500">No rules. Example: “if a port goes down, notify Teams”.</li>}
           </ul>
         </Card>
       </div>
@@ -128,10 +128,10 @@ function AckModal({ alert, onClose }: { alert: any; onClose: () => void }) {
 
   return (
     <Modal title="Acknowledge alert" onClose={onClose}>
-      <p className="mb-3 text-sm text-gray-600">
+      <p className="mb-3 text-sm text-gray-600 dark:text-slate-400">
         <StatusBadge status={alert.severity} /> {alert.hostname ?? 'platform'}: {alert.message}
       </p>
-      {error && <div className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {error && <div className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400">{error}</div>}
       <Field label="Note (optional)">
         <textarea className={inputCls} rows={3} value={note} onChange={e => setNote(e.target.value)}
                   placeholder="e.g. known issue, RMA pending; expected during migration" />
@@ -174,7 +174,7 @@ function RuleModal({ rule, onClose }: { rule?: any; onClose: () => void }) {
 
   return (
     <Modal title={editing ? 'Edit automation rule' : 'New automation rule'} onClose={onClose}>
-      {error && <div className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {error && <div className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400">{error}</div>}
       <Field label="Name"><input className={inputCls} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></Field>
       <Field label="Trigger">
         <select className={inputCls} value={form.trigger} onChange={e => setForm({ ...form, trigger: e.target.value })}>

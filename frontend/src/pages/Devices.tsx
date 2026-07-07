@@ -69,10 +69,10 @@ export default function Devices({ me }: { me: Me }) {
     else { setSortKey(key); setSortDir('asc'); }
   }
   const Th = ({ k, label, className = '' }: { k: SortKey; label: string; className?: string }) => (
-    <th className={`pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500 ${className}`}>
-      <button className="inline-flex items-center gap-1 hover:text-slate-700" onClick={() => toggleSort(k)}>
+    <th className={`pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 ${className}`}>
+      <button className="inline-flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-300" onClick={() => toggleSort(k)}>
         {label}
-        <span className="text-[9px] text-slate-400">{sortKey === k ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}</span>
+        <span className="text-[9px] text-slate-400 dark:text-slate-500">{sortKey === k ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}</span>
       </button>
     </th>
   );
@@ -96,14 +96,14 @@ export default function Devices({ me }: { me: Me }) {
             <option value="unknown">Unknown</option>
           </select>
           {(search || statusFilter) && (
-            <span className="text-xs text-slate-400">{visible.length} of {devices.length}</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500">{visible.length} of {devices.length}</span>
           )}
         </div>
         <Card>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100 text-left">
+                <tr className="border-b border-slate-100 text-left dark:border-slate-800">
                   <Th k="status" label="Status" />
                   <Th k="hostname" label="Hostname" />
                   <Th k="model" label="Model" />
@@ -117,47 +117,47 @@ export default function Devices({ me }: { me: Me }) {
                   {canEdit && <th className="pb-3"></th>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                 {visible.map(d => (
-                  <tr key={d.id} className="group transition hover:bg-slate-50/80">
+                  <tr key={d.id} className="group transition hover:bg-slate-50/80 dark:hover:bg-slate-800/60">
                     <td className="py-3 pr-4"><StatusBadge status={d.status} /></td>
                     <td className="py-3 pr-4">
                       <Link
-                        className="font-medium text-brand-600 hover:text-brand-700 hover:underline"
+                        className="font-medium text-brand-600 hover:text-brand-700 hover:underline dark:text-brand-400 dark:hover:text-brand-400"
                         to={`/devices/${d.id}`}
                       >
                         {d.hostname || d.mgmt_ip}
                       </Link>
                       {Array.isArray(d.stack_members) && d.stack_members.length > 1 && (
-                        <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
+                        <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-700/50 dark:text-slate-400">
                           stack ×{d.stack_members.length}
                         </span>
                       )}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">{d.model || '—'}</td>
-                    <td className="py-3 pr-4 font-mono text-xs text-slate-500">{d.mgmt_ip}</td>
-                    <td className="py-3 pr-4 font-mono text-xs text-slate-500">{d.serial_number || '—'}</td>
-                    <td className="py-3 pr-4 text-slate-600">{d.ios_version || '—'}</td>
-                    <td className="py-3 pr-4 text-slate-600">{fmtUptime(d.uptime_seconds)}</td>
+                    <td className="py-3 pr-4 text-slate-600 dark:text-slate-400">{d.model || '—'}</td>
+                    <td className="py-3 pr-4 font-mono text-xs text-slate-500 dark:text-slate-400">{d.mgmt_ip}</td>
+                    <td className="py-3 pr-4 font-mono text-xs text-slate-500 dark:text-slate-400">{d.serial_number || '—'}</td>
+                    <td className="py-3 pr-4 text-slate-600 dark:text-slate-400">{d.ios_version || '—'}</td>
+                    <td className="py-3 pr-4 text-slate-600 dark:text-slate-400">{fmtUptime(d.uptime_seconds)}</td>
                     <td className="py-3 pr-4">
                       {d.cpu_pct != null ? (
-                        <span className={d.cpu_pct >= 90 ? 'font-medium text-red-600' : 'text-slate-600'}>
+                        <span className={d.cpu_pct >= 90 ? 'font-medium text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'}>
                           {d.cpu_pct}%
                         </span>
                       ) : '—'}
                     </td>
                     <td className="py-3 pr-4">
                       {d.mem_pct != null ? (
-                        <span className={d.mem_pct >= 90 ? 'font-medium text-red-600' : 'text-slate-600'}>
+                        <span className={d.mem_pct >= 90 ? 'font-medium text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'}>
                           {d.mem_pct}%
                         </span>
                       ) : '—'}
                     </td>
-                    <td className="py-3 text-slate-600">{d.site_name ?? '—'}</td>
+                    <td className="py-3 text-slate-600 dark:text-slate-400">{d.site_name ?? '—'}</td>
                     {canEdit && (
                       <td className="py-3 pl-2 text-right">
                         <button
-                          className={`${rowActionCls} text-slate-300 opacity-0 transition hover:text-red-600 group-hover:opacity-100 max-lg:opacity-100 max-lg:text-slate-400`}
+                          className={`${rowActionCls} text-slate-300 opacity-0 transition hover:text-red-600 group-hover:opacity-100 max-lg:opacity-100 max-lg:text-slate-400 dark:text-slate-600 dark:hover:text-red-400 dark:max-lg:text-slate-500`}
                           onClick={async () => {
                             if (!confirm(`Remove ${d.hostname || d.mgmt_ip} from SwitchPilot?\n\nThis deletes its history (ports, metrics, backups, alerts) from the platform. The switch itself is not touched.`)) return;
                             try { await api(`/api/devices/${d.id}`, { method: 'DELETE' }); load(); }
@@ -171,23 +171,23 @@ export default function Devices({ me }: { me: Me }) {
                 ))}
                 {visible.length === 0 && devices.length > 0 && (
                   <tr>
-                    <td colSpan={11} className="py-12 text-center text-sm text-slate-400">
+                    <td colSpan={11} className="py-12 text-center text-sm text-slate-400 dark:text-slate-500">
                       No devices match the current filter.
                     </td>
                   </tr>
                 )}
                 {devices.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="py-12 text-center text-slate-400">
+                    <td colSpan={11} className="py-12 text-center text-slate-400 dark:text-slate-500">
                       <div className="flex flex-col items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                             strokeWidth={1.5} stroke="currentColor" className="h-8 w-8 text-slate-300">
+                             strokeWidth={1.5} stroke="currentColor" className="h-8 w-8 text-slate-300 dark:text-slate-600">
                           <path strokeLinecap="round" strokeLinejoin="round"
                                 d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                         </svg>
                         <span className="text-sm">No devices yet.</span>
                         {canEdit && (
-                          <span className="text-xs text-slate-400">
+                          <span className="text-xs text-slate-400 dark:text-slate-500">
                             Add a credential profile, then add your first switch.
                           </span>
                         )}
@@ -255,17 +255,17 @@ function CredentialManager({ credentials, onClose }: { credentials: any[]; onClo
   return (
     <Modal title="Credential profiles" onClose={onClose}>
       {credentials.length > 0 && (
-        <ul className="mb-5 divide-y divide-slate-100 rounded-lg border border-slate-200 overflow-hidden">
+        <ul className="mb-5 divide-y divide-slate-100 rounded-lg border border-slate-200 overflow-hidden dark:divide-slate-800 dark:border-slate-700">
           {credentials.map(c => (
-            <li key={c.id} className="flex items-center justify-between px-4 py-3 text-sm bg-white hover:bg-slate-50">
+            <li key={c.id} className="flex items-center justify-between px-4 py-3 text-sm bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/50">
               <div>
-                <span className="font-medium text-slate-800">{c.name}</span>
-                <span className="ml-2 text-slate-400">ssh: {c.ssh_username || '—'} · snmp v{c.snmp_version}</span>
+                <span className="font-medium text-slate-800 dark:text-slate-100">{c.name}</span>
+                <span className="ml-2 text-slate-400 dark:text-slate-500">ssh: {c.ssh_username || '—'} · snmp v{c.snmp_version}</span>
               </div>
               <div className="flex items-center gap-3">
-                <button className={`${rowActionCls} text-brand-600 hover:text-brand-700`} onClick={() => startEdit(c)}>Edit</button>
+                <button className={`${rowActionCls} text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300`} onClick={() => startEdit(c)}>Edit</button>
                 <button
-                  className={`${rowActionCls} text-red-500 hover:text-red-700`}
+                  className={`${rowActionCls} text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300`}
                   onClick={() => api(`/api/credentials/${c.id}`, { method: 'DELETE' }).then(onClose)
                     .catch((err: any) => toast.error(err.message))}
                 >
@@ -277,9 +277,9 @@ function CredentialManager({ credentials, onClose }: { credentials: any[]; onClo
         </ul>
       )}
 
-      <h3 className="mb-3 text-sm font-semibold text-slate-700">{editingId ? 'Edit profile' : 'New profile'}</h3>
+      <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">{editingId ? 'Edit profile' : 'New profile'}</h3>
       {error && (
-        <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">
+        <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100 dark:bg-red-500/10 dark:text-red-400 dark:ring-red-500/20">
           {error}
         </div>
       )}

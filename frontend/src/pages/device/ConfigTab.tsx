@@ -96,10 +96,10 @@ export default function ConfigTab({ deviceId, canConfig }: { deviceId: string; c
       </Card>
       {canConfig && (
         <Card title="Push configuration">
-          <textarea className="h-64 w-full rounded border p-2 font-mono text-xs"
+          <textarea className="h-64 w-full rounded border border-slate-300 bg-white p-2 font-mono text-xs text-slate-900 placeholder:text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
                     placeholder={'interface GigabitEthernet1/0/10\n description Printer\n switchport access vlan 20'}
                     value={pushLines} onChange={e => setPushLines(e.target.value)} />
-          <div className="mt-2 space-y-1 text-xs text-slate-500">
+          <div className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
             {([
               ['direct', 'Apply & save', 'Push the lines and persist them. No safety net.'],
               ['safe', 'Safe apply', 'Auto-reverts only if the platform loses contact with the device after the change (Cisco IOS-XE & RouterOS).'],
@@ -108,13 +108,13 @@ export default function ConfigTab({ deviceId, canConfig }: { deviceId: string; c
               <label key={mode} className="flex items-start gap-2" title={help}>
                 <input type="radio" name="applyMode" className="mt-0.5" checked={applyMode === mode}
                        onChange={() => setApplyMode(mode)} />
-                <span><span className="font-medium text-slate-600">{label}</span> — {help}</span>
+                <span><span className="font-medium text-slate-600 dark:text-slate-400">{label}</span> — {help}</span>
               </label>
             ))}
             {applyMode !== 'direct' && (
               <label className="flex items-center gap-2 pl-5 pt-1">
                 Revert window:
-                <select className="rounded border border-slate-300 px-1.5 py-0.5 text-xs"
+                <select className="rounded border border-slate-300 px-1.5 py-0.5 text-xs dark:border-slate-600"
                         value={confirmSecs} onChange={e => setConfirmSecs(parseInt(e.target.value, 10))}>
                   <option value={60}>1 minute</option>
                   <option value={120}>2 minutes</option>
@@ -125,7 +125,7 @@ export default function ConfigTab({ deviceId, canConfig }: { deviceId: string; c
             )}
           </div>
           <div className="mt-2 flex items-center justify-between">
-            <span className="text-xs text-slate-400">Preview shows what changes and flags risky lines before applying.</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500">Preview shows what changes and flags risky lines before applying.</span>
             <Button onClick={runPreview} disabled={!pushLines.trim() || busy}>
               {busy && !preview ? 'Checking…' : 'Preview & push'}
             </Button>

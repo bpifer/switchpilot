@@ -11,9 +11,21 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="SwitchPilot" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="color-scheme" content="light dark" />
     <title>SwitchPilot - Network Management</title>
+    <!-- Applied before first paint so a stored/system dark preference doesn't
+         flash light-then-dark once React mounts. Kept tiny and inline. -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('sp.theme');
+          var dark = t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) { /* localStorage unavailable (private mode) - default light */ }
+      })();
+    </script>
   </head>
-  <body class="bg-gray-50">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

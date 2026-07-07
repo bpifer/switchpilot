@@ -45,32 +45,32 @@ export default function Sites({ me }: { me: Me }) {
       </PageHeader>
 
       <div className="p-6">
-        {error && <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{error}</div>}
+        {error && <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100 dark:bg-red-500/10 dark:text-red-400 dark:ring-red-500/20">{error}</div>}
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {sites.map(s => (
             <Card key={s.id}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="truncate text-base font-semibold text-slate-800">{s.name}</div>
-                  {s.address && <div className="mt-0.5 truncate text-xs text-slate-400">{s.address}</div>}
+                  <div className="truncate text-base font-semibold text-slate-800 dark:text-slate-100">{s.name}</div>
+                  {s.address && <div className="mt-0.5 truncate text-xs text-slate-400 dark:text-slate-500">{s.address}</div>}
                 </div>
                 {canEdit && (
                   <div className="flex shrink-0 gap-2 text-xs">
-                    <button className="text-brand-600 hover:underline" onClick={() => setEditing({ ...s })}>edit</button>
-                    <button className="text-red-600 hover:underline" onClick={() => remove(s)}>delete</button>
+                    <button className="text-brand-600 hover:underline dark:text-brand-400" onClick={() => setEditing({ ...s })}>edit</button>
+                    <button className="text-red-600 hover:underline dark:text-red-400" onClick={() => remove(s)}>delete</button>
                   </div>
                 )}
               </div>
               <div className="mt-3 flex items-end justify-between">
                 <div>
-                  <div className="text-2xl font-bold text-slate-800">{countFor(s.id)}</div>
-                  <div className="text-xs text-slate-400">switch{countFor(s.id) !== 1 ? 'es' : ''}</div>
+                  <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{countFor(s.id)}</div>
+                  <div className="text-xs text-slate-400 dark:text-slate-500">switch{countFor(s.id) !== 1 ? 'es' : ''}</div>
                 </div>
                 <Link
                   to="/devices"
                   onClick={() => setSiteId(s.id)}
-                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800/50"
                 >
                   View devices →
                 </Link>
@@ -80,17 +80,17 @@ export default function Sites({ me }: { me: Me }) {
 
           {/* Unassigned pseudo-site */}
           <Card className="border-dashed">
-            <div className="text-base font-semibold text-slate-500">Unassigned</div>
-            <div className="mt-0.5 text-xs text-slate-400">Devices not yet placed in a site</div>
+            <div className="text-base font-semibold text-slate-500 dark:text-slate-400">Unassigned</div>
+            <div className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Devices not yet placed in a site</div>
             <div className="mt-3 flex items-end justify-between">
               <div>
-                <div className="text-2xl font-bold text-slate-700">{unassigned}</div>
-                <div className="text-xs text-slate-400">switch{unassigned !== 1 ? 'es' : ''}</div>
+                <div className="text-2xl font-bold text-slate-700 dark:text-slate-300">{unassigned}</div>
+                <div className="text-xs text-slate-400 dark:text-slate-500">switch{unassigned !== 1 ? 'es' : ''}</div>
               </div>
               <Link
                 to="/devices"
                 onClick={() => setSiteId('unassigned')}
-                className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800/50"
               >
                 View devices →
               </Link>
@@ -99,7 +99,7 @@ export default function Sites({ me }: { me: Me }) {
         </div>
 
         {sites.length === 0 && (
-          <p className="mt-6 text-center text-sm text-slate-400">
+          <p className="mt-6 text-center text-sm text-slate-400 dark:text-slate-500">
             No sites yet. {canEdit ? 'Add one to group devices by location.' : ''}
           </p>
         )}

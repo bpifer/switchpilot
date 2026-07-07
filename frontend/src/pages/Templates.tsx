@@ -27,8 +27,8 @@ export default function Templates({ me }: { me: Me }) {
       <div className="grid gap-4 p-6 md:grid-cols-2 lg:grid-cols-3">
         {templates.map(t => (
           <Card key={t.id} title={t.name}>
-            <div className="mb-1 text-xs uppercase text-gray-400">{t.category}</div>
-            <p className="mb-2 text-sm text-gray-600">{t.description || 'No description'}</p>
+            <div className="mb-1 text-xs uppercase text-gray-400 dark:text-slate-500">{t.category}</div>
+            <p className="mb-2 text-sm text-gray-600 dark:text-slate-400">{t.description || 'No description'}</p>
             <pre className="mb-3 max-h-32 overflow-auto rounded bg-gray-900 p-2 text-xs text-gray-100">{t.body}</pre>
             <div className="flex gap-2">
               {canEdit && <Button onClick={() => setDeploying(t)}>Deploy</Button>}
@@ -39,7 +39,7 @@ export default function Templates({ me }: { me: Me }) {
             </div>
           </Card>
         ))}
-        {templates.length === 0 && <div className="text-gray-400">No templates yet. Templates are reusable IOS snippets with {'{{variable}}'} placeholders.</div>}
+        {templates.length === 0 && <div className="text-gray-400 dark:text-slate-500">No templates yet. Templates are reusable IOS snippets with {'{{variable}}'} placeholders.</div>}
       </div>
 
       {editing && <TemplateEditor template={editing} onClose={() => { setEditing(null); load(); }} />}
@@ -67,7 +67,7 @@ function TemplateEditor({ template, onClose }: { template: any; onClose: () => v
 
   return (
     <Modal title={template.id ? `Edit ${template.name}` : 'New template'} onClose={onClose}>
-      {error && <div className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {error && <div className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400">{error}</div>}
       {!template.id && (
         <div className="grid grid-cols-2 gap-3">
           <Field label="Name"><input className={inputCls} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></Field>
@@ -80,7 +80,7 @@ function TemplateEditor({ template, onClose }: { template: any; onClose: () => v
       )}
       <Field label="Description"><input className={inputCls} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></Field>
       <Field label="IOS commands ({{var}} placeholders supported)">
-        <textarea className="h-48 w-full rounded border p-2 font-mono text-xs" value={form.body}
+        <textarea className="h-48 w-full rounded border border-slate-300 bg-white p-2 font-mono text-xs text-slate-900 placeholder:text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500" value={form.body}
                   placeholder={'vlan {{vlan_id}}\n name {{vlan_name}}'}
                   onChange={e => setForm({ ...form, body: e.target.value })} />
       </Field>
@@ -126,14 +126,14 @@ function DeployModal({ template, devices, onClose }: { template: any; devices: a
 
   return (
     <Modal title={`Deploy "${template.name}"`} onClose={onClose}>
-      {error && <div className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {error && <div className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400">{error}</div>}
       <Field label={`Target devices (${selected.length} selected)`}>
         <div className="max-h-40 overflow-auto rounded border p-2">
           {devices.map(d => (
             <label key={d.id} className="flex items-center gap-2 py-0.5 text-sm">
               <input type="checkbox" checked={selected.includes(d.id)}
                      onChange={e => setSelected(e.target.checked ? [...selected, d.id] : selected.filter(x => x !== d.id))} />
-              {d.hostname || d.mgmt_ip} <span className="text-xs text-gray-400">{d.model}</span>
+              {d.hostname || d.mgmt_ip} <span className="text-xs text-gray-400 dark:text-slate-500">{d.model}</span>
             </label>
           ))}
         </div>

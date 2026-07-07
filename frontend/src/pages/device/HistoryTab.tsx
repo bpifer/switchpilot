@@ -39,9 +39,9 @@ export default function HistoryTab({ deviceId, canConfig }: { deviceId: string; 
     catch (err: any) { setViewing({ sha, content: `Error: ${err.message}` }); }
   }
 
-  if (isLoading) return <div className="py-8 text-center text-sm text-slate-400">Loading config history…</div>;
+  if (isLoading) return <div className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">Loading config history…</div>;
   if (log.length === 0) return (
-    <div className="py-10 text-center text-sm text-slate-400">
+    <div className="py-10 text-center text-sm text-slate-400 dark:text-slate-500">
       No config history yet - commits appear after the first backup that records a change.
     </div>
   );
@@ -50,30 +50,30 @@ export default function HistoryTab({ deviceId, canConfig }: { deviceId: string; 
     <div className="grid gap-4 lg:grid-cols-2">
       <Card title="Config history">
         <div className="mb-3 flex items-center justify-between">
-          <span className="text-xs text-slate-400">Select two commits to compare.</span>
+          <span className="text-xs text-slate-400 dark:text-slate-500">Select two commits to compare.</span>
           <Button variant="secondary" onClick={runDiff} disabled={sel.length !== 2}>Compare ({sel.length}/2)</Button>
         </div>
-        <ol className="relative space-y-3 border-l border-slate-200 pl-4">
+        <ol className="relative space-y-3 border-l border-slate-200 pl-4 dark:border-slate-700">
           {log.map(e => (
             <li key={e.sha} className="relative">
-              <span className="absolute -left-[1.3rem] top-1.5 h-2.5 w-2.5 rounded-full bg-brand-400 ring-2 ring-white" />
-              <div className={`rounded-lg border p-2.5 transition ${sel.includes(e.sha) ? 'border-brand-400 bg-brand-50/50' : 'border-slate-200'}`}>
+              <span className="absolute -left-[1.3rem] top-1.5 h-2.5 w-2.5 rounded-full bg-brand-400 ring-2 ring-white dark:ring-slate-900" />
+              <div className={`rounded-lg border p-2.5 transition ${sel.includes(e.sha) ? 'border-brand-400 bg-brand-50/50 dark:bg-brand-500/10' : 'border-slate-200 dark:border-slate-700'}`}>
                 <div className="flex items-start gap-2">
-                  <input type="checkbox" className="mt-1 rounded border-slate-300"
+                  <input type="checkbox" className="mt-1 rounded border-slate-300 dark:border-slate-600"
                          checked={sel.includes(e.sha)} onChange={() => toggle(e.sha)} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-slate-400">{e.sha.slice(0, 8)}</span>
-                      <span className="text-xs text-slate-500">{new Date(e.date).toLocaleString()}</span>
+                      <span className="font-mono text-xs text-slate-400 dark:text-slate-500">{e.sha.slice(0, 8)}</span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">{new Date(e.date).toLocaleString()}</span>
                     </div>
-                    <div className="mt-0.5 text-sm text-slate-700">{e.subject}</div>
+                    <div className="mt-0.5 text-sm text-slate-700 dark:text-slate-300">{e.subject}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-600">{e.author}</span>
-                      {e.reason && <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">{e.reason}</span>}
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-600 dark:bg-slate-700/50 dark:text-slate-400">{e.author}</span>
+                      {e.reason && <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">{e.reason}</span>}
                       {e.ticket && <span className="rounded bg-violet-50 px-1.5 py-0.5 font-mono text-violet-700">{e.ticket}</span>}
-                      <button className="ml-auto text-brand-600 hover:underline" onClick={() => view(e.sha)}>view</button>
+                      <button className="ml-auto text-brand-600 hover:underline dark:text-brand-400" onClick={() => view(e.sha)}>view</button>
                       {canConfig && (
-                        <button className="text-red-600 hover:underline disabled:opacity-50"
+                        <button className="text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
                                 disabled={rollingBack === e.sha} onClick={() => rollback(e.sha)}>
                           {rollingBack === e.sha ? 'rolling back…' : 'rollback'}
                         </button>
@@ -92,7 +92,7 @@ export default function HistoryTab({ deviceId, canConfig }: { deviceId: string; 
             <div key={i} className={l.startsWith('+') && !l.startsWith('+++') ? 'text-green-400'
               : l.startsWith('-') && !l.startsWith('---') ? 'text-red-400'
               : l.startsWith('@@') ? 'text-cyan-400' : 'text-gray-300'}>{l}</div>
-          )) : <span className="text-gray-400">Select two commits and press Compare.</span>}
+          )) : <span className="text-gray-400 dark:text-slate-500">Select two commits and press Compare.</span>}
         </pre>
       </Card>
 

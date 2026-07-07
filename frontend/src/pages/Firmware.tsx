@@ -53,7 +53,7 @@ export default function Firmware({ me }: { me: Me }) {
           <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b text-left text-xs uppercase text-gray-500">
+              <tr className="border-b text-left text-xs uppercase text-gray-500 dark:text-slate-400">
                 <th className="py-1.5 pr-3">Device</th>
                 <th className="pr-3">Model</th>
                 <th className="pr-3">Family</th>
@@ -66,17 +66,17 @@ export default function Firmware({ me }: { me: Me }) {
               {report.map(d => (
                 <tr key={d.id} className="border-b last:border-0">
                   <td className="py-2 pr-3">
-                    <Link to={`/devices/${d.id}`} className="font-medium text-brand-600 hover:underline">
+                    <Link to={`/devices/${d.id}`} className="font-medium text-brand-600 hover:underline dark:text-brand-400">
                       {d.hostname}
                     </Link>
                   </td>
-                  <td className="pr-3 font-mono text-xs text-slate-600">{d.model || '-'}</td>
-                  <td className="pr-3 text-xs text-slate-500">{d.family || '-'}</td>
+                  <td className="pr-3 font-mono text-xs text-slate-600 dark:text-slate-400">{d.model || '-'}</td>
+                  <td className="pr-3 text-xs text-slate-500 dark:text-slate-400">{d.family || '-'}</td>
                   <td className="pr-3 font-mono text-xs">{d.ios_version || '-'}</td>
                   <td className="pr-3 font-mono text-xs">
-                    {d.target_version || <span className="text-slate-300">not set</span>}
+                    {d.target_version || <span className="text-slate-300 dark:text-slate-600">not set</span>}
                     {canManage && d.family && (
-                      <button className="ml-2 text-xs text-brand-600 hover:underline"
+                      <button className="ml-2 text-xs text-brand-600 hover:underline dark:text-brand-400"
                               onClick={() => setSettingTarget(d.family)}>
                         {d.target_version ? 'change' : 'set'}
                       </button>
@@ -84,17 +84,17 @@ export default function Firmware({ me }: { me: Me }) {
                   </td>
                   <td>
                     {d.target_version === null ? (
-                      <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">no target</span>
+                      <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500 dark:bg-slate-700/50 dark:text-slate-400">no target</span>
                     ) : d.compliant ? (
-                      <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">compliant</span>
+                      <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-500/10 dark:text-green-400">compliant</span>
                     ) : (
-                      <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">needs upgrade</span>
+                      <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">needs upgrade</span>
                     )}
                   </td>
                 </tr>
               ))}
               {report.length === 0 && (
-                <tr><td colSpan={6} className="py-6 text-center text-gray-400">No devices yet</td></tr>
+                <tr><td colSpan={6} className="py-6 text-center text-gray-400 dark:text-slate-500">No devices yet</td></tr>
               )}
             </tbody>
           </table>
@@ -103,12 +103,12 @@ export default function Firmware({ me }: { me: Me }) {
 
         {mikrotiks.length > 0 && (
           <Card title="RouterOS firmware (MikroTik)">
-            <p className="mb-2 text-xs text-slate-500">
+            <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
               MikroTik switches pull updates from MikroTik's servers — there's no image to upload. Check
               each device's installed RouterOS package and RouterBOARD (bootloader) firmware, stage
               upgrades non-disruptively, then reboot to apply.
             </p>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {mikrotiks.map(d => (
                 <RouterOsFirmwarePanel key={d.id} deviceId={d.id} hostname={d.hostname || d.mgmt_ip} canConfig={canManage} />
               ))}
@@ -120,7 +120,7 @@ export default function Firmware({ me }: { me: Me }) {
           <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b text-left text-xs uppercase text-gray-500">
+              <tr className="border-b text-left text-xs uppercase text-gray-500 dark:text-slate-400">
                 <th className="py-1.5 pr-3">Filename</th>
                 <th className="pr-3">Family</th>
                 <th className="pr-3">Version</th>
@@ -134,15 +134,15 @@ export default function Firmware({ me }: { me: Me }) {
               {images.map(img => (
                 <tr key={img.id} className="border-b last:border-0">
                   <td className="py-2 pr-3 font-mono text-xs">{img.filename}</td>
-                  <td className="pr-3 text-xs text-slate-500">{img.family}</td>
+                  <td className="pr-3 text-xs text-slate-500 dark:text-slate-400">{img.family}</td>
                   <td className="pr-3 font-mono text-xs">{img.version}</td>
                   <td className="pr-3 text-xs">{(img.size_bytes / 1024 / 1024).toFixed(1)} MB</td>
-                  <td className="pr-3 font-mono text-[10px] text-slate-400" title={img.md5}>{img.md5.slice(0, 12)}…</td>
-                  <td className="pr-3 text-xs text-slate-500">{new Date(img.created_at).toLocaleDateString()} by {img.uploaded_by}</td>
+                  <td className="pr-3 font-mono text-[10px] text-slate-400 dark:text-slate-500" title={img.md5}>{img.md5.slice(0, 12)}…</td>
+                  <td className="pr-3 text-xs text-slate-500 dark:text-slate-400">{new Date(img.created_at).toLocaleDateString()} by {img.uploaded_by}</td>
                   {canManage && (
                     <td className="space-x-3 text-right">
                       <Button variant="secondary" onClick={() => setUpgrading(img)}>Upgrade devices…</Button>
-                      <button className="text-xs text-red-600 hover:underline"
+                      <button className="text-xs text-red-600 hover:underline dark:text-red-400"
                               onClick={async () => {
                                 if (!confirm(`Delete ${img.filename} from SwitchPilot? Switches that already copied it are unaffected.`)) return;
                                 try { await api(`/api/firmware/${img.id}`, { method: 'DELETE' }); refetchImages(); }
@@ -156,7 +156,7 @@ export default function Firmware({ me }: { me: Me }) {
               ))}
               {images.length === 0 && (
                 <tr>
-                  <td colSpan={canManage ? 7 : 6} className="py-6 text-center text-gray-400">
+                  <td colSpan={canManage ? 7 : 6} className="py-6 text-center text-gray-400 dark:text-slate-500">
                     No firmware images uploaded yet{canManage ? ' - use "Upload image" above' : ''}
                   </td>
                 </tr>
@@ -218,7 +218,7 @@ function UploadModal({ families, onClose, onDone }: {
 
   return (
     <Modal title="Upload firmware image" onClose={onClose}>
-      <p className="mb-3 text-sm text-slate-500">
+      <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
         Upload an IOS image (.bin). The MD5 is computed server-side and verified on the switch after copy.
       </p>
       <Field label="Image file">
@@ -237,8 +237,8 @@ function UploadModal({ families, onClose, onDone }: {
                  placeholder="e.g. 15.2(7)E10" />
         </Field>
       </div>
-      {progress && !error && <p className="mb-2 text-sm text-brand-600">{progress}</p>}
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      {progress && !error && <p className="mb-2 text-sm text-brand-600 dark:text-brand-400">{progress}</p>}
+      {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
         <Button onClick={upload} disabled={busy}>{busy ? 'Uploading…' : 'Upload'}</Button>
@@ -282,23 +282,23 @@ function UpgradeModal({ image, onClose, onDone }: {
 
   return (
     <Modal title={`Upgrade to ${image.version}`} onClose={onClose}>
-      <p className="mb-3 text-sm text-slate-500">
+      <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
         The switch copies <span className="font-mono text-xs">{image.filename}</span> from this platform over HTTP,
         verifies the MD5, sets the boot statement, and reloads. The device will be down for several minutes during the reload.
       </p>
 
-      <div className="mb-3 max-h-60 overflow-auto rounded border border-slate-200">
+      <div className="mb-3 max-h-60 overflow-auto rounded border border-slate-200 dark:border-slate-700">
         {eligible.map(d => (
-          <label key={d.id} className="flex cursor-pointer items-center gap-3 border-b px-3 py-2 text-sm last:border-0 hover:bg-slate-50">
-            <input type="checkbox" className="rounded border-slate-300"
+          <label key={d.id} className="flex cursor-pointer items-center gap-3 border-b px-3 py-2 text-sm last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+            <input type="checkbox" className="rounded border-slate-300 dark:border-slate-600"
                    checked={selected.includes(d.id)} onChange={() => toggle(d.id)} />
             <span className="font-medium">{d.hostname}</span>
-            <span className="font-mono text-xs text-slate-400">{d.ios_version}</span>
-            <span className={`ml-auto text-xs ${d.status === 'online' ? 'text-green-600' : 'text-red-500'}`}>{d.status}</span>
+            <span className="font-mono text-xs text-slate-400 dark:text-slate-500">{d.ios_version}</span>
+            <span className={`ml-auto text-xs ${d.status === 'online' ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>{d.status}</span>
           </label>
         ))}
         {eligible.length === 0 && (
-          <p className="px-3 py-4 text-center text-sm text-slate-400">
+          <p className="px-3 py-4 text-center text-sm text-slate-400 dark:text-slate-500">
             No devices in family "{image.family}".
           </p>
         )}
@@ -309,9 +309,9 @@ function UpgradeModal({ image, onClose, onDone }: {
                onChange={e => setScheduleAt(e.target.value)} />
       </Field>
 
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex items-center justify-between">
-        <span className="text-xs text-slate-400">{selected.length} device{selected.length !== 1 ? 's' : ''} selected</span>
+        <span className="text-xs text-slate-400 dark:text-slate-500">{selected.length} device{selected.length !== 1 ? 's' : ''} selected</span>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
           <Button onClick={start} disabled={busy || selected.length === 0}>
@@ -345,7 +345,7 @@ function TargetModal({ family, images, current, onClose, onDone }: {
 
   return (
     <Modal title={`Target version for ${family}`} onClose={onClose}>
-      <p className="mb-3 text-sm text-slate-500">
+      <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
         Devices in this family running a different version show as "needs upgrade" on this page and in compliance reports.
       </p>
       <Field label="Target version">
@@ -355,7 +355,7 @@ function TargetModal({ family, images, current, onClose, onDone }: {
           {familyVersions.map(v => <option key={v} value={v} />)}
         </datalist>
       </Field>
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
         <Button onClick={save} disabled={busy || !version.trim()}>{busy ? 'Saving…' : 'Save'}</Button>

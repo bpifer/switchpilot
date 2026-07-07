@@ -91,15 +91,15 @@ export default function Analytics() {
       <PageHeader title="Analytics" />
 
       {/* Sub-views: per-device time series, and the fleet PoE budget */}
-      <div className="flex gap-1 border-b border-slate-200 px-6">
+      <div className="flex gap-1 border-b border-slate-200 px-6 dark:border-slate-700">
         {([['metrics', 'Device metrics'], ['poe', 'PoE budget']] as [View, string][]).map(([v, label]) => (
           <button
             key={v}
             onClick={() => setView(v)}
             className={`-mb-px border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
               view === v
-                ? 'border-brand-600 text-brand-700'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
+                ? 'border-brand-600 text-brand-700 dark:border-brand-400 dark:text-brand-400'
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
             }`}
           >
             {label}
@@ -118,9 +118,9 @@ export default function Analytics() {
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-4 px-6 py-4">
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-slate-600">Device</label>
+          <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Device</label>
           <select
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
             value={deviceId}
             onChange={e => setDeviceId(e.target.value)}
           >
@@ -129,15 +129,15 @@ export default function Analytics() {
             ))}
           </select>
         </div>
-        <div className="flex rounded-lg border border-slate-200 bg-white overflow-hidden">
+        <div className="flex rounded-lg border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-800">
           {RANGES.map(r => (
             <button
               key={r.value}
               onClick={() => setRange(r.value)}
               className={`px-3 py-1.5 text-sm transition ${
                 range === r.value
-                  ? 'bg-brand-600 text-white font-medium'
-                  : 'text-slate-600 hover:bg-slate-50'
+                  ? 'bg-brand-600 text-white font-medium dark:bg-brand-500'
+                  : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-700'
               }`}
             >
               {r.label}
@@ -184,7 +184,7 @@ export default function Analytics() {
           <div className="-mt-1 mb-2 flex justify-end">
             <button
               onClick={() => setView('poe')}
-              className="text-xs font-medium text-brand-700 hover:underline"
+              className="text-xs font-medium text-brand-700 hover:underline dark:text-brand-400"
             >
               View fleet PoE budget →
             </button>
@@ -205,15 +205,15 @@ export default function Analytics() {
         {/* Port bandwidth */}
         <Card title="Port bandwidth">
           {ports.length === 0 ? (
-            <div className="py-8 text-center text-sm text-slate-400">
+            <div className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">
               No port bandwidth data yet — accumulates after first refresh with connected ports.
             </div>
           ) : (
             <>
               <div className="mb-4 flex items-center gap-2">
-                <label className="text-sm font-medium text-slate-600">Port</label>
+                <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Port</label>
                 <select
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                   value={portName}
                   onChange={e => setPortName(e.target.value)}
                 >
@@ -250,7 +250,7 @@ function EmptyOrChart({ data, message, children }: {
 }) {
   if (!data || data.length === 0) {
     return (
-      <div className="flex items-center justify-center py-10 text-sm text-slate-400">
+      <div className="flex items-center justify-center py-10 text-sm text-slate-400 dark:text-slate-500">
         {message}
       </div>
     );

@@ -40,7 +40,7 @@ function Webhooks() {
   return (
     <Card title="Alert webhooks">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           POST signed alert payloads to Slack, Teams, PagerDuty, Opsgenie, or any custom URL.
         </p>
         <Button onClick={() => setEditing({ name: '', url: '', secret: '', minSeverity: 'warning' })}>Add webhook</Button>
@@ -48,7 +48,7 @@ function Webhooks() {
       <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b text-left text-xs uppercase text-slate-500">
+          <tr className="border-b text-left text-xs uppercase text-slate-500 dark:text-slate-400">
             <th className="py-1.5 pr-3">Name</th><th className="pr-3">URL</th><th className="pr-3">Min severity</th>
             <th className="pr-3">Signed</th><th className="pr-3">Last delivery</th><th></th>
           </tr>
@@ -56,23 +56,23 @@ function Webhooks() {
         <tbody>
           {hooks.map(h => (
             <tr key={h.id} className="border-b last:border-0">
-              <td className="py-2 pr-3 font-medium text-slate-700">{h.name}{!h.enabled && <span className="ml-1 text-xs text-slate-400">(disabled)</span>}</td>
-              <td className="max-w-48 truncate pr-3 font-mono text-xs text-slate-500" title={h.url}>{h.url}</td>
+              <td className="py-2 pr-3 font-medium text-slate-700 dark:text-slate-300">{h.name}{!h.enabled && <span className="ml-1 text-xs text-slate-400 dark:text-slate-500">(disabled)</span>}</td>
+              <td className="max-w-48 truncate pr-3 font-mono text-xs text-slate-500 dark:text-slate-400" title={h.url}>{h.url}</td>
               <td className="pr-3 text-xs">{h.min_severity}</td>
               <td className="pr-3 text-xs">{h.signed ? 'yes' : 'no'}</td>
-              <td className="pr-3 text-xs text-slate-500">
+              <td className="pr-3 text-xs text-slate-500 dark:text-slate-400">
                 {h.last_fired_at ? `${new Date(h.last_fired_at).toLocaleString()} · ${h.last_status}` : 'never'}
               </td>
               <td className="space-x-2 text-right">
-                <button className={`${rowActionCls} text-brand-600`} onClick={() => test(h.id)} disabled={testing === h.id}>
+                <button className={`${rowActionCls} text-brand-600 dark:text-brand-400`} onClick={() => test(h.id)} disabled={testing === h.id}>
                   {testing === h.id ? 'testing…' : 'test'}
                 </button>
-                <button className={`${rowActionCls} text-slate-500`} onClick={() => setEditing({ ...h, minSeverity: h.min_severity })}>edit</button>
-                <button className={`${rowActionCls} text-red-600`} onClick={() => remove(h.id)}>delete</button>
+                <button className={`${rowActionCls} text-slate-500 dark:text-slate-400`} onClick={() => setEditing({ ...h, minSeverity: h.min_severity })}>edit</button>
+                <button className={`${rowActionCls} text-red-600 dark:text-red-400`} onClick={() => remove(h.id)}>delete</button>
               </td>
             </tr>
           ))}
-          {hooks.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-slate-400">No webhooks configured</td></tr>}
+          {hooks.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-slate-400 dark:text-slate-500">No webhooks configured</td></tr>}
         </tbody>
       </table>
       </div>
@@ -110,7 +110,7 @@ function WebhookModal({ hook, onClose, onSaved }: { hook: any; onClose: () => vo
           <option value="critical">Critical only</option>
         </select>
       </Field>
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
         <Button onClick={save} disabled={busy || !form.name.trim() || !form.url.trim()}>{busy ? 'Saving…' : 'Save'}</Button>
@@ -146,7 +146,7 @@ function ApiKeys() {
   return (
     <Card title="API keys">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           Non-expiring <span className="font-mono text-xs">sp_…</span> tokens for scripts and integrations.
           Send as <span className="font-mono text-xs">Authorization: Bearer sp_…</span>.
         </p>
@@ -154,20 +154,20 @@ function ApiKeys() {
       </div>
 
       {newToken && (
-        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <div className="text-sm font-medium text-amber-800">New API key (shown once)</div>
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:bg-amber-500/10">
+          <div className="text-sm font-medium text-amber-800 dark:text-amber-400">New API key (shown once)</div>
           <div className="mt-2 flex items-center gap-2">
-            <code className="flex-1 break-all rounded bg-white px-3 py-2 font-mono text-xs ring-1 ring-amber-200">{newToken}</code>
+            <code className="flex-1 break-all rounded bg-white px-3 py-2 font-mono text-xs ring-1 ring-amber-200 dark:bg-slate-800 dark:ring-amber-500/20">{newToken}</code>
             <Button variant="secondary" onClick={() => navigator.clipboard.writeText(newToken)}>Copy</Button>
           </div>
-          <button className="mt-2 text-xs text-amber-700 hover:underline" onClick={() => setNewToken('')}>Dismiss</button>
+          <button className="mt-2 text-xs text-amber-700 hover:underline dark:text-amber-400" onClick={() => setNewToken('')}>Dismiss</button>
         </div>
       )}
 
       <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b text-left text-xs uppercase text-slate-500">
+          <tr className="border-b text-left text-xs uppercase text-slate-500 dark:text-slate-400">
             <th className="py-1.5 pr-3">Name</th><th className="pr-3">Role</th><th className="pr-3">Created by</th>
             <th className="pr-3">Last used</th><th></th>
           </tr>
@@ -175,14 +175,14 @@ function ApiKeys() {
         <tbody>
           {keys.map(k => (
             <tr key={k.id} className="border-b last:border-0">
-              <td className="py-2 pr-3 font-medium text-slate-700">{k.name}</td>
+              <td className="py-2 pr-3 font-medium text-slate-700 dark:text-slate-300">{k.name}</td>
               <td className="pr-3 text-xs capitalize">{k.role}</td>
-              <td className="pr-3 text-xs text-slate-500">{k.created_by}</td>
-              <td className="pr-3 text-xs text-slate-500">{k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'never'}</td>
-              <td className="text-right"><button className={`${rowActionCls} text-red-600`} onClick={() => remove(k.id)}>revoke</button></td>
+              <td className="pr-3 text-xs text-slate-500 dark:text-slate-400">{k.created_by}</td>
+              <td className="pr-3 text-xs text-slate-500 dark:text-slate-400">{k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'never'}</td>
+              <td className="text-right"><button className={`${rowActionCls} text-red-600 dark:text-red-400`} onClick={() => remove(k.id)}>revoke</button></td>
             </tr>
           ))}
-          {keys.length === 0 && <tr><td colSpan={5} className="py-4 text-center text-slate-400">No API keys</td></tr>}
+          {keys.length === 0 && <tr><td colSpan={5} className="py-4 text-center text-slate-400 dark:text-slate-500">No API keys</td></tr>}
         </tbody>
       </table>
       </div>

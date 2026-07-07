@@ -28,7 +28,7 @@ function speedMbps(speed: string): number | null {
 }
 
 function portColor(p: Port): string {
-  if (!p.admin_up || p.oper_status === 'disabled') return 'bg-gray-300 border-gray-400';
+  if (!p.admin_up || p.oper_status === 'disabled') return 'bg-gray-300 border-gray-400 dark:bg-slate-600 dark:border-slate-500';
   if (p.oper_status === 'err-disabled') return 'bg-red-500 border-red-700';
   if (p.oper_status === 'connected') {
     if ((p.input_errors ?? 0) > 0 || (p.output_errors ?? 0) > 0) return 'bg-yellow-400 border-yellow-600';
@@ -37,7 +37,7 @@ function portColor(p: Port): string {
     if (mbps !== null && mbps < 1000)   return 'bg-orange-500 border-orange-600'; // 10/100
     return 'bg-green-500 border-green-700';                                       // 1G (or unknown)
   }
-  return 'bg-white border-gray-300';
+  return 'bg-white border-gray-300 dark:bg-slate-800 dark:border-slate-600';
 }
 
 /** Trailing port number: Gi1/0/24 -> 24, ether24 -> 24, sfp-sfpplus2 -> 2. */
@@ -88,7 +88,7 @@ export default function PortGrid({ ports, selected, onSelect }: {
 
   if (physical.length === 0) {
     return (
-      <div className="py-8 text-center text-sm text-gray-400">
+      <div className="py-8 text-center text-sm text-gray-400 dark:text-slate-500">
         No port data yet - hit "Refresh now" to poll the switch.
       </div>
     );
@@ -109,8 +109,8 @@ export default function PortGrid({ ports, selected, onSelect }: {
         return (
           <div key={module}>
             <div className="mb-1 flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-500">{rangeLabel(module, sorted.length)}</span>
-              <span className="text-xs text-gray-400">({sorted.filter(p => p.oper_status === 'connected').length} connected)</span>
+              <span className="text-xs font-medium text-gray-500 dark:text-slate-400">{rangeLabel(module, sorted.length)}</span>
+              <span className="text-xs text-gray-400 dark:text-slate-500">({sorted.filter(p => p.oper_status === 'connected').length} connected)</span>
             </div>
             <div className="inline-block rounded-lg border-2 border-gray-700 bg-gray-800 p-2.5">
               {[odd, even].map((row, i) => (
@@ -128,8 +128,8 @@ export default function PortGrid({ ports, selected, onSelect }: {
       {uplinks.length > 0 && (
         <div>
           <div className="mb-1 flex items-center gap-2">
-            <span className="text-xs font-medium text-gray-500">Uplinks / SFP</span>
-            <span className="text-xs text-gray-400">({uplinks.filter(p => p.oper_status === 'connected').length}/{uplinks.length} connected)</span>
+            <span className="text-xs font-medium text-gray-500 dark:text-slate-400">Uplinks / SFP</span>
+            <span className="text-xs text-gray-400 dark:text-slate-500">({uplinks.filter(p => p.oper_status === 'connected').length}/{uplinks.length} connected)</span>
           </div>
           <div className="inline-block rounded-lg border-2 border-gray-700 bg-gray-800 p-2.5">
             <div className="flex gap-1.5">
@@ -142,23 +142,23 @@ export default function PortGrid({ ports, selected, onSelect }: {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-4 text-xs text-gray-500">
+      <div className="flex flex-wrap gap-4 text-xs text-gray-500 dark:text-slate-400">
         <Legend cls="bg-blue-500" label="10G+" />
         <Legend cls="bg-green-500" label="1 Gbps" />
         <Legend cls="bg-orange-500" label="10/100" />
-        <Legend cls="bg-white border border-gray-300" label="Not connected" />
-        <Legend cls="bg-gray-300" label="Disabled" />
+        <Legend cls="bg-white border border-gray-300 dark:bg-slate-800 dark:border-slate-600" label="Not connected" />
+        <Legend cls="bg-gray-300 dark:bg-slate-600" label="Disabled" />
         <Legend cls="bg-red-500" label="Err-disabled" />
         <Legend cls="bg-yellow-400" label="Errors" />
         <Legend cls="bg-green-500 shadow-[inset_0_-3px_0_rgba(37,99,235,0.9)]" label="PoE active" />
         <span className="flex items-center gap-1.5">
-          <span className="relative inline-block h-4 w-4 rounded-sm border border-gray-400 bg-gray-200">
-            <span className="absolute -top-px left-1/2 -translate-x-1/2 h-1 w-2 rounded-b-[1px] bg-white" />
+          <span className="relative inline-block h-4 w-4 rounded-sm border border-gray-400 bg-gray-200 dark:border-slate-600 dark:bg-slate-700">
+            <span className="absolute -top-px left-1/2 -translate-x-1/2 h-1 w-2 rounded-b-[1px] bg-white dark:bg-slate-800" />
           </span>
           RJ45 / copper
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="relative inline-block h-4 w-5 rounded-md border border-gray-400 bg-gray-200">
+          <span className="relative inline-block h-4 w-5 rounded-md border border-gray-400 bg-gray-200 dark:border-slate-600 dark:bg-slate-700">
             <span className="absolute inset-x-1 top-0.5 h-1 rounded-sm bg-black/35" />
           </span>
           SFP / fiber
@@ -232,7 +232,7 @@ function PortButton({ p, selected, onSelect, label, sfp = false }: {
 function Legend({ cls, label }: { cls: string; label: string }) {
   return (
     <span className="flex items-center gap-1.5">
-      <span className={`inline-block h-3 w-4 rounded-sm border border-gray-400 ${cls}`} />
+      <span className={`inline-block h-3 w-4 rounded-sm border border-gray-400 dark:border-slate-600 ${cls}`} />
       {label}
     </span>
   );

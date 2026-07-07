@@ -35,15 +35,15 @@ interface Summary {
 }
 
 const SEV_COLOR: Record<string, string> = {
-  info:     'bg-blue-100 text-blue-700',
-  warning:  'bg-amber-50 text-amber-700',
-  critical: 'bg-red-100 text-red-700',
+  info:     'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400',
+  warning:  'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400',
+  critical: 'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400',
 };
 
 function scoreColor(pct: number): string {
-  if (pct >= 95) return 'text-green-600';
-  if (pct >= 80) return 'text-amber-600';
-  return 'text-red-600';
+  if (pct >= 95) return 'text-green-600 dark:text-green-400';
+  if (pct >= 80) return 'text-amber-600 dark:text-amber-400';
+  return 'text-red-600 dark:text-red-400';
 }
 
 export default function Compliance({ me }: { me: Me }) {
@@ -70,10 +70,10 @@ export default function Compliance({ me }: { me: Me }) {
 
       <div className="px-6 py-4 space-y-4">
         {loading ? (
-          <p className="py-8 text-center text-sm text-slate-400">Loading compliance data…</p>
+          <p className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">Loading compliance data…</p>
         ) : !summary || summary.total === 0 ? (
           <Card>
-            <p className="py-8 text-center text-sm text-slate-400">
+            <p className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">
               No compliance results yet. Make sure devices have at least one config backup, then press
               <strong> Run evaluation</strong>.
             </p>
@@ -85,8 +85,8 @@ export default function Compliance({ me }: { me: Me }) {
               <Card>
                 <div className="flex flex-col items-center py-3">
                   <div className={`text-5xl font-bold ${scoreColor(summary.score ?? 0)}`}>{summary.score}%</div>
-                  <div className="mt-1 text-xs uppercase tracking-wide text-slate-400">Fleet compliance</div>
-                  <div className="mt-2 text-sm text-slate-500">{summary.passed} / {summary.total} checks passing</div>
+                  <div className="mt-1 text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Fleet compliance</div>
+                  <div className="mt-2 text-sm text-slate-500 dark:text-slate-400">{summary.passed} / {summary.total} checks passing</div>
                 </div>
               </Card>
               <Card title="Rules">
@@ -98,16 +98,16 @@ export default function Compliance({ me }: { me: Me }) {
                         <span className={`w-20 shrink-0 rounded-full px-2 py-0.5 text-center text-[11px] font-semibold ${SEV_COLOR[r.severity]}`}>
                           {r.severity}
                         </span>
-                        <span className="w-56 shrink-0 truncate text-sm text-slate-700" title={r.pattern}>{r.name}</span>
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                        <span className="w-56 shrink-0 truncate text-sm text-slate-700 dark:text-slate-300" title={r.pattern}>{r.name}</span>
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/50">
                           <div className={`h-full ${p >= 95 ? 'bg-green-500' : p >= 80 ? 'bg-amber-500' : 'bg-red-500'}`}
                                style={{ width: `${p}%` }} />
                         </div>
-                        <span className="w-16 shrink-0 text-right text-xs text-slate-500">{r.passed}/{r.total}</span>
+                        <span className="w-16 shrink-0 text-right text-xs text-slate-500 dark:text-slate-400">{r.passed}/{r.total}</span>
                       </div>
                     );
                   })}
-                  {summary.rules.length === 0 && <p className="text-sm text-slate-400">No enabled rules.</p>}
+                  {summary.rules.length === 0 && <p className="text-sm text-slate-400 dark:text-slate-500">No enabled rules.</p>}
                 </div>
               </Card>
             </div>
@@ -117,30 +117,30 @@ export default function Compliance({ me }: { me: Me }) {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-left text-xs uppercase text-slate-500">
+                    <tr className="border-b text-left text-xs uppercase text-slate-500 dark:text-slate-400">
                       <th className="py-2 pr-4">Device</th><th className="pr-4">Site</th>
                       <th className="pr-4">Score</th><th className="pr-4">Critical fails</th><th></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-50">
+                  <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                     {summary.devices.map(d => {
                       const p = pct(d.passed, d.total);
                       return (
-                        <tr key={d.id} className="hover:bg-slate-50/80">
+                        <tr key={d.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60">
                           <td className="py-2.5 pr-4">
-                            <Link to={`/devices/${d.id}`} className="font-medium text-brand-600 hover:underline">
+                            <Link to={`/devices/${d.id}`} className="font-medium text-brand-600 hover:underline dark:text-brand-400">
                               {d.hostname || d.mgmt_ip}
                             </Link>
                           </td>
-                          <td className="pr-4 text-xs text-slate-500">{d.site_name ?? '—'}</td>
+                          <td className="pr-4 text-xs text-slate-500 dark:text-slate-400">{d.site_name ?? '—'}</td>
                           <td className="pr-4">
                             <span className={`font-semibold ${scoreColor(p)}`}>{p}%</span>
-                            <span className="ml-1 text-xs text-slate-400">({d.passed}/{d.total})</span>
+                            <span className="ml-1 text-xs text-slate-400 dark:text-slate-500">({d.passed}/{d.total})</span>
                           </td>
                           <td className="pr-4">
                             {d.critical_fails > 0
-                              ? <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">{d.critical_fails}</span>
-                              : <span className="text-xs text-slate-400">0</span>}
+                              ? <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-400">{d.critical_fails}</span>
+                              : <span className="text-xs text-slate-400 dark:text-slate-500">0</span>}
                           </td>
                           <td className="text-right">
                             <DeviceDetailLink deviceId={d.id} canEdit={canEdit} onChanged={load} />
@@ -165,7 +165,7 @@ function DeviceDetailLink({ deviceId, canEdit, onChanged }: { deviceId: string; 
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button className="text-xs text-brand-600 hover:underline" onClick={() => setOpen(true)}>view checks</button>
+      <button className="text-xs text-brand-600 hover:underline dark:text-brand-400" onClick={() => setOpen(true)}>view checks</button>
       {open && <DeviceChecks deviceId={deviceId} canEdit={canEdit} onClose={() => setOpen(false)} onChanged={onChanged} />}
     </>
   );
@@ -237,13 +237,13 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
   return (
     <Modal title="Compliance checks" onClose={onClose}>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           Checks run against the most recent config backup ({passedCount}/{shown.length} passed).
           "Check now" pulls the running config first.
         </p>
         <div className="flex items-center gap-3">
           {hasCis && (
-            <label className="flex items-center gap-1.5 text-xs text-slate-600">
+            <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
               <input type="checkbox" checked={cisOnly} onChange={e => setCisOnly(e.target.checked)} />
               CIS only
             </label>
@@ -255,11 +255,11 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
       </div>
 
       {secretPw && (
-        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
-          <div className="text-sm font-medium text-amber-800">Enable secret set (shown once)</div>
-          <div className="mt-1 text-xs text-amber-700">Saved to this switch's credential profile. Keep a copy as backup.</div>
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:bg-amber-500/10">
+          <div className="text-sm font-medium text-amber-800 dark:text-amber-400">Enable secret set (shown once)</div>
+          <div className="mt-1 text-xs text-amber-700 dark:text-amber-400">Saved to this switch's credential profile. Keep a copy as backup.</div>
           <div className="mt-2 flex items-center gap-2">
-            <code className="flex-1 rounded bg-white px-3 py-2 font-mono text-sm ring-1 ring-amber-200">{secretPw}</code>
+            <code className="flex-1 rounded bg-white px-3 py-2 font-mono text-sm ring-1 ring-amber-200 dark:bg-slate-800 dark:ring-amber-500/20">{secretPw}</code>
             <Button variant="secondary" onClick={() => navigator.clipboard.writeText(secretPw)}>Copy</Button>
             <Button variant="secondary" onClick={() => setSecretPw('')}>Dismiss</Button>
           </div>
@@ -269,29 +269,31 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
       <div className="space-y-2">
         {shown.map(c => (
           <div key={c.rule_id} className={`rounded-lg border p-2.5 ${
-            c.passed === false ? 'border-red-200 bg-red-50/50' : c.passed ? 'border-green-200 bg-green-50/30' : 'border-slate-200'}`}>
+            c.passed === false ? 'border-red-200 bg-red-50/50 dark:border-red-500/30 dark:bg-red-500/10'
+              : c.passed ? 'border-green-200 bg-green-50/30 dark:border-green-500/30 dark:bg-green-500/10'
+              : 'border-slate-200 dark:border-slate-700'}`}>
             <div className="flex items-center gap-2">
               <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${SEV_COLOR[c.severity]}`}>{c.severity}</span>
               {c.benchmark && (
-                <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 ring-1 ring-indigo-200">{c.benchmark}</span>
+                <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 ring-1 ring-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-400 dark:ring-indigo-500/20">{c.benchmark}</span>
               )}
-              <span className="text-sm font-medium text-slate-800">{c.name}</span>
+              <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{c.name}</span>
               <span className="ml-auto">
                 {c.passed === null ? (
-                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-500"
+                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-500 dark:bg-slate-700/50 dark:text-slate-400"
                         title='No result yet - use "Check now"'>not checked</span>
                 ) : c.passed ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-[11px] font-semibold text-green-700">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-[11px] font-semibold text-green-700 dark:bg-green-500/10 dark:text-green-400">
                     ✓ Passed
                   </span>
                 ) : (
-                  <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-semibold text-red-700">Failed</span>
+                  <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-400">Failed</span>
                 )}
               </span>
             </div>
-            {c.description && <p className="mt-1 text-xs text-slate-500">{c.description}</p>}
+            {c.description && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{c.description}</p>}
             {c.detail && c.passed === false && (
-              <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-red-600">{c.detail}</pre>
+              <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-red-600 dark:text-red-400">{c.detail}</pre>
             )}
             {c.passed && c.detail && <p className="mt-1 truncate font-mono text-xs text-green-700/70">{c.detail}</p>}
             {canEdit && c.passed === false && c.remediation && (
@@ -313,7 +315,7 @@ function DeviceChecks({ deviceId, canEdit, onClose, onChanged }: {
             )}
           </div>
         ))}
-        {checks.length === 0 && <p className="py-4 text-center text-sm text-slate-400">No checks for this device.</p>}
+        {checks.length === 0 && <p className="py-4 text-center text-sm text-slate-400 dark:text-slate-500">No checks for this device.</p>}
       </div>
 
       {enableModal && (
@@ -348,7 +350,7 @@ function EnableSecretModal({ busy, onClose, onSubmit }: {
 
   return (
     <Modal title="Set enable secret" onClose={onClose}>
-      <p className="mb-3 text-sm text-slate-500">
+      <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
         Pushes <span className="font-mono text-xs">enable secret …</span> to the switch and saves it to this
         device's credential profile so SwitchPilot can still enter privileged mode.
       </p>
@@ -365,7 +367,7 @@ function EnableSecretModal({ busy, onClose, onSubmit }: {
           <input className={inputCls} type="text" value={pw} onChange={e => setPw(e.target.value)}
                  placeholder="enable secret" autoFocus />
           {pw && !valid && (
-            <p className="mt-1 text-xs text-red-600">4-64 chars: letters, digits, and . @ ! % * + = : - _</p>
+            <p className="mt-1 text-xs text-red-600 dark:text-red-400">4-64 chars: letters, digits, and . @ ! % * + = : - _</p>
           )}
         </div>
       )}
@@ -444,25 +446,25 @@ function RulesManager({ onClose }: { onClose: () => void }) {
 
       <div className="max-h-[45vh] space-y-2 overflow-auto">
         {rules.map(r => (
-          <div key={r.id} className="flex items-center gap-2 rounded-lg border border-slate-200 p-2 text-sm">
+          <div key={r.id} className="flex items-center gap-2 rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-700">
             <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${SEV_COLOR[r.severity]}`}>{r.severity}</span>
             <div className="min-w-0 flex-1">
-              <div className="font-medium text-slate-800">
-                {r.name} {!r.enabled && <span className="text-xs text-slate-400">(disabled)</span>}
-                {r.auto_remediate && <span className="ml-1 rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700 ring-1 ring-brand-200">auto-fix</span>}
+              <div className="font-medium text-slate-800 dark:text-slate-100">
+                {r.name} {!r.enabled && <span className="text-xs text-slate-400 dark:text-slate-500">(disabled)</span>}
+                {r.auto_remediate && <span className="ml-1 rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700 ring-1 ring-brand-200 dark:bg-brand-500/10 dark:text-brand-400 dark:ring-brand-500/30">auto-fix</span>}
               </div>
-              <div className="truncate font-mono text-xs text-slate-500">{MATCH_LABELS[r.match_type]}: {r.pattern}</div>
+              <div className="truncate font-mono text-xs text-slate-500 dark:text-slate-400">{MATCH_LABELS[r.match_type]}: {r.pattern}</div>
             </div>
-            <button className="text-xs text-brand-600 hover:underline" onClick={() => setEditing(r)}>edit</button>
-            <button className="text-xs text-red-600 hover:underline" onClick={() => remove(r.id)}>delete</button>
+            <button className="text-xs text-brand-600 hover:underline dark:text-brand-400" onClick={() => setEditing(r)}>edit</button>
+            <button className="text-xs text-red-600 hover:underline dark:text-red-400" onClick={() => remove(r.id)}>delete</button>
           </div>
         ))}
-        {rules.length === 0 && <p className="py-4 text-center text-sm text-slate-400">No rules yet.</p>}
+        {rules.length === 0 && <p className="py-4 text-center text-sm text-slate-400 dark:text-slate-500">No rules yet.</p>}
       </div>
 
       {editing && (
-        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">{editing.id ? 'Edit rule' : 'New rule'}</h3>
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+          <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">{editing.id ? 'Edit rule' : 'New rule'}</h3>
           <Field label="Name">
             <input className={inputCls} value={editing.name ?? ''} onChange={e => setEditing(p => ({ ...p, name: e.target.value }))} placeholder="e.g. NTP configured" />
           </Field>
@@ -501,12 +503,12 @@ function RulesManager({ onClose }: { onClose: () => void }) {
             </Field>
           </div>
           {editing.remediation?.trim() && (
-            <label className="mt-2 flex items-start gap-2 text-sm text-slate-600">
+            <label className="mt-2 flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
               <input type="checkbox" className="mt-0.5" checked={editing.auto_remediate ?? false}
                      onChange={e => setEditing(p => ({ ...p, auto_remediate: e.target.checked }))} />
               <span>
                 Auto-remediate on the compliance sweep when a device fails this rule.
-                <span className="block text-xs text-slate-400">
+                <span className="block text-xs text-slate-400 dark:text-slate-500">
                   Also requires <span className="font-mono">COMPLIANCE_AUTO_REMEDIATE=true</span> on the server; never runs during a maintenance window.
                 </span>
               </span>

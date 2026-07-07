@@ -19,16 +19,16 @@ export default function ConfigPreviewModal({
   return (
     <Modal title={title} onClose={onClose}>
       {data.warnings.length > 0 && (
-        <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
-          <div className="text-sm font-medium text-amber-800">⚠ Review before applying</div>
-          <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-amber-700">
+        <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-500/30 dark:bg-amber-500/10">
+          <div className="text-sm font-medium text-amber-800 dark:text-amber-400">⚠ Review before applying</div>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-amber-700 dark:text-amber-400">
             {data.warnings.map((w, i) => <li key={i}>{w}</li>)}
           </ul>
         </div>
       )}
-      <p className="mb-3 text-sm text-slate-500">
+      <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
         Compared against the live running config. Nothing has been changed yet.
-        <span className="ml-1 font-medium text-slate-700">
+        <span className="ml-1 font-medium text-slate-700 dark:text-slate-300">
           {data.summary.new} new, {data.summary.present} already present
           {data.summary.removes > 0 ? `, ${data.summary.removes} removed` : ''}.
         </span>
