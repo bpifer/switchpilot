@@ -71,20 +71,32 @@ export default async function portRoutes(app: FastifyInstance) {
       return parseMacTable(Object.values(out)[0] ?? '');
     });
 
-  // Enable / disable a port
+  // Enable / disable a port. Disabling a port with a discovered neighbor (an
+  // uplink) is refused with a 409 unless force=true — see assertNotUplink.
   app.post('/api/devices/:id/ports/:port/admin', {
     preHandler: requireRole('helpdesk'),
     schema: {
       tags: ['ports'],
-      body: { type: 'object', required: ['enabled'], properties: { enabled: { type: 'boolean' } } }
+      body: {
+        type: 'object', required: ['enabled'],
+        properties: { enabled: { type: 'boolean' }, force: { type: 'boolean', default: false } }
+      }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const { id, port } = req.params as any;
-    const { enabled } = req.body as any;
+    const { enabled, force } = req.body as any;
     const me = req.user as any;
-    await setPortAdmin(id, port, enabled);
+    try {
+      await setPortAdmin(id, port, enabled, force ?? false);
+    } catch (err: any) {
+      // Uplink guard: surface the explanation in the { error } shape the SPA
+      // reads (Fastify's default handler would bury it under "Conflict").
+      if (err.statusCode === 409) return reply.code(409).send({ error: err.message, detail: err.detail });
+      throw err;
+    }
     await query('UPDATE ports SET admin_up=$1 WHERE device_id=$2 AND name=$3', [enabled, id, port]);
-    await audit(me.username, enabled ? 'port.enable' : 'port.disable', `${id}/${port}`, {}, req.ip);
+    await audit(me.username, enabled ? 'port.enable' : 'port.disable', `${id}/${port}`,
+      force ? { forcedUplinkGuard: true } : {}, req.ip);
     return { ok: true };
   });
 
@@ -138,15 +150,24 @@ export default async function portRoutes(app: FastifyInstance) {
     return { ok: true, output, warning, verified };
   });
 
-  // Bounce (shutdown / no shutdown)
-  app.post('/api/devices/:id/ports/:port/bounce', { preHandler: requireRole('helpdesk'), schema: { tags: ['ports'] } },
-    async (req) => {
-      const { id, port } = req.params as any;
-      const me = req.user as any;
-      await bouncePort(id, port);
-      await audit(me.username, 'port.bounce', `${id}/${port}`, {}, req.ip);
-      return { ok: true };
-    });
+  // Bounce (shutdown / no shutdown). Uplink-guarded like disable: if the shut
+  // half cuts our management path, the no-shut half never arrives.
+  app.post('/api/devices/:id/ports/:port/bounce', {
+    preHandler: requireRole('helpdesk'),
+    schema: { tags: ['ports'], body: { type: 'object', properties: { force: { type: 'boolean', default: false } } } }
+  }, async (req, reply) => {
+    const { id, port } = req.params as any;
+    const force = (req.body as any)?.force ?? false;
+    const me = req.user as any;
+    try {
+      await bouncePort(id, port, force);
+    } catch (err: any) {
+      if (err.statusCode === 409) return reply.code(409).send({ error: err.message, detail: err.detail });
+      throw err;
+    }
+    await audit(me.username, 'port.bounce', `${id}/${port}`, force ? { forcedUplinkGuard: true } : {}, req.ip);
+    return { ok: true };
+  });
 
   // SFP optical diagnostics (DDM): temperature, Tx/Rx power, vendor, etc.
   app.get('/api/devices/:id/ports/:port/sfp', { preHandler: requireRole('readonly'), schema: { tags: ['ports'] } },

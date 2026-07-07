@@ -11,7 +11,13 @@ export default function ConfigTab({ deviceId, canConfig }: { deviceId: string; c
   const [pushOut, setPushOut] = useState('');
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [busy, setBusy] = useState(false);
-  const [safeApply, setSafeApply] = useState(false);
+  // How the push lands on the device:
+  //  direct — apply & save, no net.
+  //  safe   — commit-confirm: auto-reverts only if the platform loses the device.
+  //  test   — commit-confirm, manual accept: reverts at the deadline unless the
+  //           operator accepts it from the device banner (even if reachable).
+  const [applyMode, setApplyMode] = useState<'direct' | 'safe' | 'test'>('direct');
+  const [confirmSecs, setConfirmSecs] = useState(120);
 
   async function load() {
     setLoading(true);
@@ -44,10 +50,18 @@ export default function ConfigTab({ deviceId, canConfig }: { deviceId: string; c
     setBusy(true);
     try {
       const r = await api(`/api/devices/${deviceId}/config/push`, {
-        method: 'POST', body: { lines: lines(), force, confirm: safeApply, confirmSeconds: 120 }
+        method: 'POST',
+        body: {
+          lines: lines(), force,
+          confirm: applyMode !== 'direct',
+          confirmMode: applyMode === 'test' ? 'manual' : 'auto',
+          confirmSeconds: confirmSecs,
+        }
       });
       setPushOut(r.outcome === 'reverting'
         ? 'Applied, but the platform lost contact with the device afterward - it will auto-revert to the pre-change config. Re-check connectivity and try again.'
+        : r.outcome === 'armed'
+        ? `Applied in test mode. The device reverts in ~${Math.round(confirmSecs / 60)} min unless you accept the change — use the "Accept change" button in the banner at the top of this page.`
         : (r.output || 'Applied successfully (config backed up before change).'));
       setPreview(null);
     } catch (err: any) {
@@ -85,11 +99,31 @@ export default function ConfigTab({ deviceId, canConfig }: { deviceId: string; c
           <textarea className="h-64 w-full rounded border p-2 font-mono text-xs"
                     placeholder={'interface GigabitEthernet1/0/10\n description Printer\n switchport access vlan 20'}
                     value={pushLines} onChange={e => setPushLines(e.target.value)} />
-          <label className="mt-2 flex items-center gap-2 text-xs text-slate-500"
-                 title="Cisco arms 'reload in N'; RouterOS schedules a backup restore. Either way, if the platform can't reach the device after the change, the device reloads back to the pre-change config.">
-            <input type="checkbox" checked={safeApply} onChange={e => setSafeApply(e.target.checked)} />
-            Safe apply: if the platform loses access after the change, the device reloads back to the pre-change config in ~2&nbsp;min (Cisco IOS-XE &amp; RouterOS)
-          </label>
+          <div className="mt-2 space-y-1 text-xs text-slate-500">
+            {([
+              ['direct', 'Apply & save', 'Push the lines and persist them. No safety net.'],
+              ['safe', 'Safe apply', 'Auto-reverts only if the platform loses contact with the device after the change (Cisco IOS-XE & RouterOS).'],
+              ['test', 'Test mode', 'The change reverts at the deadline unless you accept it — try it out, then click "Accept change" in the banner above.'],
+            ] as const).map(([mode, label, help]) => (
+              <label key={mode} className="flex items-start gap-2" title={help}>
+                <input type="radio" name="applyMode" className="mt-0.5" checked={applyMode === mode}
+                       onChange={() => setApplyMode(mode)} />
+                <span><span className="font-medium text-slate-600">{label}</span> — {help}</span>
+              </label>
+            ))}
+            {applyMode !== 'direct' && (
+              <label className="flex items-center gap-2 pl-5 pt-1">
+                Revert window:
+                <select className="rounded border border-slate-300 px-1.5 py-0.5 text-xs"
+                        value={confirmSecs} onChange={e => setConfirmSecs(parseInt(e.target.value, 10))}>
+                  <option value={60}>1 minute</option>
+                  <option value={120}>2 minutes</option>
+                  <option value={300}>5 minutes</option>
+                  <option value={600}>10 minutes</option>
+                </select>
+              </label>
+            )}
+          </div>
           <div className="mt-2 flex items-center justify-between">
             <span className="text-xs text-slate-400">Preview shows what changes and flags risky lines before applying.</span>
             <Button onClick={runPreview} disabled={!pushLines.trim() || busy}>
@@ -105,7 +139,7 @@ export default function ConfigTab({ deviceId, canConfig }: { deviceId: string; c
           title="Push configuration"
           data={preview}
           busy={busy}
-          applyLabel="Push & save"
+          applyLabel={applyMode === 'test' ? 'Push (test mode)' : applyMode === 'safe' ? 'Push (safe apply)' : 'Push & save'}
           onApply={apply}
           onClose={() => setPreview(null)}
         />

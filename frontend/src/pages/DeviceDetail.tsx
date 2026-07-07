@@ -32,7 +32,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
   const [showTerminal, setShowTerminal] = useState(false);
   const canOperate = me.role !== 'readonly';
   const canConfig = me.role === 'superadmin' || me.role === 'netadmin';
-  const { run, busy } = useAction();
+  const { run, busy, isBusy } = useAction();
 
   const { data: device, refetch: refetchDevice } = useApiQuery<any>(`/api/devices/${id}`, { refetchInterval: 60000 });
   const { data: sites = [] } = useApiQuery<{ id: string; name: string }[]>('/api/sites');
@@ -44,6 +44,13 @@ export default function DeviceDetail({ me }: { me: Me }) {
     await api(`/api/devices/${id}/refresh`, { method: 'POST' });
     reload();
   });
+
+  // Accept a test-mode config change: cancels the device's revert timer and
+  // persists the config. Without this the device reverts at the deadline.
+  const acceptChange = () => run(async () => {
+    await api(`/api/devices/${id}/config/confirm-change`, { method: 'POST' });
+    refetchDevice();
+  }, { key: 'accept', success: 'Change accepted — revert timer cancelled and config saved.' });
 
   if (!device) return <div className="p-6 text-gray-400">Loading…</div>;
 
@@ -95,9 +102,17 @@ export default function DeviceDetail({ me }: { me: Me }) {
               </span>
             )}
             {device.revert_armed_until && new Date(device.revert_armed_until) > new Date() && (
-              <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200"
-                    title="A safe-apply config push is awaiting confirmation. If the platform cannot re-reach the device, it reverts itself at this time.">
+              <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200"
+                    title="A config change is inside its revert window. Unless it is confirmed (automatically for safe apply, or by you in test mode), the device reverts itself to the pre-change config at this time.">
                 ⏳ auto-revert armed until {new Date(device.revert_armed_until).toLocaleTimeString()}
+                {canConfig && (
+                  <button
+                    className="rounded-full bg-amber-600 px-2 py-0.5 text-[11px] font-semibold text-white transition-colors hover:bg-amber-700 disabled:opacity-50"
+                    disabled={busy}
+                    onClick={acceptChange}>
+                    {isBusy('accept') ? 'Accepting…' : 'Accept change'}
+                  </button>
+                )}
               </span>
             )}
             <Meta label="Vendor" value={device.vendor ? device.vendor[0].toUpperCase() + device.vendor.slice(1) : null} />

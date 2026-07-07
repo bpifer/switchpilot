@@ -4,7 +4,7 @@ import { createTwoFilesPatch } from 'diff';
 import { query } from '../db.js';
 import { audit, redactForAudit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
-import { deviceExec, devicePushConfig, setLoggingLevel, getDevice, pushConfigWithRevert } from '../services/deviceComms.js';
+import { deviceExec, devicePushConfig, setLoggingLevel, getDevice, pushConfigWithRevert, confirmArmedChange } from '../services/deviceComms.js';
 import { driverFor } from '../drivers/index.js';
 import { isMikrotik } from '../services/routerosMonitor.js';
 
@@ -271,13 +271,17 @@ export default async function configRoutes(app: FastifyInstance) {
           },
           force: { type: 'boolean', default: false },
           confirm: { type: 'boolean', default: false },
-          confirmSeconds: { type: 'integer', minimum: 60, maximum: 600, default: 120 }
+          confirmSeconds: { type: 'integer', minimum: 60, maximum: 600, default: 120 },
+          confirmMode: {
+            type: 'string', enum: ['auto', 'manual'], default: 'auto',
+            description: 'auto: the platform accepts the change once it can re-reach the device. manual (test mode): the change stays armed until the operator accepts it, otherwise the device reverts at the deadline.'
+          }
         }
       }
     }
   }, async (req, reply) => {
     const { id } = req.params as any;
-    const { lines, save, force, confirm, confirmSeconds } = req.body as any;
+    const { lines, save, force, confirm, confirmSeconds, confirmMode } = req.body as any;
     const me = req.user as any;
 
     // Server-side self-lockout gate: refuse a push that looks like it would cut
@@ -305,15 +309,36 @@ export default async function configRoutes(app: FastifyInstance) {
     // Commit-confirm: apply under an auto-revert net that restores the device if
     // the platform can no longer reach it afterward (RouterOS only; Cisco -> 501).
     if (confirm) {
-      const res = await pushConfigWithRevert(device, lines, confirmSeconds ?? 120);
+      const res = await pushConfigWithRevert(device, lines, confirmSeconds ?? 120,
+        { manualConfirm: confirmMode === 'manual' });
       await audit(me.username, 'config.push', id,
         { lines, output: redactForAudit(res.output), commitConfirm: res.outcome, ...(lockout.length ? { forcedLockout: lockout } : {}) }, req.ip);
-      return { ok: res.outcome === 'confirmed', outcome: res.outcome, output: res.output };
+      // 'armed' (test mode) is a success: the change is live, awaiting acceptance.
+      return { ok: res.outcome !== 'reverting', outcome: res.outcome, output: res.output };
     }
 
     const output = await devicePushConfig(id, lines, save ?? true);
     await audit(me.username, 'config.push', id,
       { lines, output: redactForAudit(output), ...(lockout.length ? { forcedLockout: lockout } : {}) }, req.ip);
+    return { ok: true, output };
+  });
+
+  // Accept a change pushed in test mode (confirmMode=manual): cancels the
+  // device-side revert timer and persists the config. Without this call the
+  // device reverts itself at the deadline.
+  app.post('/api/devices/:id/config/confirm-change', {
+    preHandler: requireRole('netadmin'), schema: { tags: ['configs'] }
+  }, async (req, reply) => {
+    const { id } = req.params as any;
+    const me = req.user as any;
+    let output: string;
+    try {
+      output = await confirmArmedChange(id);
+    } catch (err: any) {
+      if (err.statusCode === 409) return reply.code(409).send({ error: err.message });
+      throw err;
+    }
+    await audit(me.username, 'config.push.accepted', id, { output: redactForAudit(output) }, req.ip);
     return { ok: true, output };
   });
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../../api';
+import { api, ApiError } from '../../api';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import { Card, Button, StatusBadge, Modal, Field, inputCls, rowActionCls } from '../../components/ui';
 import PortGrid, { type Port } from '../../components/PortGrid';
@@ -401,6 +401,20 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
     if (window.confirm(message)) void action(label, fn);
   }
 
+  // Uplink guard: the server 409s a bounce/disable on a port with a discovered
+  // neighbor (taking it down could cut the switch off from the platform).
+  // Surface the server's explanation and let the operator override explicitly.
+  const withUplinkOverride = (fn: (force: boolean) => Promise<any>) => async () => {
+    try { return await fn(false); }
+    catch (err: any) {
+      if (err instanceof ApiError && err.status === 409) {
+        if (window.confirm(`${err.message}\n\nProceed anyway?`)) return fn(true);
+        return { result: 'Cancelled by the uplink guard.' };
+      }
+      throw err;
+    }
+  };
+
   // Step 1 of a config change: dry-run the edit and show the diff before applying.
   async function startPreview(body: any) {
     setBusy('preview'); setResult('');
@@ -453,7 +467,8 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
             <Button variant="secondary" disabled={!!busy}
                     onClick={() => {
                       const enabled = !port.admin_up;
-                      const run = () => api(`/api/devices/${deviceId}/ports/${portPath}/admin`, { method: 'POST', body: { enabled } });
+                      const run = withUplinkOverride(force =>
+                        api(`/api/devices/${deviceId}/ports/${portPath}/admin`, { method: 'POST', body: { enabled, force } }));
                       // Disabling drops the link; enabling a port is safe.
                       if (enabled) action('admin', run);
                       else confirmAction('admin', `Disable ${port.name}? This drops the link on this port.`, run);
@@ -462,7 +477,8 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
             </Button>
             <Button variant="secondary" disabled={!!busy}
                     onClick={() => confirmAction('bounce', `Bounce ${port.name}? This briefly drops the link (shut / no shut).`,
-                      () => api(`/api/devices/${deviceId}/ports/${portPath}/bounce`, { method: 'POST' }))}>
+                      withUplinkOverride(force =>
+                        api(`/api/devices/${deviceId}/ports/${portPath}/bounce`, { method: 'POST', body: { force } })))}>
               {busy === 'bounce' ? 'Bouncing…' : 'Bounce'}
             </Button>
             {port.poe_watts != null && (

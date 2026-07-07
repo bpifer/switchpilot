@@ -12,6 +12,7 @@ import { makeHostVerifier } from '../cisco/hostKey.js';
 import { withDeviceSession, evictDevice } from '../cisco/sshPool.js';
 import type { SnmpTarget } from '../cisco/snmpClient.js';
 import { driverFor, type PortConfigOpts, type DeviceToolId } from '../drivers/index.js';
+import { shortName } from './monitorShared.js';
 
 export interface DeviceRow {
   id: string;
@@ -138,9 +139,32 @@ export async function devicePushConfig(deviceId: string, lines: string[], save =
   return pushLines(await getDevice(deviceId), lines, save);
 }
 
-/** Enable or disable a port (driver-generated config). */
-export async function setPortAdmin(deviceId: string, portName: string, enabled: boolean): Promise<string> {
+/** Refuse link-dropping actions on a port that has a discovered CDP/LLDP/MNDP
+ *  neighbor (an uplink / infrastructure link) unless explicitly forced. Taking
+ *  an uplink down can cut this switch off from the platform — after which the
+ *  follow-up "no shut"/re-enable can never reach the device, leaving it dark
+ *  until someone gets physical access. 409 + force mirrors the self-lockout
+ *  config guard. */
+async function assertNotUplink(device: DeviceRow, portName: string, force: boolean): Promise<void> {
+  if (force) return;
+  const { rows } = await query<{ neighbor_name: string; neighbor_port: string }>(
+    'SELECT neighbor_name, neighbor_port FROM topology_links WHERE device_id=$1 AND local_port=$2 LIMIT 1',
+    [device.id, shortName(portName)]);
+  if (rows[0]) {
+    throw Object.assign(new Error(
+      `${portName} looks like an uplink: ${rows[0].neighbor_name}` +
+      `${rows[0].neighbor_port ? ` (${rows[0].neighbor_port})` : ''} is connected on it. ` +
+      'Taking it down can cut this switch off from the platform, and the follow-up ' +
+      're-enable would never reach the device.'),
+      { statusCode: 409, detail: { neighbor: rows[0].neighbor_name, neighborPort: rows[0].neighbor_port } });
+  }
+}
+
+/** Enable or disable a port (driver-generated config). Disabling is guarded
+ *  against uplinks (enable is always safe). */
+export async function setPortAdmin(deviceId: string, portName: string, enabled: boolean, force = false): Promise<string> {
   const device = await getDevice(deviceId);
+  if (!enabled) await assertNotUplink(device, portName, force);
   return pushLines(device, driverFor(device).setPortAdmin(portName, enabled), false);
 }
 
@@ -156,9 +180,12 @@ export async function setLoggingLevel(deviceId: string, level: string): Promise<
   return pushLines(device, driverFor(device).loggingTrap(level), true);
 }
 
-/** Administratively bounce a port (shutdown / no shutdown). */
-export async function bouncePort(deviceId: string, portName: string): Promise<string> {
+/** Administratively bounce a port (shutdown / no shutdown). Guarded against
+ *  uplinks: if the shutdown cuts our own management path, the "no shutdown"
+ *  half never reaches the device. */
+export async function bouncePort(deviceId: string, portName: string, force = false): Promise<string> {
   const device = await getDevice(deviceId);
+  await assertNotUplink(device, portName, force);
   const { down, up } = driverFor(device).bounceLines(portName);
   const target = await sshTargetFor(device);
   return withDeviceSession(target, async session => {
@@ -248,13 +275,19 @@ export async function configureFlowExport(deviceId: string): Promise<string> {
   return pushLines(device, lines, true);
 }
 
-export interface RevertResult { outcome: 'confirmed' | 'reverting'; output: string; }
+export interface RevertResult { outcome: 'confirmed' | 'reverting' | 'armed'; output: string; }
 
 /** Push config under a commit-confirm net: arm an auto-revert, apply the change,
  *  then confirm the platform can still reach the device - disarming on success,
- *  or letting the device auto-revert if the change cut us off. RouterOS only. */
+ *  or letting the device auto-revert if the change cut us off.
+ *
+ *  With `manualConfirm` (test mode) the platform does NOT auto-disarm: the
+ *  change stays armed and the operator must accept it (confirmArmedChange)
+ *  before the timer fires, otherwise the device reverts itself - even if the
+ *  platform can still reach it. For "let me try this and see" changes. */
 export async function pushConfigWithRevert(
-  device: DeviceRow, lines: string[], seconds: number
+  device: DeviceRow, lines: string[], seconds: number,
+  opts: { manualConfirm?: boolean } = {}
 ): Promise<RevertResult> {
   const deviceId = device.id;
   const driver = driverFor(device);
@@ -293,6 +326,14 @@ export async function pushConfigWithRevert(
     return { outcome: 'reverting', output: `apply error (device will auto-revert): ${(err as Error).message}` };
   }
 
+  // Test mode: leave the revert armed and hand control to the operator. The
+  // token is stored (TTL = the timer) so confirmArmedChange can disarm the
+  // RouterOS scheduler/backup pair; Cisco disarms with a bare `reload cancel`.
+  if (opts.manualConfirm) {
+    await redis.set(`device:${deviceId}:revertToken`, token, 'EX', seconds).catch(() => {});
+    return { outcome: 'armed', output };
+  }
+
   // Verify reachability with fresh handshakes (a cut mgmt path must actually fail,
   // not reuse a cached socket), leaving a margin before the revert fires.
   const reachable = await reachableWithin(target, driver.probeCommand, Math.max((seconds - 10) * 1000, 10_000));
@@ -314,6 +355,42 @@ export async function pushConfigWithRevert(
   await redis.del(armedKey).catch(() => {});
   publishEvent({ type: 'device_updated', data: { deviceId } }).catch(() => {});
   return { outcome: 'confirmed', output };
+}
+
+/** Accept a change that was pushed in test mode (manualConfirm): cancel the
+ *  device-side revert timer and persist the config. 409 when nothing is armed —
+ *  the window expired (the device already reverted) or it was already accepted. */
+export async function confirmArmedChange(deviceId: string): Promise<string> {
+  const device = await getDevice(deviceId);
+  const armedKey = `device:${deviceId}:revertArmed`;
+  const tokenKey = `device:${deviceId}:revertToken`;
+  const armed = await redis.get(armedKey).catch(() => null);
+  if (!armed) {
+    throw Object.assign(
+      new Error('No pending change to accept — the test window may have expired (the device reverted) or the change was already accepted.'),
+      { statusCode: 409 });
+  }
+  const driver = driverFor(device);
+  const target = await sshTargetFor(device);
+  const token = await redis.get(tokenKey).catch(() => null);
+  const output = await withDeviceSession(target, async session => {
+    if (session.disarmRevert) {
+      // Cisco: cancel the scheduled reload, then persist.
+      const out = await session.disarmRevert();
+      if (driver.saveCommand) await session.saveConfig(driver.saveCommand);
+      return out;
+    }
+    // RouterOS: removing the scheduler + safety backup needs the arming token.
+    if (!token) {
+      throw Object.assign(
+        new Error('The revert token for this change is gone (platform restart?). Remove the spcc* scheduler and backup on the device manually, or wait for the revert.'),
+        { statusCode: 409 });
+    }
+    return session.configure(driver.disarmRevertLines(token));
+  });
+  await redis.del(armedKey, tokenKey).catch(() => {});
+  publishEvent({ type: 'device_updated', data: { deviceId } }).catch(() => {});
+  return output;
 }
 
 /** Probe the device CLI repeatedly until it responds or the budget elapses,
