@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Routes, Route, Navigate, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { api, getToken, setToken } from './api';
 import { Icon } from './components/ui';
 import Login from './pages/Login';
@@ -179,6 +179,21 @@ function SiteSelector() {
         {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         <option value="unassigned">Unassigned</option>
       </select>
+    </div>
+  );
+}
+
+// A mistyped URL, a stale bookmark, or a link to a deleted device should say
+// so - not silently teleport the operator to the dashboard with no
+// explanation, which reads as the click having done nothing.
+function NotFound() {
+  const location = useLocation();
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+      <Icon d={ICONS.alerts} className="h-8 w-8 text-slate-300" />
+      <p className="text-sm font-medium text-slate-600">No page at <span className="font-mono text-slate-400">{location.pathname}</span></p>
+      <p className="text-sm text-slate-400">Check the address, or it may have moved.</p>
+      <Link to="/" className="text-sm font-medium text-brand-600 hover:text-brand-700 hover:underline">← Back to Dashboard</Link>
     </div>
   );
 }
@@ -405,7 +420,7 @@ export default function App() {
           <Route path="/discovery" element={<Discovery me={me} />} />
           {roleRank(me.role) >= roleRank('netadmin') && <Route path="/integrations" element={<Integrations />} />}
           {me.role === 'superadmin' && <Route path="/users" element={<Users />} />}
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
         </Suspense>
         </ErrorBoundary>

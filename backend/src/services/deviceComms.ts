@@ -140,16 +140,29 @@ export async function devicePushConfig(deviceId: string, lines: string[], save =
 }
 
 /** Refuse link-dropping actions on a port that has a discovered CDP/LLDP/MNDP
- *  neighbor (an uplink / infrastructure link) unless explicitly forced. Taking
- *  an uplink down can cut this switch off from the platform — after which the
- *  follow-up "no shut"/re-enable can never reach the device, leaving it dark
- *  until someone gets physical access. 409 + force mirrors the self-lockout
- *  config guard. */
+ *  neighbor OR an operator-drawn manual link (an uplink / infrastructure link)
+ *  unless explicitly forced. Taking an uplink down can cut this switch off from
+ *  the platform — after which the follow-up "no shut"/re-enable can never reach
+ *  the device, leaving it dark until someone gets physical access. Manual links
+ *  matter here as much as discovered ones: a device with CDP/LLDP/MNDP off (or
+ *  unsupported) has NO row in topology_links, so the manual link an operator
+ *  draws for exactly that gap is the only signal this guard can use. 409 +
+ *  force mirrors the self-lockout config guard. */
 async function assertNotUplink(device: DeviceRow, portName: string, force: boolean): Promise<void> {
   if (force) return;
+  const port = shortName(portName);
   const { rows } = await query<{ neighbor_name: string; neighbor_port: string }>(
-    'SELECT neighbor_name, neighbor_port FROM topology_links WHERE device_id=$1 AND local_port=$2 LIMIT 1',
-    [device.id, shortName(portName)]);
+    `SELECT neighbor_name, neighbor_port FROM topology_links WHERE device_id=$1 AND local_port=$2
+     UNION ALL
+     SELECT COALESCE(NULLIF(m.to_label, ''), d.hostname), m.to_port
+       FROM manual_topology_links m LEFT JOIN devices d ON d.id = m.to_device_id
+      WHERE m.from_device_id=$1 AND m.from_port=$2
+     UNION ALL
+     SELECT d.hostname, m.from_port
+       FROM manual_topology_links m JOIN devices d ON d.id = m.from_device_id
+      WHERE m.to_device_id=$1 AND m.to_port=$2
+     LIMIT 1`,
+    [device.id, port]);
   if (rows[0]) {
     throw Object.assign(new Error(
       `${portName} looks like an uplink: ${rows[0].neighbor_name}` +

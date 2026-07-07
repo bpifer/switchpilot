@@ -88,7 +88,7 @@ export default function Discovery({ me }: { me: Me }) {
                       <tr key={`${s.neighbor_ip}-${s.seen_by_ip}`} className="hover:bg-slate-50/80 transition">
                         <td className="py-3 pr-4 font-medium text-slate-800">{s.neighbor_name || '—'}</td>
                         <td className="py-3 pr-4 font-mono text-xs text-slate-700">{s.neighbor_ip}</td>
-                        <td className="py-3 pr-4 text-slate-600">{s.neighbor_platform || '—'}</td>
+                        <td className="max-w-64 truncate py-3 pr-4 text-slate-600" title={s.neighbor_platform}>{s.neighbor_platform || '—'}</td>
                         <td className="py-3 pr-4">
                           <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${
                             s.protocol === 'cdp' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
