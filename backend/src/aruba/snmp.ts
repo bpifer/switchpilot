@@ -21,6 +21,9 @@ export const ARUBA_OIDS = {
   ifAlias: '1.3.6.1.2.1.31.1.1.1.18',       // operator description
   ifHCInOctets: '1.3.6.1.2.1.31.1.1.1.6',
   ifHCOutOctets: '1.3.6.1.2.1.31.1.1.1.10',
+  // BRIDGE-MIB / Q-BRIDGE-MIB (read side; write side lives in aruba/write.ts)
+  dot1dBasePortIfIndex: '1.3.6.1.2.1.17.1.4.1.2', // bridgePort -> ifIndex
+  dot1qPvid: '1.3.6.1.2.1.17.7.1.4.5.1.1',        // bridgePort -> access VLAN
   // LLDP-MIB remote table (rows indexed timeMark.localPortNum.remIndex)
   lldpRemPortId: '1.0.8802.1.1.2.1.4.1.1.7',
   lldpRemPortDesc: '1.0.8802.1.1.2.1.4.1.1.8',
@@ -103,6 +106,20 @@ export function mapInterfaces(walks: {
     });
   }
   return out.sort((a, b) => a.index - b.index);
+}
+
+/** Per-port access VLAN: join dot1qPvid (keyed by bridge port) with
+ *  dot1dBasePortIfIndex (bridge port -> ifIndex). Returns Map<ifIndex, vlanId>.
+ *  Ports missing from either walk simply aren't in the map. */
+export function mapPvids(walks: { pvid: Walk; basePortIfIndex: Walk }): Map<number, number> {
+  const ifIndexByBridgePort = bySuffix(walks.basePortIfIndex, ARUBA_OIDS.dot1dBasePortIfIndex);
+  const out = new Map<number, number>();
+  for (const [bridgePort, vlan] of bySuffix(walks.pvid, ARUBA_OIDS.dot1qPvid)) {
+    const ifIndex = Number(ifIndexByBridgePort.get(bridgePort) ?? 0);
+    const vlanId = Number(vlan);
+    if (ifIndex > 0 && vlanId > 0) out.set(ifIndex, vlanId);
+  }
+  return out;
 }
 
 export interface CounterSnapshot { ts: number; counters: Record<number, { in: number | null; out: number | null }>; }

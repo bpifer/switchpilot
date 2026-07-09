@@ -8,7 +8,7 @@ import { query } from '../db.js';
 import { redis } from '../redis.js';
 import { snmpGet, snmpWalk, OIDS, type SnmpTarget } from '../cisco/snmpClient.js';
 import {
-  ARUBA_OIDS, detectAruba, mapInterfaces, computeRates, mapLldpNeighbors,
+  ARUBA_OIDS, detectAruba, mapInterfaces, computeRates, mapLldpNeighbors, mapPvids,
   type CounterSnapshot,
 } from '../aruba/snmp.js';
 import { getDevice, snmpTargetFor, type DeviceRow } from './deviceComms.js';
@@ -71,6 +71,17 @@ export async function refreshArubaDevice(deviceId: string): Promise<void> {
     ]);
   const ifaces = mapInterfaces({ ifType, ifName, ifAlias, ifHighSpeed, ifAdminStatus, ifOperStatus, ifHCInOctets, ifHCOutOctets });
 
+  // Access VLAN per port (Q-BRIDGE PVID joined through the bridge-port map).
+  // Best-effort: a device without the Q-BRIDGE MIB just keeps vlan=''.
+  let pvidByIfIndex = new Map<number, number>();
+  try {
+    const [pvid, basePortIfIndex] = await Promise.all([
+      snmpWalk(target, ARUBA_OIDS.dot1qPvid),
+      snmpWalk(target, ARUBA_OIDS.dot1dBasePortIfIndex),
+    ]);
+    pvidByIfIndex = mapPvids({ pvid, basePortIfIndex });
+  } catch { /* Q-BRIDGE unavailable - ports keep an empty vlan */ }
+
   // bps from HC octet deltas vs the previous sweep (redis-cached snapshot)
   const cur: CounterSnapshot = {
     ts: Date.now(),
@@ -91,17 +102,18 @@ export async function refreshArubaDevice(deviceId: string): Promise<void> {
     await query(
       `INSERT INTO ports (device_id, name, description, admin_up, oper_status, vlan, mode, speed, duplex,
           poe_watts, input_errors, output_errors, macs, last_flap_at, flap_count_1h, media, updated_at)
-       SELECT $1, t.name, t.description, t.admin_up, t.oper_status, '', 'access', t.speed, '',
+       SELECT $1, t.name, t.description, t.admin_up, t.oper_status, t.vlan, 'access', t.speed, '',
           NULL, 0, 0, '[]'::jsonb, t.last_flap_at, t.flap_count_1h, '', now()
        FROM jsonb_to_recordset($2::jsonb) AS t(
-          name text, description text, admin_up boolean, oper_status text, speed text,
+          name text, description text, admin_up boolean, oper_status text, vlan text, speed text,
           last_flap_at timestamptz, flap_count_1h int)
        ON CONFLICT (device_id, name) DO UPDATE SET
           description=EXCLUDED.description, admin_up=EXCLUDED.admin_up, oper_status=EXCLUDED.oper_status,
-          speed=EXCLUDED.speed, last_flap_at=EXCLUDED.last_flap_at, flap_count_1h=EXCLUDED.flap_count_1h,
-          updated_at=now()`,
+          vlan=EXCLUDED.vlan, speed=EXCLUDED.speed, last_flap_at=EXCLUDED.last_flap_at,
+          flap_count_1h=EXCLUDED.flap_count_1h, updated_at=now()`,
       [deviceId, JSON.stringify(portRows.map(({ i, flapCount, lastFlapAt }) => ({
         name: i.name, description: i.description, admin_up: i.adminUp, oper_status: i.operStatus,
+        vlan: pvidByIfIndex.has(i.index) ? String(pvidByIfIndex.get(i.index)) : '',
         speed: i.speedMbps != null ? (i.speedMbps >= 1000 ? `${i.speedMbps / 1000}G` : `${i.speedMbps}M`) : '',
         last_flap_at: lastFlapAt, flap_count_1h: flapCount,
       })))]);

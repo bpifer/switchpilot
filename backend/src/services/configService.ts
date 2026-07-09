@@ -5,6 +5,7 @@ import { driverFor } from '../drivers/index.js';
 import { raiseAlert } from './alertService.js';
 import { commitConfig } from './configVersioning.js';
 import { previewConfigLines, type ConfigPreview } from './configPreview.js';
+import { renderArubaConfig } from '../aruba/syntheticConfig.js';
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
@@ -19,6 +20,22 @@ function normalizeConfig(content: string): string {
     .trim();
 }
 
+/** Render an Aruba synthetic snapshot from the polled DB state, or null when
+ *  the device has never completed a poll (no port rows yet). */
+async function syntheticArubaConfig(
+  deviceId: string,
+  device: { hostname: string; model: string; [k: string]: unknown }
+): Promise<string | null> {
+  const ports = await query<{ name: string; description: string; admin_up: boolean; oper_status: string; vlan: string }>(
+    'SELECT name, description, admin_up, oper_status, vlan FROM ports WHERE device_id=$1', [deviceId]);
+  if (!ports.rows.length) return null;
+  const links = await query<{ local_port: string; neighbor_name: string; neighbor_port: string }>(
+    'SELECT local_port, neighbor_name, neighbor_port FROM topology_links WHERE device_id=$1', [deviceId]);
+  return renderArubaConfig(
+    { hostname: device.hostname, model: device.model, version: String(device.ios_version ?? '') },
+    ports.rows, links.rows);
+}
+
 export interface BackupOptions {
   reason?: string;   // why this backup was taken (free text)
   ticket?: string;   // change ticket reference
@@ -31,12 +48,19 @@ export async function backupDevice(
   opts: BackupOptions = {}
 ): Promise<{ id: string; changed: boolean }> {
   const device = await getDevice(deviceId);
-  // SNMP-only vendors (Aruba Instant On) expose no config over their transport;
-  // skip quietly so the nightly sweep doesn't log an error per Aruba per night.
-  if (device.vendor === 'aruba') return { id: '', changed: false };
-  const cmd = driverFor(device).configCommand;
-  const out = await deviceExec(deviceId, [cmd]);
-  const content = Object.values(out)[0] ?? '';
+  let content: string;
+  if (device.vendor === 'aruba') {
+    // SNMP-only: no CLI config to pull, so render a synthetic snapshot from the
+    // state the Aruba monitor keeps in the DB. Before the first successful poll
+    // there are no port rows - skip quietly rather than commit an empty shell.
+    const synthetic = await syntheticArubaConfig(deviceId, device);
+    if (!synthetic) return { id: '', changed: false };
+    content = synthetic;
+  } else {
+    const cmd = driverFor(device).configCommand;
+    const out = await deviceExec(deviceId, [cmd]);
+    content = Object.values(out)[0] ?? '';
+  }
   if (!content || content.length < 50) throw new Error('Backup returned empty configuration — aborting');
   const hash = sha256(normalizeConfig(content));
 
