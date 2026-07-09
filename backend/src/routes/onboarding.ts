@@ -16,6 +16,8 @@ import { detectRouterOs, isRouterOs } from '../routeros/detector.js';
 import { resolveRosCapabilities } from '../routeros/capabilities.js';
 import { refreshDevice } from '../services/monitorService.js';
 import { provisionDevice } from '../services/provisionService.js';
+import { snmpProbe } from '../cisco/snmpClient.js';
+import { detectAruba } from '../aruba/snmp.js';
 
 export const PLATFORM_ACCOUNT = 'SPAdmin';
 
@@ -142,6 +144,48 @@ export default async function onboardingRoutes(app: FastifyInstance) {
     enablePassword: { type: 'string' }
   };
 
+  // Aruba Instant On SNMP-only probe: verify the device is reachable via SNMP
+  // and return its identity before committing to onboarding.
+  app.post('/api/onboarding/probe-aruba', {
+    preHandler: requireRole('netadmin'),
+    schema: {
+      tags: ['devices'],
+      body: { type: 'object', required: ['mgmtIp', 'snmpCommunity'],
+        properties: { mgmtIp: { type: 'string' }, snmpCommunity: { type: 'string' } } }
+    }
+  }, async (req, reply) => {
+    const { mgmtIp, snmpCommunity } = req.body as any;
+
+    const dup = await query('SELECT id, hostname FROM devices WHERE host(mgmt_ip) = $1', [mgmtIp.trim()]);
+    if (dup.rows[0]) return reply.code(409).send({ error: `${mgmtIp} is already onboarded as "${dup.rows[0].hostname}"` });
+
+    const probe = await snmpProbe({ host: mgmtIp.trim(), version: '2c', community: snmpCommunity });
+    if (!probe) {
+      throw Object.assign(
+        new Error(`SNMP probe failed — check that ${mgmtIp} is reachable on UDP/161 and the community string is correct`),
+        { statusCode: 422 }
+      );
+    }
+    const det = detectAruba(probe.sysDescr);
+    if (!det.isAruba) {
+      throw Object.assign(
+        new Error(`Device responded to SNMP but does not appear to be an Aruba Instant On (sysDescr: "${probe.sysDescr.slice(0, 80)}")`),
+        { statusCode: 422 }
+      );
+    }
+    return {
+      vendor: 'aruba' as const,
+      identity: {
+        hostname: probe.sysName || mgmtIp,
+        model: det.model || 'Aruba Instant On',
+        serial: '',
+        iosVersion: det.version,
+      },
+      sysDescr: probe.sysDescr,
+      uptimeSeconds: probe.uptimeSeconds,
+    };
+  });
+
   // Step 1: connect with bootstrap credentials and report device identity,
   // existing admin accounts, and which baseline settings are missing.
   app.post('/api/onboarding/analyze', {
@@ -183,9 +227,11 @@ export default async function onboardingRoutes(app: FastifyInstance) {
     schema: {
       tags: ['devices'],
       body: {
-        type: 'object', required: ['mgmtIp', 'username', 'password'],
+        type: 'object',
         properties: {
           ...credProps,
+          vendor: { type: 'string' },          // 'aruba' triggers SNMP-only path
+          snmpCommunity: { type: 'string' },
           siteId: { type: 'string' },
           location: { type: 'string' },
           createAccount: { type: 'boolean', default: true },
@@ -199,6 +245,36 @@ export default async function onboardingRoutes(app: FastifyInstance) {
 
     const dup = await query('SELECT 1 FROM devices WHERE host(mgmt_ip) = $1', [b.mgmtIp]);
     if (dup.rows[0]) return reply.code(409).send({ error: `${b.mgmtIp} is already onboarded` });
+
+    // --- Aruba Instant On path: SNMP-only, no SSH credential stored ---
+    if (b.vendor === 'aruba') {
+      const probe = await snmpProbe({ host: b.mgmtIp.trim(), version: '2c', community: b.snmpCommunity });
+      if (!probe) throw Object.assign(new Error(`SNMP is no longer reachable at ${b.mgmtIp}`), { statusCode: 422 });
+      const det = detectAruba(probe.sysDescr);
+      const hostLabel = probe.sysName || b.mgmtIp;
+      const model = det.model || 'Aruba Instant On';
+
+      const cred = await query(
+        `INSERT INTO credentials (name, ssh_username, ssh_password_enc, enable_password_enc,
+           snmp_version, snmp_community_enc, snmpv3_user, snmpv3_auth_proto, snmpv3_auth_key_enc,
+           snmpv3_priv_proto, snmpv3_priv_key_enc)
+         VALUES ($1,'',$2,$2,'2c',$3,'','sha',$4,'aes',$4)
+         ON CONFLICT (name) DO UPDATE SET snmp_community_enc=EXCLUDED.snmp_community_enc
+         RETURNING id`,
+        [`snmp (${hostLabel})`, encryptSecret(''), encryptSecret(b.snmpCommunity), encryptSecret('')]);
+
+      const { rows } = await query(
+        `INSERT INTO devices (hostname, mgmt_ip, model, family, serial_number, ios_version,
+           vendor, site_id, location, credential_id, capabilities, status, last_seen_at)
+         VALUES ($1,$2,$3,'aruba-instant-on','',$4,'aruba',$5,$6,$7,'{}'::jsonb,'online', now()) RETURNING *`,
+        [hostLabel, b.mgmtIp, model, det.version ?? '',
+         b.siteId || null, b.location ?? '', cred.rows[0].id]);
+      const device = rows[0];
+
+      await audit(me.username, 'device.onboard', b.mgmtIp, { model, vendor: 'aruba' }, req.ip);
+      await refreshDevice(device.id).catch(err => app.log.warn(`initial Aruba refresh failed: ${err.message}`));
+      return reply.code(201).send({ device, account: '', generatedPassword: null, warnings: [] });
+    }
 
     // --- RouterOS path: no SPAdmin/privilege-15 account; onboard as-is ---
     if (await probeVendor(b.mgmtIp, b.username, b.password) === 'mikrotik') {
