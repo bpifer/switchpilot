@@ -7,7 +7,7 @@ import { redis, publishEvent } from '../redis.js';
 import { config } from '../config.js';
 import { audit } from '../audit.js';
 import { decryptSecret } from '../crypto/secrets.js';
-import { type SshTarget } from '../cisco/sshClient.js';
+import { CiscoSshSession, type SshTarget } from '../cisco/sshClient.js';
 import { makeHostVerifier } from '../cisco/hostKey.js';
 import { withDeviceSession, evictDevice } from '../cisco/sshPool.js';
 import type { SnmpTarget } from '../cisco/snmpClient.js';
@@ -433,6 +433,36 @@ export async function createLag(
   const driver = driverFor(device);
   if (!driver.supportsLag) throw Object.assign(new Error(`LAG is not supported on ${driver.vendor}`), { statusCode: 501 });
   return pushLines(device, driver.lagCreateLines(opts), true);
+}
+
+/** Reboot (reload) a device. Cisco: interactive reload prompt handled by a
+ *  dedicated session outside the pool. RouterOS: /system reboot via exec.
+ *  Either path drops the connection before replying — that's expected. */
+export async function rebootDevice(deviceId: string): Promise<string> {
+  const device = await getDevice(deviceId);
+  if ((device as any).vendor === 'aruba') {
+    throw Object.assign(
+      new Error('Remote reboot is not supported for Aruba Instant On (SNMP-only management)'),
+      { statusCode: 400 }
+    );
+  }
+  const target = await sshTargetFor(device);
+  try {
+    if (target.os === 'routeros') {
+      await withDeviceSession(target, s => s.exec('/system reboot'));
+    } else {
+      const sess = new CiscoSshSession(target);
+      await sess.connect();
+      await sess.enable();
+      await sess.reload(30000);
+      sess.close();
+    }
+  } catch {
+    // Reboot drops the session before it can reply — swallow the expected disconnect.
+  } finally {
+    evictDevice(target);
+  }
+  return 'Reboot initiated. The device will be unreachable for approximately 1–2 minutes.';
 }
 
 /** Remove a LAG and return its members to normal switching (driver-generated). */

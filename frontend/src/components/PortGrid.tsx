@@ -112,9 +112,9 @@ export default function PortGrid({ ports, selected, onSelect }: {
               <span className="text-xs font-medium text-gray-500 dark:text-slate-400">{rangeLabel(module, sorted.length)}</span>
               <span className="text-xs text-gray-400 dark:text-slate-500">({sorted.filter(p => p.oper_status === 'connected').length} connected)</span>
             </div>
-            <div className="inline-block rounded-lg border-2 border-gray-700 bg-gray-800 p-2.5">
+            <div className="inline-block rounded-xl border-2 border-gray-700 bg-gray-800 p-3.5">
               {[odd, even].map((row, i) => (
-                <div key={i} className="flex gap-1 first:mb-1">
+                <div key={i} className="flex gap-1.5 first:mb-2">
                   {row.map(p => (
                     <PortButton key={p.name} p={p} selected={selected} onSelect={onSelect} label={String(portNum(p.name))} />
                   ))}
@@ -131,8 +131,8 @@ export default function PortGrid({ ports, selected, onSelect }: {
             <span className="text-xs font-medium text-gray-500 dark:text-slate-400">Uplinks / SFP</span>
             <span className="text-xs text-gray-400 dark:text-slate-500">({uplinks.filter(p => p.oper_status === 'connected').length}/{uplinks.length} connected)</span>
           </div>
-          <div className="inline-block rounded-lg border-2 border-gray-700 bg-gray-800 p-2.5">
-            <div className="flex gap-1.5">
+          <div className="inline-block rounded-xl border-2 border-gray-700 bg-gray-800 p-3.5">
+            <div className="flex gap-2">
               {uplinks.sort((a, b) => portNum(a.name) - portNum(b.name)).map(p => (
                 <PortButton key={p.name} p={p} selected={selected} onSelect={onSelect}
                   label={p.name.includes('/') ? p.name.replace(/^.*\//, '') : String(portNum(p.name))} sfp />
@@ -191,38 +191,37 @@ function PortButton({ p, selected, onSelect, label, sfp = false }: {
       <button
         title={tooltip}
         onClick={() => onSelect(p.name)}
-        className={`relative h-9 w-12 rounded-md border-2 text-[8px] leading-none font-semibold
+        className={`relative h-12 w-16 rounded-md border-2 text-[10px] leading-none font-semibold
           ${portColor(p)} ${sel}
           shadow-[inset_0_0_0_1px_rgba(0,0,0,0.35)] transition-opacity hover:opacity-80`}
       >
         {/* transceiver slot */}
-        <span className="absolute inset-x-1.5 top-1 h-1.5 rounded-sm bg-black/35" />
-        <span className="absolute inset-x-0 bottom-1 text-center">{label}</span>
+        <span className="absolute inset-x-2 top-2 h-2 rounded-sm bg-black/35" />
+        <span className="absolute inset-x-0 bottom-1.5 text-center">{label}</span>
         {p.mode === 'trunk' && (
-          <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-[7px] leading-none text-sky-300" title="Trunk / uplink">▲</span>
+          <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[8px] leading-none text-sky-300" title="Trunk / uplink">▲</span>
         )}
       </button>
     );
   }
 
-  // Copper RJ45 jacks: a square body with a keyway notch cut into the top edge
-  // (the panel-colored tab), so they read as an 8P8C jack vs the SFP cages.
+  // Copper RJ45 jacks: a square body with a keyway notch cut into the top edge.
   return (
     <button
       title={tooltip}
       onClick={() => onSelect(p.name)}
       className={`
-        relative h-7 w-7 rounded-sm border-2 text-[8px] leading-none font-medium
+        relative h-10 w-10 rounded-sm border-2 text-[10px] leading-none font-medium
         ${portColor(p)} ${sel}
-        ${p.poe_watts ? 'shadow-[inset_0_-3px_0_rgba(37,99,235,0.9)]' : ''}
+        ${p.poe_watts ? 'shadow-[inset_0_-4px_0_rgba(37,99,235,0.9)]' : ''}
         transition-opacity hover:opacity-80
       `}
     >
       {/* RJ45 keyway notch */}
-      <span className="absolute -top-[2px] left-1/2 -translate-x-1/2 h-[3px] w-2.5 rounded-b-[2px] bg-gray-800" />
-      <span className="absolute inset-x-0 bottom-0.5 text-center">{label}</span>
+      <span className="absolute -top-[2px] left-1/2 -translate-x-1/2 h-1 w-3.5 rounded-b-[2px] bg-gray-800" />
+      <span className="absolute inset-x-0 bottom-1 text-center">{label}</span>
       {p.mode === 'trunk' && (
-        <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[7px] leading-none text-sky-300"
+        <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[8px] leading-none text-sky-300"
               title="Trunk / uplink">▲</span>
       )}
     </button>

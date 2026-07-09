@@ -6,7 +6,7 @@ import { requireRole } from '../auth/rbac.js';
 import { encryptSecret } from '../crypto/secrets.js';
 import { detectDevice } from '../cisco/detector.js';
 import { listFamilies, resolveCapabilities, familyForModel } from '../cisco/capabilities.js';
-import { getDevice, sshTargetFor, snmpTargetFor, repinHostKey } from '../services/deviceComms.js';
+import { getDevice, sshTargetFor, snmpTargetFor, repinHostKey, rebootDevice } from '../services/deviceComms.js';
 import { refreshDevice } from '../services/monitorService.js';
 import { getFwUpdate } from '../services/firmwareState.js';
 import { provisionDevice, buildProvisionPlan } from '../services/provisionService.js';
@@ -334,6 +334,23 @@ export default async function deviceRoutes(app: FastifyInstance) {
       await refreshDevice(id).catch(() => { /* key is cleared; next connect re-pins */ });
       return getDevice(id);
     });
+
+  // Reboot (reload) a device. Destructive — requires netadmin and explicit confirmation.
+  app.post('/api/devices/:id/reboot', {
+    preHandler: requireRole('netadmin'),
+    schema: {
+      tags: ['devices'],
+      body: { type: 'object', required: ['confirm'], properties: { confirm: { type: 'string' } } }
+    }
+  }, async (req, reply) => {
+    const { id } = req.params as any;
+    const { confirm } = req.body as any;
+    const me = req.user as any;
+    if (confirm !== 'REBOOT') return reply.code(400).send({ error: 'Send confirm="REBOOT" to proceed.' });
+    const message = await rebootDevice(id);
+    await audit(me.username, 'device.reboot', id, {}, req.ip);
+    return { ok: true, message };
+  });
 
   // Metric history for charts
   app.get('/api/devices/:id/metrics', {
