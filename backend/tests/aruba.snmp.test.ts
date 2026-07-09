@@ -31,11 +31,19 @@ function walks() {
 }
 
 describe('detectAruba', () => {
-  it('recognizes an Instant On 1930 sysDescr and extracts model + firmware', () => {
+  it('recognizes an Instant On 1930 sysDescr and extracts model + firmware (PD style)', () => {
     const d = detectAruba('Aruba Instant On 1930 48G 4SFP+ Switch, PD.02.11, Linux 3.6.5');
     expect(d.isAruba).toBe(true);
     expect(d.model).toMatch(/Instant\s*On 1930/i);
     expect(d.version).toBe('PD.02.11');
+  });
+
+  it('extracts version from real 1930 sysDescr (InstantOn_1930_2.8.0.0 format)', () => {
+    const sysDescr = 'Aruba Instant On 1930 24G Class4 PoE 4SFP/SFP+ 370W Switch JL684B, InstantOn_1930_2.8.0.0 (17), Linux 4.4.120, U-Boot 2013.01 (V1.0.1.41)';
+    const d = detectAruba(sysDescr);
+    expect(d.isAruba).toBe(true);
+    expect(d.version).toBe('2.8.0.0');
+    expect(d.model).toMatch(/Instant\s*On 1930/i);
   });
 
   it('is not fooled by Cisco or MikroTik sysDescrs', () => {

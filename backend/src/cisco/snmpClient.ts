@@ -20,6 +20,7 @@ export const OIDS = {
   // ENTITY-MIB
   entPhysicalModelName: '1.3.6.1.2.1.47.1.1.1.1.13',
   entPhysicalSerialNum: '1.3.6.1.2.1.47.1.1.1.1.11',
+  entPhysicalClass: '1.3.6.1.2.1.47.1.1.1.1.5',    // 3=chassis; walk to find chassis index
   // CISCO-PROCESS-MIB cpmCPUTotal5minRev
   cpu5min: '1.3.6.1.4.1.9.9.109.1.1.1.1.8',
   // CISCO-MEMORY-POOL-MIB

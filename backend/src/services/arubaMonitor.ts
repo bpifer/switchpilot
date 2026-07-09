@@ -34,8 +34,14 @@ export async function refreshArubaDevice(deviceId: string): Promise<void> {
   const sys = await snmpGet(target, [ARUBA_OIDS.sysDescr, ARUBA_OIDS.sysName, ARUBA_OIDS.sysUpTime]);
   const sysDescr = String(sys[ARUBA_OIDS.sysDescr] ?? '');
   const det = detectAruba(sysDescr);
-  // ENTITY-MIB serial/model are chassis-index dependent; best-effort on .1
-  const ent = await snmpGet(target, [`${OIDS.entPhysicalModelName}.1`, `${OIDS.entPhysicalSerialNum}.1`]).catch(() => ({} as Record<string, string | number>));
+  // Walk entPhysicalClass to find the chassis row (class=3); its index varies
+  // by vendor (the 1930 uses ~67109120, not the conventional .1 or .1000).
+  const entClass = await snmpWalk(target, OIDS.entPhysicalClass).catch(() => ({} as Record<string, string | number>));
+  const chassisSuffix = Object.entries(entClass).find(([, v]) => Number(v) === 3)?.[0]?.split('.').pop() ?? '1';
+  const ent = await snmpGet(target, [
+    `${OIDS.entPhysicalModelName}.${chassisSuffix}`,
+    `${OIDS.entPhysicalSerialNum}.${chassisSuffix}`,
+  ]).catch(() => ({} as Record<string, string | number>));
   const model = String(ent[`${OIDS.entPhysicalModelName}.1`] ?? '') || det.model || device.model;
   const serial = String(ent[`${OIDS.entPhysicalSerialNum}.1`] ?? '') || device.serial_number || '';
 

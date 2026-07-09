@@ -50,8 +50,9 @@ export function detectAruba(sysDescr: string): ArubaDetection {
   if (!isAruba) return { isAruba: false, model: '', version: '' };
   const model = sysDescr.match(/((?:Aruba\s+)?Instant\s*On\s+\d+\w*(?:\s+[\w+-]+)*?\s+Switch)/i)?.[1]?.trim()
     ?? sysDescr.split(',')[0].trim();
-  // firmware token like "PD.02.11" or a plain dotted version
-  const version = sysDescr.match(/\b([A-Z]{1,3}\.\d{2}\.\d{2,4})\b/)?.[1]
+  // "InstantOn_1930_2.8.0.0 (17)" → "2.8.0.0"; fallback "PD.02.11" style; last fallback "Version X"
+  const version = sysDescr.match(/InstantOn[^,\s]+?_([\d]+\.[\d]+\.[\d]+\.[\d]+)/i)?.[1]
+    ?? sysDescr.match(/\b([A-Z]{1,3}\.\d{2}\.\d{2,4})\b/)?.[1]
     ?? sysDescr.match(/Version\s+([\w.]+)/i)?.[1] ?? '';
   return { isAruba, model, version };
 }
