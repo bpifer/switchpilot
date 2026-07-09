@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { toast } from '../components/Toast';
+import { useAction } from '../hooks/useAction';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { PageHeader, Card, Button, Modal, Field, inputCls, rowActionCls } from '../components/ui';
 
@@ -19,23 +20,18 @@ export default function Integrations() {
 function Webhooks() {
   const { data: hooks = [], refetch } = useApiQuery<any[]>('/api/webhooks');
   const [editing, setEditing] = useState<any | null>(null);
-  const [testing, setTesting] = useState('');
+  const { run, isBusy } = useAction();
 
-  async function test(id: string) {
-    setTesting(id);
-    try {
-      const r = await api(`/api/webhooks/${id}/test`, { method: 'POST' });
-      toast.info(`Delivery result: ${r.lastStatus}`);
-      refetch();
-    } catch (err: any) { toast.error(err.message); }
-    finally { setTesting(''); }
-  }
+  const test = (id: string) => run(async () => {
+    const r = await api(`/api/webhooks/${id}/test`, { method: 'POST' });
+    toast.info(`Delivery result: ${r.lastStatus}`);
+    refetch();
+  }, { key: id });
 
-  async function remove(id: string) {
+  const remove = (id: string) => {
     if (!confirm('Delete this webhook?')) return;
-    try { await api(`/api/webhooks/${id}`, { method: 'DELETE' }); refetch(); }
-    catch (err: any) { toast.error(err.message); }
-  }
+    run(async () => { await api(`/api/webhooks/${id}`, { method: 'DELETE' }); refetch(); }, { key: id });
+  };
 
   return (
     <Card title="Alert webhooks">
@@ -64,11 +60,11 @@ function Webhooks() {
                 {h.last_fired_at ? `${new Date(h.last_fired_at).toLocaleString()} · ${h.last_status}` : 'never'}
               </td>
               <td className="space-x-2 text-right">
-                <button className={`${rowActionCls} text-brand-600 dark:text-brand-400`} onClick={() => test(h.id)} disabled={testing === h.id}>
-                  {testing === h.id ? 'testing…' : 'test'}
+                <button className={`${rowActionCls} text-brand-600 dark:text-brand-400`} onClick={() => test(h.id)} disabled={isBusy(h.id)}>
+                  {isBusy(h.id) ? 'working…' : 'test'}
                 </button>
                 <button className={`${rowActionCls} text-slate-500 dark:text-slate-400`} onClick={() => setEditing({ ...h, minSeverity: h.min_severity })}>edit</button>
-                <button className={`${rowActionCls} text-red-600 dark:text-red-400`} onClick={() => remove(h.id)}>delete</button>
+                <button className={`${rowActionCls} text-red-600 dark:text-red-400`} disabled={isBusy(h.id)} onClick={() => remove(h.id)}>delete</button>
               </td>
             </tr>
           ))}
@@ -124,24 +120,19 @@ function ApiKeys() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ name: '', role: 'readonly' });
   const [newToken, setNewToken] = useState('');
-  const [busy, setBusy] = useState(false);
+  const { run, isBusy, busy } = useAction();
 
-  async function create() {
-    setBusy(true);
-    try {
-      const r = await api<{ token: string }>('/api/keys', { method: 'POST', body: form });
-      setNewToken(r.token);
-      setCreating(false); setForm({ name: '', role: 'readonly' });
-      refetch();
-    } catch (err: any) { toast.error(err.message); }
-    finally { setBusy(false); }
-  }
+  const create = () => run(async () => {
+    const r = await api<{ token: string }>('/api/keys', { method: 'POST', body: form });
+    setNewToken(r.token);
+    setCreating(false); setForm({ name: '', role: 'readonly' });
+    refetch();
+  }, { key: 'create' });
 
-  async function remove(id: string) {
+  const remove = (id: string) => {
     if (!confirm('Revoke this API key? Scripts using it will stop working immediately.')) return;
-    try { await api(`/api/keys/${id}`, { method: 'DELETE' }); refetch(); }
-    catch (err: any) { toast.error(err.message); }
-  }
+    run(async () => { await api(`/api/keys/${id}`, { method: 'DELETE' }); refetch(); }, { key: id });
+  };
 
   return (
     <Card title="API keys">
@@ -179,7 +170,7 @@ function ApiKeys() {
               <td className="pr-3 text-xs capitalize">{k.role}</td>
               <td className="pr-3 text-xs text-slate-500 dark:text-slate-400">{k.created_by}</td>
               <td className="pr-3 text-xs text-slate-500 dark:text-slate-400">{k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'never'}</td>
-              <td className="text-right"><button className={`${rowActionCls} text-red-600 dark:text-red-400`} onClick={() => remove(k.id)}>revoke</button></td>
+              <td className="text-right"><button className={`${rowActionCls} text-red-600 dark:text-red-400`} disabled={isBusy(k.id)} onClick={() => remove(k.id)}>{isBusy(k.id) ? 'revoking…' : 'revoke'}</button></td>
             </tr>
           ))}
           {keys.length === 0 && <tr><td colSpan={5} className="py-4 text-center text-slate-400 dark:text-slate-500">No API keys</td></tr>}

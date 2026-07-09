@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, getToken } from '../api';
-import { toast } from '../components/Toast';
+import { useAction } from '../hooks/useAction';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, StatusBadge, Modal, Field, inputCls, rowActionCls, fmtUptime } from '../components/ui';
@@ -25,20 +25,20 @@ export default function Devices({ me }: { me: Me }) {
   const { data: sites = [] } = useApiQuery<any[]>('/api/sites');
   const { data: credentials = [], refetch: reloadCreds } = useApiQuery<any[]>('/api/credentials', { enabled: canEdit });
 
+  const { run, isBusy } = useAction();
+
   // Download every device's latest config backup as one text file. Auth header
   // can't ride an <a href>, so fetch with the token and trigger a blob download.
-  async function downloadBundle() {
-    try {
-      const res = await fetch('/api/config-bundle', { headers: { authorization: `Bearer ${getToken()}` } });
-      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as any).error ?? res.statusText);
-      const url = URL.createObjectURL(new Blob([await res.text()], { type: 'text/plain' }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `switchpilot-configs-${new Date().toISOString().slice(0, 10)}.txt`;
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
-    } catch (err: any) { toast.error(err.message); }
-  }
+  const downloadBundle = () => run(async () => {
+    const res = await fetch('/api/config-bundle', { headers: { authorization: `Bearer ${getToken()}` } });
+    if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as any).error ?? res.statusText);
+    const url = URL.createObjectURL(new Blob([await res.text()], { type: 'text/plain' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `switchpilot-configs-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }, { key: 'bundle' });
 
   // Filter + sort are pure client-side over the already-fetched list, so they're
   // instant and don't refire the query. Numeric columns sort numerically; the
@@ -80,7 +80,9 @@ export default function Devices({ me }: { me: Me }) {
   return (
     <div>
       <PageHeader title="Devices">
-        {canEdit && <Button variant="secondary" onClick={downloadBundle}>Download configs</Button>}
+        {canEdit && <Button variant="secondary" disabled={isBusy('bundle')} onClick={downloadBundle}>
+          {isBusy('bundle') ? 'Downloading…' : 'Download configs'}
+        </Button>}
         {canEdit && <Button variant="secondary" onClick={() => setShowCred(true)}>Credentials</Button>}
         {canEdit && <Button onClick={() => setShowAdd(true)}>+ Add switch</Button>}
       </PageHeader>
@@ -158,12 +160,12 @@ export default function Devices({ me }: { me: Me }) {
                       <td className="py-3 pl-2 text-right">
                         <button
                           className={`${rowActionCls} text-slate-300 opacity-0 transition hover:text-red-600 group-hover:opacity-100 max-lg:opacity-100 max-lg:text-slate-400 dark:text-slate-600 dark:hover:text-red-400 dark:max-lg:text-slate-500`}
-                          onClick={async () => {
+                          disabled={isBusy(d.id)}
+                          onClick={() => {
                             if (!confirm(`Remove ${d.hostname || d.mgmt_ip} from SwitchPilot?\n\nThis deletes its history (ports, metrics, backups, alerts) from the platform. The switch itself is not touched.`)) return;
-                            try { await api(`/api/devices/${d.id}`, { method: 'DELETE' }); load(); }
-                            catch (err: any) { toast.error(err.message); }
+                            run(async () => { await api(`/api/devices/${d.id}`, { method: 'DELETE' }); load(); }, { key: d.id });
                           }}>
-                          remove
+                          {isBusy(d.id) ? 'removing…' : 'remove'}
                         </button>
                       </td>
                     )}
@@ -223,6 +225,7 @@ function CredentialManager({ credentials, onClose }: { credentials: any[]; onClo
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const { run, isBusy } = useAction();
 
   function startEdit(c: any) {
     // Secrets are never returned by the API; leave them blank (blank = keep current).
@@ -266,10 +269,10 @@ function CredentialManager({ credentials, onClose }: { credentials: any[]; onClo
                 <button className={`${rowActionCls} text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300`} onClick={() => startEdit(c)}>Edit</button>
                 <button
                   className={`${rowActionCls} text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300`}
-                  onClick={() => api(`/api/credentials/${c.id}`, { method: 'DELETE' }).then(onClose)
-                    .catch((err: any) => toast.error(err.message))}
+                  disabled={isBusy(c.id)}
+                  onClick={() => run(async () => { await api(`/api/credentials/${c.id}`, { method: 'DELETE' }); onClose(); }, { key: c.id })}
                 >
-                  Delete
+                  {isBusy(c.id) ? 'Deleting…' : 'Delete'}
                 </button>
               </div>
             </li>

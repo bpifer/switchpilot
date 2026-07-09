@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, apiUpload } from '../api';
-import { toast } from '../components/Toast';
+import { useAction } from '../hooks/useAction';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
@@ -36,6 +36,7 @@ export default function Firmware({ me }: { me: Me }) {
   // uploadable image), so it gets its own section rather than the image library.
   const { data: devices = [] } = useApiQuery<any[]>('/api/devices');
   const mikrotiks = devices.filter(d => d.vendor === 'mikrotik');
+  const { run, isBusy } = useAction();
   const [showUpload, setShowUpload] = useState(false);
   const [upgrading, setUpgrading] = useState<FirmwareImage | null>(null);
   const [settingTarget, setSettingTarget] = useState<string | null>(null); // family
@@ -143,12 +144,12 @@ export default function Firmware({ me }: { me: Me }) {
                     <td className="space-x-3 text-right">
                       <Button variant="secondary" onClick={() => setUpgrading(img)}>Upgrade devices…</Button>
                       <button className="text-xs text-red-600 hover:underline dark:text-red-400"
-                              onClick={async () => {
+                              disabled={isBusy(img.id)}
+                              onClick={() => {
                                 if (!confirm(`Delete ${img.filename} from SwitchPilot? Switches that already copied it are unaffected.`)) return;
-                                try { await api(`/api/firmware/${img.id}`, { method: 'DELETE' }); refetchImages(); }
-                                catch (err: any) { toast.error(err.message); }
+                                run(async () => { await api(`/api/firmware/${img.id}`, { method: 'DELETE' }); refetchImages(); }, { key: img.id });
                               }}>
-                        delete
+                        {isBusy(img.id) ? 'deleting…' : 'delete'}
                       </button>
                     </td>
                   )}

@@ -12,13 +12,14 @@ export default function Users() {
   const { data: users = [], refetch: reloadUsers } = useApiQuery<any[]>('/api/users');
   const { data: audit = [], refetch: reloadAudit } = useApiQuery<any[]>('/api/audit?limit=50', { refetchInterval: 30000 });
   const load = () => { reloadUsers(); reloadAudit(); };
+  const { run, isBusy } = useAction();
 
   const unlock = (id: string) =>
-    api(`/api/security/unlock/${id}`, { method: 'POST' }).then(load).catch((err: any) => toast.error(err.message));
+    run(async () => { await api(`/api/security/unlock/${id}`, { method: 'POST' }); load(); }, { key: id });
   // Role/enable changes can be rejected server-side (e.g. can't demote or disable
   // the last superadmin); surface that instead of silently doing nothing.
   const patchUser = (id: string, body: any) =>
-    api(`/api/users/${id}`, { method: 'PATCH', body }).then(load).catch((err: any) => toast.error(err.message));
+    run(async () => { await api(`/api/users/${id}`, { method: 'PATCH', body }); load(); }, { key: id });
 
   return (
     <div>
@@ -47,13 +48,15 @@ export default function Users() {
                   <td className="text-xs">{u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'never'}</td>
                   <td className="space-x-2 text-right">
                     {u.locked && (
-                      <button className={`${rowActionCls} font-medium text-amber-600 dark:text-amber-400`} onClick={() => unlock(u.id)}>unlock</button>
+                      <button className={`${rowActionCls} font-medium text-amber-600 dark:text-amber-400`} disabled={isBusy(u.id)} onClick={() => unlock(u.id)}>unlock</button>
                     )}
                     <select className="rounded border border-slate-300 bg-white px-1 py-0.5 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" value={u.role}
+                            disabled={isBusy(u.id)}
                             onChange={e => patchUser(u.id, { role: e.target.value })}>
                       {['superadmin', 'netadmin', 'helpdesk', 'readonly'].map(r => <option key={r}>{r}</option>)}
                     </select>
                     <button className={`${rowActionCls} text-gray-500 dark:text-slate-400`}
+                            disabled={isBusy(u.id)}
                             onClick={() => patchUser(u.id, { enabled: !u.enabled })}>
                       {u.enabled ? 'disable' : 'enable'}
                     </button>
@@ -207,7 +210,7 @@ const ROLES = ['superadmin', 'netadmin', 'helpdesk', 'readonly'] as const;
 
 function SecurityPolicy({ onClose }: { onClose: () => void }) {
   const [p, setP] = useState<any>(null);
-  const [busy, setBusy] = useState(false);
+  const { run, busy } = useAction();
   const [saved, setSaved] = useState(false);
 
   useEffect(() => { api('/api/security/policy').then(setP).catch(() => {}); }, []);
@@ -219,12 +222,8 @@ function SecurityPolicy({ onClose }: { onClose: () => void }) {
     set('mfa_required_roles', roles.includes(r) ? roles.filter(x => x !== r) : [...roles, r]);
   };
 
-  async function save() {
-    setBusy(true);
-    try { await api('/api/security/policy', { method: 'PUT', body: p }); setSaved(true); }
-    catch (err: any) { toast.error(err.message); }
-    finally { setBusy(false); }
-  }
+  const save = () =>
+    run(async () => { await api('/api/security/policy', { method: 'PUT', body: p }); setSaved(true); });
 
   const num = (k: string, label: string, hint?: string) => (
     <Field label={label}>

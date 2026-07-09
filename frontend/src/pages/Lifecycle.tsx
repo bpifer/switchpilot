@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import { toast } from '../components/Toast';
+import { useAction } from '../hooks/useAction';
 import { useApiQuery } from '../hooks/useApiQuery';
 import type { Me } from '../App';
 import { PageHeader, Card, Button, Modal, Field, inputCls } from '../components/ui';
@@ -168,7 +168,7 @@ function CatalogEditor({ onClose }: { onClose: () => void }) {
   const [rows, setRows] = useState<CatalogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Partial<CatalogEntry> | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { run, busy, isBusy } = useAction();
 
   const load = () => api<CatalogEntry[]>('/api/lifecycle-catalog')
     .then(setRows).catch(() => setRows([])).finally(() => setLoading(false));
@@ -176,11 +176,10 @@ function CatalogEditor({ onClose }: { onClose: () => void }) {
 
   const fmtDate = (d: string | null) => d ? String(d).slice(0, 10) : '';
 
-  async function save() {
+  const save = () => {
     if (!editing?.model_prefix?.trim()) return;
-    setBusy(true);
-    try {
-      await api(`/api/lifecycle-catalog/${encodeURIComponent(editing.model_prefix.trim())}`, {
+    run(async () => {
+      await api(`/api/lifecycle-catalog/${encodeURIComponent(editing.model_prefix!.trim())}`, {
         method: 'PUT',
         body: {
           eosDate: editing.eos_date || null,
@@ -190,15 +189,13 @@ function CatalogEditor({ onClose }: { onClose: () => void }) {
         }
       });
       setEditing(null); load();
-    } catch (err: any) { toast.error(err.message); }
-    finally { setBusy(false); }
-  }
+    }, { key: 'save' });
+  };
 
-  async function remove(prefix: string) {
+  const remove = (prefix: string) => {
     if (!confirm(`Delete lifecycle entry for "${prefix}"?`)) return;
-    try { await api(`/api/lifecycle-catalog/${encodeURIComponent(prefix)}`, { method: 'DELETE' }); load(); }
-    catch (err: any) { toast.error(err.message); }
-  }
+    run(async () => { await api(`/api/lifecycle-catalog/${encodeURIComponent(prefix)}`, { method: 'DELETE' }); load(); }, { key: prefix });
+  };
 
   return (
     <Modal title="Lifecycle catalog" onClose={onClose}>
@@ -232,7 +229,7 @@ function CatalogEditor({ onClose }: { onClose: () => void }) {
                   <td className="space-x-2 text-right">
                     <button className="text-xs text-brand-600 hover:underline dark:text-brand-400"
                             onClick={() => setEditing({ ...r, eos_date: fmtDate(r.eos_date), eol_date: fmtDate(r.eol_date) })}>edit</button>
-                    <button className="text-xs text-red-600 hover:underline dark:text-red-400" onClick={() => remove(r.model_prefix)}>delete</button>
+                    <button className="text-xs text-red-600 hover:underline dark:text-red-400" disabled={isBusy(r.model_prefix)} onClick={() => remove(r.model_prefix)}>{isBusy(r.model_prefix) ? 'deleting…' : 'delete'}</button>
                   </td>
                 </tr>
               ))}

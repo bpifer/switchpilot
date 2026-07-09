@@ -28,15 +28,17 @@ subsystems. Best value-per-effort next, in order:
    streaming download + destructive restore (confirm=RESTORE + safety dump of the
    current DB first), on the Users page. Old pre-restore safety dumps pruned daily
    (>7d). postgresql16-client bundled in the API image.
-5. **Aruba InstantOn 1930 (SNMP read-only, phase 1)** — SCAFFOLD BUILT
-   2026-07-06 (device was offline). `aruba/snmp.ts` pure mappers (detect,
-   IF-MIB interfaces, HC-counter→bps rates, LLDP neighbors; 11 unit tests) +
-   `services/arubaMonitor.ts` + dispatcher branch + SNMP vendor detection at
-   onboarding + guardrails (driverFor 501s for aruba, backup sweep skips,
-   tools list empty, pollStatus skips SSH fallback). REMAINING (needs the
-   live 1930 + SNMP enabled): validate ENTITY chassis index, LLDP local-port
-   numbering, CPU/mem/temp vendor OIDs, onboarding end-to-end, and per-tab
-   frontend gating for a config-less device.
+5. **Aruba InstantOn 1930** — phase 1 (SNMP read-only monitor) BUILT 2026-07-06;
+   phase 2 (full SNMP write layer: port admin/bounce/description, access +
+   trunk VLANs via Q-BRIDGE bitmaps, validated against the real 1930) shipped
+   2026-07-08; compliance shipped 2026-07-09 (commit b2c6e45): the monitor
+   walks PVIDs into `ports.vlan`, backups render a synthetic snapshot from
+   SNMP state (config history + diffs for CLI-less devices), and migration
+   032 seeds 5 vendor=aruba rules (VLAN-1 exposure, port descriptions,
+   default hostname, LLDP visibility, firmware identified). REMAINING (needs
+   the live 1930 reachable from the LXC): CPU/mem/temp vendor OIDs, PVID walk
+   + synthetic backup + rule scoring against real state, onboarding wizard
+   end-to-end via the new probe-aruba step.
 
 Lower value / defer: remaining `useAction` page migrations (cosmetic, ~½ day),
 NX-OS Flexible NetFlow (niche, no hw), manual topology link-drawing (~2 days),
@@ -95,11 +97,11 @@ message needed cleanup.
       -> cancel -> show reload shows "No reload scheduled". 253 tests pass.
 ## P2 - High value
 
-- [ ] **Platform backup/restore workflow.** `Medium`. PARTIAL: fleet config-bundle
-      download shipped (`/api/config-bundle` - every device's latest config in one
-      file, netadmin, audited; "Download configs" on the Devices page). Still open:
-      an in-app DB export/import path (the `pg_dump`/restore is documented in the DR
-      runbook for now).
+- [x] **Platform backup/restore workflow.** `Medium`. **DONE 2026-07-06.** Fleet
+      config-bundle download (`/api/config-bundle`, netadmin, audited; "Download
+      configs" on the Devices page) plus the in-app DB backup/restore that shipped
+      the same day (superadmin pg_dump download + confirm=RESTORE restore with a
+      pre-restore safety dump; see item 4 in the recommended-order list).
 - [ ] **NetFlow follow-ups.** `Medium`. IPFIX (v10) decode DONE. RouterOS
       auto-export DONE: `driver.flowExportLines` + `POST /api/devices/:id/flow-export`
       (netadmin, audited) push an idempotent `/ip traffic-flow` target at the
@@ -186,7 +188,7 @@ message needed cleanup.
       baseline PUT. Still open: optional scheduled remediation for compliance
       rules.
 - [ ] **DHCP/IPAM correlation.** `Medium`. Pull leases from MikroTik/pfSense/
-      Pi-hole and correlate to clients.
+      Pi-hole and correlate to clients. SKIPPED for now (user call, 2026-07-09).
 - [ ] **Credential presets (reusable, admin-restricted).** `Medium`. Reusable
       credential sets to speed onboarding / bulk-add; restrict presets to admins.
 - [ ] **Shared toast / mutation hook (frontend).** `Medium`. PARTIAL: a shared
