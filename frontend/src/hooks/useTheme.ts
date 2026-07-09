@@ -31,6 +31,16 @@ export function setTheme(theme: Theme): void {
  *  including the one in a closed sidebar drawer on mobile). */
 export function useTheme(): Theme {
   const [theme, setThemeState] = useState<Theme>(getTheme);
+
+  // Keep the <html> class in sync with React state. The inline script in
+  // index.html sets it before first paint (no flash), but this effect is the
+  // authoritative write: if the script was skipped for any reason (stale SW
+  // shell, iOS standalone mode, private-browsing restrictions) the correct
+  // class is restored on mount rather than waiting for the first user toggle.
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
+
   useEffect(() => {
     const onChange = (e: Event) => setThemeState((e as CustomEvent<Theme>).detail);
     window.addEventListener(EVENT, onChange);
