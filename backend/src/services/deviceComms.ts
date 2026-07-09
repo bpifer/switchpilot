@@ -148,7 +148,7 @@ export async function devicePushConfig(deviceId: string, lines: string[], save =
  *  unsupported) has NO row in topology_links, so the manual link an operator
  *  draws for exactly that gap is the only signal this guard can use. 409 +
  *  force mirrors the self-lockout config guard. */
-async function assertNotUplink(device: DeviceRow, portName: string, force: boolean): Promise<void> {
+export async function assertNotUplink(device: DeviceRow, portName: string, force: boolean): Promise<void> {
   if (force) return;
   const port = shortName(portName);
   const { rows } = await query<{ neighbor_name: string; neighbor_port: string }>(

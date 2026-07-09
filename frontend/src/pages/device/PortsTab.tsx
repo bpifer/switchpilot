@@ -29,9 +29,10 @@ function fmtBps(bps: number): string {
   return `${bps} bps`;
 }
 
-export default function PortsTab({ deviceId, ports, canOperate, onChanged }: {
-  deviceId: string; ports: Port[]; canOperate: boolean; onChanged: () => void;
+export default function PortsTab({ deviceId, ports, canOperate, onChanged, vendor }: {
+  deviceId: string; ports: Port[]; canOperate: boolean; onChanged: () => void; vendor?: string;
 }) {
+  const isAruba = vendor === 'aruba';
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
   const port = ports.find(p => p.name === selected) ?? null;
@@ -68,12 +69,12 @@ export default function PortsTab({ deviceId, ports, canOperate, onChanged }: {
 
       {port && (
         <PortDetail key={port.name} deviceId={deviceId} port={port}
-                    canOperate={canOperate} onChanged={onChanged} />
+                    canOperate={canOperate} onChanged={onChanged} isAruba={isAruba} />
       )}
 
-      {canOperate && <BulkConfigPanel deviceId={deviceId} ports={ports} onChanged={onChanged} />}
+      {canOperate && !isAruba && <BulkConfigPanel deviceId={deviceId} ports={ports} onChanged={onChanged} />}
 
-      {canOperate && <LagPanel deviceId={deviceId} ports={ports} onChanged={onChanged} />}
+      {canOperate && !isAruba && <LagPanel deviceId={deviceId} ports={ports} onChanged={onChanged} />}
     </div>
   );
 }
@@ -373,12 +374,13 @@ function LagPanel({ deviceId, ports, onChanged }: { deviceId: string; ports: Por
   );
 }
 
-function PortDetail({ deviceId, port, canOperate, onChanged }: {
-  deviceId: string; port: Port; canOperate: boolean; onChanged: () => void;
+function PortDetail({ deviceId, port, canOperate, onChanged, isAruba }: {
+  deviceId: string; port: Port; canOperate: boolean; onChanged: () => void; isAruba?: boolean;
 }) {
   const [busy, setBusy] = useState('');
   const [result, setResult] = useState('');
   const [editVlan, setEditVlan] = useState(false);
+  const [editAruba, setEditAruba] = useState(false);
   // A pending port edit: the dry-run diff plus the body we'll apply on confirm.
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [pendingBody, setPendingBody] = useState<any | null>(null);
@@ -414,6 +416,19 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
       throw err;
     }
   };
+
+  // Aruba direct-apply (no SSH driver, no diff preview).
+  async function applyArubaConfig(body: any) {
+    setBusy('cfg'); setResult('');
+    try {
+      await api(`/api/devices/${deviceId}/ports/${portPath}/config`, { method: 'POST', body });
+      setEditAruba(false);
+      onChanged();
+    } catch (err: any) {
+      setResult(`Error: ${err.message}`);
+      setEditAruba(false);
+    } finally { setBusy(''); }
+  }
 
   // Step 1 of a config change: dry-run the edit and show the diff before applying.
   async function startPreview(body: any) {
@@ -481,18 +496,20 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
                         api(`/api/devices/${deviceId}/ports/${portPath}/bounce`, { method: 'POST', body: { force } })))}>
               {busy === 'bounce' ? 'Bouncing…' : 'Bounce'}
             </Button>
-            {port.poe_watts != null && (
+            {!isAruba && port.poe_watts != null && (
               <Button variant="secondary" disabled={!!busy}
                       onClick={() => confirmAction('poe', `PoE-cycle ${port.name}? This power-cycles the attached device (AP / camera / phone).`,
                         () => api(`/api/devices/${deviceId}/ports/${portPath}/poe-cycle`, { method: 'POST' }))}>
                 {busy === 'poe' ? 'Power-cycling…' : 'PoE cycle'}
               </Button>
             )}
-            <Button variant="secondary" disabled={!!busy}
-                    onClick={() => action('tdr', () => api(`/api/devices/${deviceId}/ports/${portPath}/cable-test`, { method: 'POST' }))}>
-              {busy === 'tdr' ? 'Testing…' : 'Cable test'}
-            </Button>
-            <Button onClick={() => setEditVlan(true)}>Configure</Button>
+            {!isAruba && (
+              <Button variant="secondary" disabled={!!busy}
+                      onClick={() => action('tdr', () => api(`/api/devices/${deviceId}/ports/${portPath}/cable-test`, { method: 'POST' }))}>
+                {busy === 'tdr' ? 'Testing…' : 'Cable test'}
+              </Button>
+            )}
+            <Button onClick={() => isAruba ? setEditAruba(true) : setEditVlan(true)}>Configure</Button>
           </div>
         )}
       </div>
@@ -542,6 +559,16 @@ function PortDetail({ deviceId, port, canOperate, onChanged }: {
           busy={busy === 'preview'}
           onClose={() => setEditVlan(false)}
           onApply={startPreview}
+        />
+      )}
+
+      {editAruba && (
+        <ArubaPortConfigModal
+          deviceId={deviceId}
+          port={port}
+          busy={busy === 'cfg'}
+          onClose={() => setEditAruba(false)}
+          onApply={applyArubaConfig}
         />
       )}
 
@@ -791,6 +818,91 @@ export function PortConfigModal({ port, busy, onClose, onApply }: {
         <p className="mb-3 text-xs text-amber-600 dark:text-amber-400">
           Careful: changing your own uplink to the wrong trunk settings can cut off management access.
         </p>
+      )}
+
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button onClick={apply} disabled={busy}>{busy ? 'Applying…' : 'Apply'}</Button>
+      </div>
+    </Modal>
+  );
+}
+
+function ArubaPortConfigModal({ deviceId, port, busy, onClose, onApply }: {
+  deviceId: string; port: Port; busy: boolean; onClose: () => void; onApply: (body: any) => void;
+}) {
+  const [desc, setDesc] = useState(port.description ?? '');
+  const [descTouched, setDescTouched] = useState(false);
+  const [mode, setMode] = useState<'unchanged' | 'access' | 'trunk'>('unchanged');
+  const [vlan, setVlan] = useState('');
+  const [trunkVlans, setTrunkVlans] = useState<number[]>([]);
+
+  const { data: vlans = [] } = useApiQuery<{ id: number; name: string }[]>(
+    `/api/devices/${deviceId}/vlans`);
+
+  function apply() {
+    const body: any = {};
+    if (descTouched) body.description = desc;
+    if (mode === 'access') {
+      body.mode = 'access';
+      if (vlan) body.vlan = parseInt(vlan, 10);
+    } else if (mode === 'trunk') {
+      body.mode = 'trunk';
+      body.trunkAllowedVlans = trunkVlans.join(',');
+    }
+    if (Object.keys(body).length === 0) { onClose(); return; }
+    onApply(body);
+  }
+
+  return (
+    <Modal title={`Configure ${port.name}`} onClose={onClose}>
+      <Field label="Description">
+        <input className={inputCls} value={desc}
+               onChange={e => { setDesc(e.target.value); setDescTouched(true); }} />
+      </Field>
+
+      <Field label="Port mode">
+        <select className={inputCls} value={mode} onChange={e => setMode(e.target.value as any)}>
+          <option value="unchanged">Keep current ({port.mode ?? 'access'})</option>
+          <option value="access">Access</option>
+          <option value="trunk">Trunk</option>
+        </select>
+      </Field>
+
+      {mode === 'access' && (
+        <Field label="Access VLAN">
+          <select className={inputCls} value={vlan} onChange={e => setVlan(e.target.value)}>
+            <option value="">Keep current ({port.vlan ?? '—'})</option>
+            {vlans.map(v => (
+              <option key={v.id} value={String(v.id)}>{v.id}{v.name ? ` — ${v.name}` : ''}</option>
+            ))}
+          </select>
+        </Field>
+      )}
+
+      {mode === 'trunk' && (
+        <div>
+          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+            Trunk VLANs ({trunkVlans.length} selected)
+          </div>
+          <div className="grid max-h-48 grid-cols-2 gap-1 overflow-auto sm:grid-cols-3">
+            {vlans.map(v => {
+              const checked = trunkVlans.includes(v.id);
+              return (
+                <label key={v.id}
+                       className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs ${checked ? 'border-brand-300 bg-brand-50 text-brand-700 dark:border-brand-500/40 dark:bg-brand-500/10 dark:text-brand-400' : 'border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-400'}`}>
+                  <input type="checkbox" checked={checked}
+                         onChange={() => setTrunkVlans(prev => checked ? prev.filter(x => x !== v.id) : [...prev, v.id])} />
+                  <span className="font-mono">{v.id}</span>
+                  {v.name && <span className="truncate text-slate-500 dark:text-slate-400">{v.name}</span>}
+                </label>
+              );
+            })}
+          </div>
+          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+            Selected VLANs will be tagged members on this trunk port. Applied via SNMP Q-BRIDGE bitmap.
+          </p>
+        </div>
       )}
 
       <div className="flex justify-end gap-2">

@@ -4,6 +4,8 @@ import { audit, redactForAudit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
 import { devicePushConfig, deviceExec, bouncePort, cableTest, setPortAdmin, pushPortConfig, getDevice, poeCyclePort, createLag, deleteLag } from '../services/deviceComms.js';
 import { bridgeVlanFiltering, isMikrotik, routerOsPortMacs, routerOsVlans, routerOsSfp } from '../services/routerosMonitor.js';
+import { isAruba } from '../services/arubaMonitor.js';
+import { arubaPortAdmin, arubaBouncePort, arubaPortConfig, arubaGetVlans } from '../aruba/write.js';
 import { expandInterfaceName, parseMacTable, parseVlanBrief, assertCiscoPort } from '../cisco/parsers.js';
 import { driverFor } from '../drivers/index.js';
 import { previewConfigLines } from '../services/configPreview.js';
@@ -87,7 +89,12 @@ export default async function portRoutes(app: FastifyInstance) {
     const { enabled, force } = req.body as any;
     const me = req.user as any;
     try {
-      await setPortAdmin(id, port, enabled, force ?? false);
+      const device = await getDevice(id);
+      if (isAruba(device)) {
+        await arubaPortAdmin(id, port, enabled, force ?? false);
+      } else {
+        await setPortAdmin(id, port, enabled, force ?? false);
+      }
     } catch (err: any) {
       // Uplink guard: surface the explanation in the { error } shape the SPA
       // reads (Fastify's default handler would bury it under "Conflict").
@@ -120,6 +127,23 @@ export default async function portRoutes(app: FastifyInstance) {
     const { id, port } = req.params as any;
     const b = req.body as any;
     const me = req.user as any;
+    const device = await getDevice(id);
+    // Aruba SNMP path: no SSH driver, no diff preview, no read-back verification.
+    if (isAruba(device)) {
+      await arubaPortConfig(id, port, b);
+      const sets: string[] = [];
+      const params: unknown[] = [];
+      if (b.description !== undefined) { params.push(b.description); sets.push(`description=$${params.length}`); }
+      if (b.mode === 'trunk') { params.push('trunk'); sets.push(`vlan=$${params.length}`, `mode='trunk'`); }
+      else if (b.vlan)        { params.push(String(b.vlan)); sets.push(`vlan=$${params.length}`, `mode='access'`); }
+      if (sets.length) {
+        params.push(id, port);
+        await query(`UPDATE ports SET ${sets.join(', ')}, updated_at=now()
+                     WHERE device_id=$${params.length - 1} AND name=$${params.length}`, params);
+      }
+      await audit(me.username, 'port.config', `${id}/${port}`, b, req.ip);
+      return { ok: true };
+    }
     const output = await pushPortConfig(id, port, b);
     // Mirror the change into the ports table so the UI is correct immediately
     // (the next full refresh re-syncs from the device anyway)
@@ -160,7 +184,12 @@ export default async function portRoutes(app: FastifyInstance) {
     const force = (req.body as any)?.force ?? false;
     const me = req.user as any;
     try {
-      await bouncePort(id, port, force);
+      const device = await getDevice(id);
+      if (isAruba(device)) {
+        await arubaBouncePort(id, port, force);
+      } else {
+        await bouncePort(id, port, force);
+      }
     } catch (err: any) {
       if (err.statusCode === 409) return reply.code(409).send({ error: err.message, detail: err.detail });
       throw err;
@@ -245,7 +274,9 @@ export default async function portRoutes(app: FastifyInstance) {
   app.get('/api/devices/:id/vlans', { preHandler: requireRole('readonly'), schema: { tags: ['vlans'] } },
     async (req) => {
       const { id } = req.params as any;
-      if (isMikrotik(await getDevice(id))) return routerOsVlans(id);
+      const device = await getDevice(id);
+      if (isAruba(device)) return arubaGetVlans(id);
+      if (isMikrotik(device)) return routerOsVlans(id);
       const out = await deviceExec(id, ['show vlan brief']);
       return parseVlanBrief(Object.values(out)[0] ?? '');
     });

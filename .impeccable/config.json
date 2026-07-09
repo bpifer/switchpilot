@@ -1,0 +1,10 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [
+      "C:\\.scripts\\cisco-switch-manager\\frontend\\src\\pages\\device\\PortsTab.tsx",
+      "frontend/src/pages/device/PortsTab.tsx"
+    ],
+    "ignoreValues": []
+  }
+}
