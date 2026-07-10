@@ -58,8 +58,7 @@ RouterOS hardening rules. Auto-remediation skips devices in maintenance windows.
 port flapping, interface errors) plus event-driven syslog and SNMP-trap ingest
 (linkUp/Down, coldStart, auth failures) for Cisco and RouterOS. Per-device 30-day
 availability, TLS certificate-expiry warnings, alerts with maintenance windows, and
-real-time push to the UI. A composite fleet health score (reachability + compliance
-+ open criticals) sits on the dashboard. Notify via email, Slack, Teams, Discord,
+real-time push to the UI. A composite fleet health score (reachability + compliance + open criticals) sits on the dashboard. Notify via email, Slack, Teams, Discord,
 ntfy, Gotify, Telegram, Pushover, or generic signed webhooks.
 
 **Endpoints.** Every MAC on the network with IP, OUI vendor, reverse-DNS, and the
