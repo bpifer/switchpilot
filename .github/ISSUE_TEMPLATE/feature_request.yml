@@ -1,0 +1,20 @@
+name: Feature request
+description: Suggest an improvement or new capability
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the situation where you needed this, not just the feature itself.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+  - type: input
+    id: hardware
+    attributes:
+      label: Hardware involved (for vendor/device requests)
+      placeholder: e.g. Brocade ICX 6450, HPE 1920S

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useApiQuery } from '../../hooks/useApiQuery';
-import { api, ApiError } from '../../api';
+import { api, ApiError, getToken } from '../../api';
 import { Button, inputCls } from '../../components/ui';
 import type { Port } from '../../components/PortGrid';
 
@@ -133,6 +133,22 @@ export default function ToolsTab({ deviceId, canOperate }: { deviceId: string; c
     });
   }
 
+  async function doDiagnostics() {
+    // Text download with an auth header, so fetch + blob rather than <a href>.
+    runOutput('Diagnostics', async () => {
+      const res = await fetch(`/api/devices/${deviceId}/diagnostics`, {
+        headers: { authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as any).error ?? res.statusText);
+      const name = res.headers.get('content-disposition')?.match(/filename="(.+?)"/)?.[1] ?? 'switchpilot-diagnostics.txt';
+      const url = URL.createObjectURL(new Blob([await res.text()], { type: 'text/plain' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = name; a.click();
+      URL.revokeObjectURL(url);
+      return `Saved ${name}. Attach it to a bug report - it contains the raw device output (secrets redacted).`;
+    });
+  }
+
   async function doNetTool(tool: NetToolId) {
     if (!netTarget.trim()) return;
     runOutput(`${NET_LABEL[tool]} ${netTarget}`, async () => {
@@ -219,6 +235,16 @@ export default function ToolsTab({ deviceId, canOperate }: { deviceId: string; c
           <Button variant="secondary" disabled={!canOperate || !cablePort || busy}
                   onClick={doCableTest}>
             {busy && outputLabel.startsWith('Cable') ? 'Testing…' : 'Run'}
+          </Button>
+        </ToolRow>
+
+        {/* Diagnostics bundle */}
+        <ToolRow
+          label="Download diagnostics"
+          hint="Raw command output as SwitchPilot sees it, for bug reports. Read-only; passwords and SNMP communities are redacted."
+        >
+          <Button variant="secondary" disabled={busy} onClick={doDiagnostics}>
+            {busy && outputLabel === 'Diagnostics' ? 'Collecting…' : 'Download'}
           </Button>
         </ToolRow>
       </Section>

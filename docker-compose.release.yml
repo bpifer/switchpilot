@@ -1,0 +1,74 @@
+# Run SwitchPilot from published images (no local build, no repo clone needed
+# beyond this file + .env):
+#
+#   cp .env.example .env      # set POSTGRES_PASSWORD, JWT_SECRET, CREDENTIAL_KEY
+#   SWITCHPILOT_VERSION=1.0.0 docker compose -f docker-compose.release.yml up -d
+#
+# Pin SWITCHPILOT_VERSION to a release tag for reproducible deployments (it
+# defaults to `latest`). Upgrading: bump the version, `docker compose -f
+# docker-compose.release.yml pull && ... up -d` — database migrations apply
+# automatically on API start. Take a DB backup first (Users page).
+#
+# This file mirrors docker-compose.yml exactly, with images instead of builds.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-switchpilot}
+      POSTGRES_USER: ${POSTGRES_USER:-switchpilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-switchpilot}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    image: ghcr.io/bpifer/switchpilot-api:${SWITCHPILOT_VERSION:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+      REDIS_URL: redis://redis:6379
+      # non-root container can't bind <1024; host 514/udp maps to 5514 inside
+      SYSLOG_PORT: "5514"
+      # SNMP traps: host 162/udp maps to 5162 inside (same <1024 reason)
+      SNMP_TRAP_PORT: "5162"
+    ports:
+      - "3000:3000"
+      - "514:5514/udp"
+      - "162:5162/udp"
+      - "2055:2055/udp"
+    volumes:
+      - firmware:/data/firmware
+      - confighistory:/data/config-history
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    image: ghcr.io/bpifer/switchpilot-web:${SWITCHPILOT_VERSION:-latest}
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  firmware:
+  confighistory:

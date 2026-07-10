@@ -10,6 +10,7 @@ import { getDevice, sshTargetFor, snmpTargetFor, repinHostKey, rebootDevice } fr
 import { refreshDevice } from '../services/monitorService.js';
 import { getFwUpdate } from '../services/firmwareState.js';
 import { provisionDevice, buildProvisionPlan } from '../services/provisionService.js';
+import { collectDiagnostics } from '../services/diagnosticsService.js';
 
 export default async function deviceRoutes(app: FastifyInstance) {
   // ----- Capability database -----
@@ -350,6 +351,22 @@ export default async function deviceRoutes(app: FastifyInstance) {
     const message = await rebootDevice(id);
     await audit(me.username, 'device.reboot', id, {}, req.ip);
     return { ok: true, message };
+  });
+
+  // Diagnostics bundle: the raw (redacted) command/SNMP output the monitors
+  // parse, as a downloadable text file for bug reports. Read-only on-device.
+  app.get('/api/devices/:id/diagnostics', {
+    preHandler: requireRole('netadmin'),
+    schema: { tags: ['devices'] }
+  }, async (req, reply) => {
+    const { id } = req.params as any;
+    const me = req.user as any;
+    const { filename, content } = await collectDiagnostics(id);
+    await audit(me.username, 'device.diagnostics', id, { bytes: content.length }, req.ip);
+    return reply
+      .header('Content-Type', 'text/plain; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="${filename}"`)
+      .send(content);
   });
 
   // Metric history for charts

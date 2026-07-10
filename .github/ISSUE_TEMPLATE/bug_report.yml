@@ -1,0 +1,41 @@
+name: Bug report
+description: Something broke or behaves wrong
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: SwitchPilot version
+      description: From the login page footer, CHANGELOG, or `git rev-parse HEAD`.
+      placeholder: v1.0.0 / commit abc1234
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, what actually happened.
+    validations:
+      required: true
+  - type: textarea
+    id: device
+    attributes:
+      label: Device involved (if device-related)
+      description: Vendor, model, and OS/firmware version, e.g. "Cisco WS-C2960X-24TS-L, IOS 15.2(7)E14".
+      placeholder: Cisco C9300-48P, IOS-XE 17.12.3
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics bundle
+      description: >
+        For device/parsing problems, attach the diagnostics bundle: open the
+        device → Tools tab → "Download diagnostics". It contains the raw
+        command output SwitchPilot saw, with passwords/communities redacted —
+        it's usually everything needed to reproduce a parser bug without your
+        hardware. Review it before attaching if your environment is sensitive.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant API logs
+      description: "`docker compose logs api` around the time of the problem."
+      render: text

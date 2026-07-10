@@ -48,12 +48,53 @@ jobs:
       - run: npm run build
         working-directory: frontend
 
-  docker:
+  # Boots the REAL shipped artifact: compose build + up, all migrations apply
+  # on a fresh database, the API reports healthy, auth is enforced, and the
+  # web container serves the SPA. This is the "does what we ship actually
+  # start" gate that unit tests can't provide.
+  smoke:
     runs-on: ubuntu-latest
     needs: [backend, frontend]
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t switchpilot-api ./backend
-      - run: docker build -t switchpilot-web ./frontend
-      # push to your registry here, e.g.:
-      # - run: docker tag switchpilot-api ghcr.io/${{ github.repository }}/api:${{ github.sha }} && docker push ...
+      - name: Create production-like .env
+        run: |
+          cat > .env <<EOF
+          POSTGRES_PASSWORD=$(openssl rand -hex 16)
+          JWT_SECRET=$(openssl rand -hex 32)
+          CREDENTIAL_KEY=$(openssl rand -hex 32)
+          EOF
+      - name: Build and start the stack
+        run: docker compose up -d --build
+      - name: Wait for API health
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3000/api/health | grep -q '"status":"ok"'; then
+              echo "API healthy after ${i} attempts"; exit 0
+            fi
+            sleep 2
+          done
+          echo "API never became healthy"; exit 1
+      - name: Every migration applied on a fresh database
+        run: |
+          want=$(ls backend/migrations/*.sql | wc -l)
+          got=$(docker compose exec -T db psql -U switchpilot -d switchpilot -tAc \
+                'SELECT count(*) FROM schema_migrations')
+          echo "migrations on disk: $want, applied: $got"
+          test "$want" -eq "$got"
+      - name: Auth is enforced and the SPA serves
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/devices)
+          echo "/api/devices without token -> $code"; test "$code" = "401"
+          curl -fsS http://localhost:8080/ | grep -qi '<div id="root">\|<!doctype html'
+      - name: Login with the seeded admin works
+        run: |
+          code=$(curl -s -o /tmp/login.json -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"admin","password":"ChangeMe123!"}' \
+            http://localhost:3000/api/auth/login)
+          echo "login -> $code"; cat /tmp/login.json | head -c 300; echo
+          test "$code" = "200"
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs --tail 200

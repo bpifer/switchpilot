@@ -105,15 +105,24 @@ available for scripts. A recent self-audit lives in
 
 ## Quick start
 
+Run from published images (recommended):
+
 ```bash
 git clone https://github.com/bpifer/switchpilot.git
 cd switchpilot
 cp .env.example .env     # set POSTGRES_PASSWORD, JWT_SECRET, CREDENTIAL_KEY
-docker compose up -d --build
+SWITCHPILOT_VERSION=1.0.0 docker compose -f docker-compose.release.yml up -d
 ```
+
+Or build from source: `docker compose up -d --build`.
 
 Open **http://localhost:8080**. Default login `admin` / `ChangeMe123!` — you are
 prompted to change it on first login. API docs at `/docs`.
+
+Upgrading: back up the database first (Users page → Database backup), bump
+`SWITCHPILOT_VERSION`, `docker compose -f docker-compose.release.yml pull`,
+then `up -d` — migrations apply automatically. Release notes live in
+[CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -161,16 +170,30 @@ Full list in `.env.example`.
 
 ## Supported hardware
 
-- **Cisco** Catalyst 2960 / 3560 / 3750 / 3850 / 3650 / 4500 / 9000-series and
-  Nexus 3K / 5K / 7K / 9K (IOS, IOS-XE, NX-OS)
-- **MikroTik** RouterOS switches — CRS3xx series tested; CSS and other models use
-  the same driver
-- **Aruba Instant On** — 1930-series tested via SNMP
+Honest status — "validated" means tested against that physical device, not
+just written to documentation:
 
-Any SSH-reachable IOS / IOS-XE / NX-OS or RouterOS device should work; unknown
-models fall back to a safe common feature set. Adding another SSH-managed vendor is
-a self-contained driver (see `backend/src/drivers/` and
-`docs/PLAN-multi-vendor.md`).
+| Platform | Status | Validated on |
+|---|---|---|
+| Cisco Catalyst, IOS-XE | ✅ Validated | C9300 (17.x) — full read/write incl. safe-apply, TDR, LAG, NetFlow config |
+| Cisco Catalyst, classic IOS | ✅ Validated | 2960X (15.2) — full read path |
+| Cisco Catalyst 3560/3750/3850/3650/4500 | ⚠️ Should work | same IOS/IOS-XE parsers + capability database, no hardware tested |
+| Cisco Nexus (NX-OS) | 🧪 Beta | parsers written to documented output; **not validated on hardware** |
+| MikroTik RouterOS | ✅ Validated | CRS326 (7.x) — full read/write incl. staged firmware upgrades |
+| MikroTik CSS / other RouterOS | ⚠️ Should work | same driver, no hardware tested |
+| Aruba Instant On | ✅ Validated | 1930-24G (2.8) — SNMP read/write incl. VLAN bitmaps |
+
+Unknown Cisco models fall back to a safe common feature set. If your device
+parses wrong or not at all, open the device → **Tools → Download diagnostics**
+and attach the bundle to a [bug report](https://github.com/bpifer/switchpilot/issues/new/choose) —
+it contains the raw (redacted) output needed to fix the parser without your
+hardware. Adding another vendor is a self-contained driver — see
+[CONTRIBUTING.md](CONTRIBUTING.md) and `docs/PLAN-multi-vendor.md`.
+
+**Tested envelope:** developed and run against small fleets (tens of devices,
+60 s status / 5 min metric sweeps). Nothing hard-caps larger fleets — sweeps
+use a bounded worker pool and HA leader election exists — but hundreds of
+devices is untested territory; raise the poll intervals as you grow.
 
 ---
 
@@ -186,8 +209,13 @@ cd backend  && npm test                  # Vitest, no hardware needed
 The backend suite covers the Cisco and RouterOS parsers, drivers, NetFlow decoder,
 SNMP-trap classifier, device-tool command building, compliance evaluator, job
 retry/backoff, device health alerting, credential-key crypto, RBAC, and auth flows.
-CI typechecks both halves, runs the tests, and builds both Docker images on every
-push.
+CI typechecks both halves, runs the tests, and smoke-tests the real compose
+stack on every push — fresh boot, all migrations applied, health + auth + login
+verified. Tagged releases publish multi-arch (amd64/arm64) images to ghcr.io.
+
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) (hardware
+diagnostics bundles are the most valuable thing you can send). Security
+reports: [SECURITY.md](SECURITY.md).
 
 ---
 
