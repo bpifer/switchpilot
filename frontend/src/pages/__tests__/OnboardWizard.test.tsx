@@ -21,6 +21,31 @@ const ANALYSIS = {
   otherAdmins: ['admin']
 };
 
+const COMPLETE = {
+  device: { id: 'dev-1', hostname: 'SW-TEST-01' },
+  account: 'SPAdmin',
+  generatedPassword: 'rAnd0mGenerated42',
+  warnings: []
+};
+
+// Path-routed api mock: the wizard fetches /api/credentials on mount, so
+// order-based mockResolvedValueOnce queues would misroute responses.
+let routes: Record<string, any> = {};
+function route(path: string, value: any) { routes[path] = value; }
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  routes = { '/api/credentials': [] };
+  apiMock.mockImplementation(async (path: string) => {
+    if (path in routes) {
+      const v = routes[path];
+      if (v instanceof Error) throw v;
+      return v;
+    }
+    return undefined;
+  });
+});
+
 const wizard = () => render(<MemoryRouter><OnboardWizard sites={[]} onClose={() => {}} /></MemoryRouter>);
 
 async function fillAndVerify() {
@@ -30,11 +55,9 @@ async function fillAndVerify() {
   await userEvent.click(screen.getByRole('button', { name: /connect & verify/i }));
 }
 
-beforeEach(() => vi.clearAllMocks());
-
 describe('OnboardWizard', () => {
   it('verify shows device identity, config review with missing badges', async () => {
-    apiMock.mockResolvedValueOnce(ANALYSIS);
+    route('/api/onboarding/analyze', ANALYSIS);
     wizard();
     await fillAndVerify();
 
@@ -51,7 +74,7 @@ describe('OnboardWizard', () => {
   });
 
   it('connection errors stay on the connect step', async () => {
-    apiMock.mockRejectedValueOnce(new Error('All configured authentication methods failed'));
+    route('/api/onboarding/analyze', new Error('All configured authentication methods failed'));
     wizard();
     await fillAndVerify();
 
@@ -60,7 +83,7 @@ describe('OnboardWizard', () => {
   });
 
   it('existing SPAdmin removes the create-account option and confirms it is present', async () => {
-    apiMock.mockResolvedValueOnce({ ...ANALYSIS, spAdminExists: true });
+    route('/api/onboarding/analyze', { ...ANALYSIS, spAdminExists: true });
     wizard();
     await fillAndVerify();
 
@@ -69,14 +92,8 @@ describe('OnboardWizard', () => {
   });
 
   it('completes onboarding and shows the generated password exactly once', async () => {
-    apiMock
-      .mockResolvedValueOnce(ANALYSIS)   // analyze
-      .mockResolvedValueOnce({           // complete
-        device: { id: 'dev-1', hostname: 'SW-TEST-01' },
-        account: 'SPAdmin',
-        generatedPassword: 'rAnd0mGenerated42',
-        warnings: []
-      });
+    route('/api/onboarding/analyze', ANALYSIS);
+    route('/api/onboarding/complete', COMPLETE);
     wizard();
     await fillAndVerify();
     await screen.findByText('SW-TEST-01');
@@ -88,6 +105,22 @@ describe('OnboardWizard', () => {
     expect(screen.getByText(/shown once/i)).toBeInTheDocument();
     expect(apiMock).toHaveBeenLastCalledWith('/api/onboarding/complete', expect.objectContaining({
       body: expect.objectContaining({ createAccount: true, applyBaseline: true })
+    }));
+  });
+
+  it('credential quick-pick sends credentialId and no raw secrets', async () => {
+    routes['/api/credentials'] = [{ id: 'cred-9', name: 'lab-cisco', ssh_username: 'netops', snmp_version: '2c' }];
+    route('/api/onboarding/analyze', ANALYSIS);
+    wizard();
+
+    await userEvent.type(screen.getByLabelText(/management ip/i), '192.168.1.10');
+    await userEvent.selectOptions(await screen.findByLabelText(/credentials/i), 'cred-9');
+    // manual credential fields are hidden once a profile is selected
+    expect(screen.queryByLabelText(/^password$/i)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /connect & verify/i }));
+    expect(apiMock).toHaveBeenCalledWith('/api/onboarding/analyze', expect.objectContaining({
+      body: { mgmtIp: '192.168.1.10', credentialId: 'cred-9' }
     }));
   });
 });

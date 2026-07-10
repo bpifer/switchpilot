@@ -2,7 +2,7 @@
 // Step 1 (connect): pick vendor, enter connection details, verify the device.
 // Step 2 (place):   site & location + vendor-specific options (SPAdmin, baseline).
 // Step 3 (done):    success summary.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useSiteScope } from '../context/SiteContext';
@@ -123,12 +123,28 @@ export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
     password:        '',
     enablePassword:  '',
     snmpCommunity:   '',
+    credentialId:    '',   // saved profile quick-pick ('' = enter manually)
     siteId:          scopeSite !== 'unassigned' ? scopeSite : '',
     location:        '',
   });
   const set = (k: keyof typeof form) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm(f => ({ ...f, [k]: e.target.value }));
+
+  // Saved credential profiles for the quick-pick. Secrets never reach the
+  // browser - the server resolves the profile id during analyze/complete.
+  const [credentials, setCredentials] = useState<any[]>([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api<any[]>('/api/credentials');
+        if (Array.isArray(r)) setCredentials(r);
+      } catch { /* non-admin or fetch failure: manual entry still works */ }
+    })();
+  }, []);
+  const selectedCred = credentials.find(c => c.id === form.credentialId) ?? null;
+  // The account name platform actions will run under (for step-2 copy)
+  const effectiveUsername = selectedCred ? (selectedCred.ssh_username || 'the profile account') : form.username;
 
   // Analysis result from step 1 probe (kept for display + forwarded to complete)
   const [analysis, setAnalysis] = useState<Analysis | ArubaProbe | null>(null);
@@ -146,10 +162,23 @@ export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
 
   const canConnect =
     !!form.mgmtIp.trim() && (
-      vendor === 'aruba'
+      !!form.credentialId ||
+      (vendor === 'aruba'
         ? !!form.snmpCommunity.trim()
-        : !!form.username.trim() && !!form.password
+        : !!form.username.trim() && !!form.password)
     );
+
+  // Raw secrets when entering manually, or just the profile id when using one.
+  const credBody = () =>
+    form.credentialId
+      ? { credentialId: form.credentialId }
+      : vendor === 'aruba'
+        ? { snmpCommunity: form.snmpCommunity.trim() }
+        : {
+            username: form.username.trim(),
+            password: form.password,
+            enablePassword: form.enablePassword || undefined,
+          };
 
   async function connect() {
     setBusy(true); setError('');
@@ -157,18 +186,13 @@ export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
       if (vendor === 'aruba') {
         const a = await api<ArubaProbe>('/api/onboarding/probe-aruba', {
           method: 'POST',
-          body: { mgmtIp: form.mgmtIp.trim(), snmpCommunity: form.snmpCommunity.trim() },
+          body: { mgmtIp: form.mgmtIp.trim(), ...credBody() },
         });
         setAnalysis(a);
       } else {
         const a = await api<Analysis>('/api/onboarding/analyze', {
           method: 'POST',
-          body: {
-            mgmtIp: form.mgmtIp.trim(),
-            username: form.username.trim(),
-            password: form.password,
-            enablePassword: form.enablePassword || undefined,
-          },
+          body: { mgmtIp: form.mgmtIp.trim(), ...credBody() },
         });
         setAnalysis(a);
         if (a.vendor === 'mikrotik' || a.usingPlatformAccount || a.spAdminExists) {
@@ -193,7 +217,7 @@ export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
         body = {
           vendor: 'aruba',
           mgmtIp: form.mgmtIp.trim(),
-          snmpCommunity: form.snmpCommunity.trim(),
+          ...credBody(),
           siteId: form.siteId || undefined,
           location: form.location || undefined,
         };
@@ -202,9 +226,7 @@ export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
         const baselineComplete = ciscoAnalysis?.checklist?.every(c => c.present) ?? false;
         body = {
           mgmtIp: form.mgmtIp.trim(),
-          username: form.username.trim(),
-          password: form.password,
-          enablePassword: form.enablePassword || undefined,
+          ...credBody(),
           siteId: form.siteId || undefined,
           location: form.location || undefined,
           createAccount,
@@ -274,7 +296,26 @@ export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
                    placeholder="192.168.10.100" autoFocus />
           </Field>
 
-          {vendor === 'aruba' ? (
+          {credentials.length > 0 && (
+            <Field label="Credentials">
+              <select className={inputCls} value={form.credentialId} onChange={set('credentialId')}>
+                <option value="">Enter manually…</option>
+                {credentials.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}{c.ssh_username ? ` (ssh: ${c.ssh_username})` : ''}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+
+          {form.credentialId ? (
+            <p className="mb-3 text-xs text-slate-400 dark:text-slate-500">
+              {vendor === 'aruba'
+                ? 'The profile’s SNMP community is used to verify the switch. Its secrets stay on the server.'
+                : 'The profile’s SSH credentials are used to connect. Its secrets stay on the server.'}
+            </p>
+          ) : vendor === 'aruba' ? (
             <>
               <Field label="SNMP community string">
                 <input className={inputCls} value={form.snmpCommunity} onChange={set('snmpCommunity')}
@@ -365,7 +406,7 @@ export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
                     <span className="text-sm">
                       <span className="font-medium text-green-800 dark:text-green-400">SPAdmin account already present</span>
                       <span className="mt-0.5 block text-xs text-green-700 dark:text-green-400">
-                        Account creation disabled — password won't be reset. Onboard with "{form.username}" or go back and supply SPAdmin credentials directly.
+                        Account creation disabled — password won't be reset. Onboard with "{effectiveUsername}" or go back and supply SPAdmin credentials directly.
                       </span>
                     </span>
                   </div>
@@ -378,7 +419,7 @@ export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
                       <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
                         Adds a <span className="font-mono">SPAdmin</span> privilege-15 user (random password, stored encrypted)
                         so platform changes are attributable in the switch's own logs.
-                        Your "{form.username}" account is untouched.
+                        Your "{effectiveUsername}" account is untouched.
                       </span>
                     </span>
                   </label>
@@ -401,7 +442,7 @@ export default function OnboardWizard({ sites, onClose, initialIp = '' }: {
 
               {isMikroTik && (
                 <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">
-                  RouterOS device — SwitchPilot will manage it with the "{form.username}" account you provided.
+                  RouterOS device — SwitchPilot will manage it with the "{effectiveUsername}" account you provided.
                 </div>
               )}
             </>

@@ -6,7 +6,7 @@ import { randomBytes } from 'node:crypto';
 import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
-import { encryptSecret } from '../crypto/secrets.js';
+import { encryptSecret, decryptSecret } from '../crypto/secrets.js';
 import { CiscoSshSession } from '../cisco/sshClient.js';
 import { makeHostVerifier } from '../cisco/hostKey.js';
 import { RouterOsSshSession, runRouterOsCommands } from '../routeros/sshClient.js';
@@ -136,12 +136,30 @@ async function inspectSwitch(mgmtIp: string, username: string, password: string,
   }
 }
 
+/** Resolve a saved credential profile into plaintext connection secrets, so the
+ *  wizard can onboard with an existing profile without secrets ever leaving the
+ *  server. Throws 400 when the profile is missing. */
+async function resolveCredential(credentialId: string) {
+  const { rows } = await query('SELECT * FROM credentials WHERE id=$1', [credentialId]);
+  const c = rows[0];
+  if (!c) throw Object.assign(new Error('Selected credential profile no longer exists'), { statusCode: 400 });
+  return {
+    id: c.id as string,
+    name: c.name as string,
+    username: (c.ssh_username as string) ?? '',
+    password: decryptSecret(c.ssh_password_enc),
+    enablePassword: decryptSecret(c.enable_password_enc) || undefined,
+    snmpCommunity: decryptSecret(c.snmp_community_enc),
+  };
+}
+
 export default async function onboardingRoutes(app: FastifyInstance) {
   const credProps = {
     mgmtIp: { type: 'string' },
     username: { type: 'string' },
     password: { type: 'string' },
-    enablePassword: { type: 'string' }
+    enablePassword: { type: 'string' },
+    credentialId: { type: 'string' }   // use a saved profile instead of raw creds
   };
 
   // Aruba Instant On SNMP-only probe: verify the device is reachable via SNMP
@@ -150,11 +168,21 @@ export default async function onboardingRoutes(app: FastifyInstance) {
     preHandler: requireRole('netadmin'),
     schema: {
       tags: ['devices'],
-      body: { type: 'object', required: ['mgmtIp', 'snmpCommunity'],
-        properties: { mgmtIp: { type: 'string' }, snmpCommunity: { type: 'string' } } }
+      body: { type: 'object', required: ['mgmtIp'],
+        properties: { mgmtIp: { type: 'string' }, snmpCommunity: { type: 'string' }, credentialId: { type: 'string' } } }
     }
   }, async (req, reply) => {
-    const { mgmtIp, snmpCommunity } = req.body as any;
+    const { mgmtIp, credentialId } = req.body as any;
+    let { snmpCommunity } = req.body as any;
+    if (credentialId) {
+      snmpCommunity = (await resolveCredential(credentialId)).snmpCommunity;
+      if (!snmpCommunity) {
+        throw Object.assign(new Error('The selected credential profile has no SNMP community configured'), { statusCode: 400 });
+      }
+    }
+    if (!snmpCommunity) {
+      throw Object.assign(new Error('Provide an SNMP community string or pick a credential profile'), { statusCode: 400 });
+    }
 
     const dup = await query('SELECT id, hostname FROM devices WHERE host(mgmt_ip) = $1', [mgmtIp.trim()]);
     if (dup.rows[0]) return reply.code(409).send({ error: `${mgmtIp} is already onboarded as "${dup.rows[0].hostname}"` });
@@ -192,10 +220,21 @@ export default async function onboardingRoutes(app: FastifyInstance) {
     preHandler: requireRole('netadmin'),
     schema: {
       tags: ['devices'],
-      body: { type: 'object', required: ['mgmtIp', 'username', 'password'], properties: credProps }
+      body: { type: 'object', required: ['mgmtIp'], properties: credProps }
     }
   }, async (req, reply) => {
-    const { mgmtIp, username, password, enablePassword } = req.body as any;
+    const { mgmtIp, credentialId } = req.body as any;
+    let { username, password, enablePassword } = req.body as any;
+    if (credentialId) {
+      const c = await resolveCredential(credentialId);
+      if (!c.username || !c.password) {
+        throw Object.assign(new Error('The selected credential profile has no SSH credentials configured'), { statusCode: 400 });
+      }
+      ({ username, password, enablePassword } = c);
+    }
+    if (!username || !password) {
+      throw Object.assign(new Error('Provide a username and password or pick a credential profile'), { statusCode: 400 });
+    }
 
     const dup = await query('SELECT id, hostname FROM devices WHERE host(mgmt_ip) = $1', [mgmtIp]);
     if (dup.rows[0]) {
@@ -246,6 +285,18 @@ export default async function onboardingRoutes(app: FastifyInstance) {
     const dup = await query('SELECT 1 FROM devices WHERE host(mgmt_ip) = $1', [b.mgmtIp]);
     if (dup.rows[0]) return reply.code(409).send({ error: `${b.mgmtIp} is already onboarded` });
 
+    // Saved-profile onboarding: resolve the secrets server-side and remember the
+    // profile id so the device attaches to it instead of spawning a duplicate.
+    let presetCredId: string | null = null;
+    if (b.credentialId) {
+      const c = await resolveCredential(b.credentialId);
+      presetCredId = c.id;
+      b.username = c.username || b.username;
+      b.password = c.password || b.password;
+      b.enablePassword = c.enablePassword ?? b.enablePassword;
+      b.snmpCommunity = c.snmpCommunity || b.snmpCommunity;
+    }
+
     // --- Aruba Instant On path: SNMP-only, no SSH credential stored ---
     if (b.vendor === 'aruba') {
       const probe = await snmpProbe({ host: b.mgmtIp.trim(), version: '2c', community: b.snmpCommunity });
@@ -254,21 +305,21 @@ export default async function onboardingRoutes(app: FastifyInstance) {
       const hostLabel = probe.sysName || b.mgmtIp;
       const model = det.model || 'Aruba Instant On';
 
-      const cred = await query(
+      const credId = presetCredId ?? (await query(
         `INSERT INTO credentials (name, ssh_username, ssh_password_enc, enable_password_enc,
            snmp_version, snmp_community_enc, snmpv3_user, snmpv3_auth_proto, snmpv3_auth_key_enc,
            snmpv3_priv_proto, snmpv3_priv_key_enc)
          VALUES ($1,'',$2,$2,'2c',$3,'','sha',$4,'aes',$4)
          ON CONFLICT (name) DO UPDATE SET snmp_community_enc=EXCLUDED.snmp_community_enc
          RETURNING id`,
-        [`snmp (${hostLabel})`, encryptSecret(''), encryptSecret(b.snmpCommunity), encryptSecret('')]);
+        [`snmp (${hostLabel})`, encryptSecret(''), encryptSecret(b.snmpCommunity), encryptSecret('')])).rows[0].id;
 
       const { rows } = await query(
         `INSERT INTO devices (hostname, mgmt_ip, model, family, serial_number, ios_version,
            vendor, site_id, location, credential_id, capabilities, status, last_seen_at)
          VALUES ($1,$2,$3,'aruba-instant-on','',$4,'aruba',$5,$6,$7,'{}'::jsonb,'online', now()) RETURNING *`,
         [hostLabel, b.mgmtIp, model, det.version ?? '',
-         b.siteId || null, b.location ?? '', cred.rows[0].id]);
+         b.siteId || null, b.location ?? '', credId]);
       const device = rows[0];
 
       await audit(me.username, 'device.onboard', b.mgmtIp, { model, vendor: 'aruba' }, req.ip);
@@ -283,7 +334,7 @@ export default async function onboardingRoutes(app: FastifyInstance) {
       const hostLabel = inspection.identity.hostname || b.mgmtIp;
       const caps = resolveRosCapabilities(inspection.identity.model);
 
-      const cred = await query(
+      const credId = presetCredId ?? (await query(
         `INSERT INTO credentials (name, ssh_username, ssh_password_enc, enable_password_enc,
            snmp_version, snmp_community_enc, snmpv3_user, snmpv3_auth_proto, snmpv3_auth_key_enc,
            snmpv3_priv_proto, snmpv3_priv_key_enc)
@@ -292,7 +343,7 @@ export default async function onboardingRoutes(app: FastifyInstance) {
            ssh_username=EXCLUDED.ssh_username, ssh_password_enc=EXCLUDED.ssh_password_enc
          RETURNING id`,
         [`${b.username} (${hostLabel})`, b.username, encryptSecret(b.password),
-         encryptSecret(''), encryptSecret(''), encryptSecret('')]);
+         encryptSecret(''), encryptSecret(''), encryptSecret('')])).rows[0].id;
 
       const { rows } = await query(
         `INSERT INTO devices (hostname, mgmt_ip, model, family, serial_number, ios_version,
@@ -300,7 +351,7 @@ export default async function onboardingRoutes(app: FastifyInstance) {
          VALUES ($1,$2,$3,$4,$5,$6,'mikrotik',$7,$8,$9,$10,'online', now()) RETURNING *`,
         [hostLabel, b.mgmtIp, inspection.identity.model, (caps.family as string) ?? '',
          inspection.identity.serial, inspection.identity.iosVersion,
-         b.siteId || null, b.location ?? '', cred.rows[0].id, JSON.stringify(caps)]);
+         b.siteId || null, b.location ?? '', credId, JSON.stringify(caps)]);
       const device = rows[0];
 
       await audit(me.username, 'device.onboard', b.mgmtIp,
@@ -359,8 +410,10 @@ export default async function onboardingRoutes(app: FastifyInstance) {
     // Store the working credentials as a device-specific profile. credentials.name
     // is UNIQUE and is NOT removed when a device is deleted, so re-onboarding the
     // same switch must update the existing profile rather than fail on conflict.
+    // When a saved profile was used and no SPAdmin was created (so the working
+    // credentials ARE the profile's), attach the profile instead of cloning it.
     const hostLabel = inspection.identity.hostname || b.mgmtIp;
-    const cred = await query(
+    const credId = (presetCredId && generatedPassword === null) ? presetCredId : (await query(
       `INSERT INTO credentials (name, ssh_username, ssh_password_enc, enable_password_enc,
          snmp_version, snmp_community_enc, snmpv3_user, snmpv3_auth_proto, snmpv3_auth_key_enc,
          snmpv3_priv_proto, snmpv3_priv_key_enc)
@@ -371,7 +424,7 @@ export default async function onboardingRoutes(app: FastifyInstance) {
          enable_password_enc=EXCLUDED.enable_password_enc
        RETURNING id`,
       [`${finalUser} (${hostLabel})`, finalUser, encryptSecret(finalPass),
-       encryptSecret(b.enablePassword ?? ''), encryptSecret(''), encryptSecret('')]);
+       encryptSecret(b.enablePassword ?? ''), encryptSecret(''), encryptSecret('')])).rows[0].id;
 
     const model = inspection.identity.model;
     const { rows } = await query(
@@ -380,7 +433,7 @@ export default async function onboardingRoutes(app: FastifyInstance) {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'online', now()) RETURNING *`,
       [hostLabel, b.mgmtIp, model, familyForModel(model) ?? '',
        inspection.identity.serial, inspection.identity.iosVersion,
-       b.siteId || null, b.location ?? '', cred.rows[0].id,
+       b.siteId || null, b.location ?? '', credId,
        JSON.stringify(resolveCapabilities(model, inspection.identity.iosVersion))]);
     const device = rows[0];
 
