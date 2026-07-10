@@ -3,7 +3,9 @@
     "ignoreRules": [],
     "ignoreFiles": [
       "C:\\.scripts\\cisco-switch-manager\\frontend\\src\\pages\\device\\PortsTab.tsx",
-      "frontend/src/pages/device/PortsTab.tsx"
+      "frontend/src/pages/device/PortsTab.tsx",
+      "frontend/src/pages/Lifecycle.tsx",
+      "C:\\.scripts\\cisco-switch-manager\\frontend\\src\\pages\\Lifecycle.tsx"
     ],
     "ignoreValues": []
   }
