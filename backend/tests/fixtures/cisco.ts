@@ -232,6 +232,117 @@ Total entries displayed: 1
 export const SHOW_PROCESSES_MEMORY = `Processor Pool Total:  862236672 Used:  204503040 Free:  657733632
 `;
 
+// ---------------------------------------------------------------------------
+// CML captures 2026-07-10 - "SwitchPilot Compatibility Test" lab, two iosvl2
+// switches (SP-CORE-A / SP-ACCESS-B) joined by an LACP Port-channel (Gi0/0-1)
+// plus an access link (Gi0/2, VLAN 10). Captured via EEM->syslog on SP-CORE-A.
+// New coverage vs the June captures: a Po row in `show interfaces status`, MAC
+// entries learned on a port-channel, the interface-errors battery including
+// SVI and Po sections, multi-entry CDP, and IOSv rejecting `show env all`.
+// ---------------------------------------------------------------------------
+export const SHOW_INTERFACES_STATUS_IOSV_PO = `Port      Name               Status       Vlan       Duplex  Speed Type
+Gi0/0     Po1 member to SP-A connected    trunk      a-full   auto RJ45
+Gi0/1     Po1 member to SP-A connected    trunk      a-full   auto RJ45
+Gi0/2     access link to SP- connected    10         a-full   auto RJ45
+Gi0/3     spare - kept down  disabled     1            auto   auto RJ45
+Po1       LACP trunk to SP-A connected    trunk      a-full   auto
+`;
+
+export const SHOW_MAC_TABLE_IOSV_PO = `          Mac Address Table
+-------------------------------------------
+
+Vlan    Mac Address       Type        Ports
+----    -----------       --------    -----
+   1    5254.00d0.b84c    DYNAMIC     Po1
+   1    5254.00f3.aaad    DYNAMIC     Po1
+  10    5254.00b6.b28c    DYNAMIC     Gi0/2
+Total Mac Addresses for this criterion: 3
+`;
+
+export const SHOW_INTERFACES_ERRORS_IOSV = `GigabitEthernet0/0 is up, line protocol is up (connected)
+     0 input errors, 0 CRC, 0 frame, 0 overrun, 0 ignored
+     0 output errors, 0 collisions, 2 interface resets
+GigabitEthernet0/1 is up, line protocol is up (connected)
+     0 input errors, 0 CRC, 0 frame, 0 overrun, 0 ignored
+     0 output errors, 0 collisions, 2 interface resets
+GigabitEthernet0/2 is up, line protocol is up (connected)
+     0 input errors, 0 CRC, 0 frame, 0 overrun, 0 ignored
+     0 output errors, 0 collisions, 2 interface resets
+GigabitEthernet0/3 is administratively down, line protocol is down (disabled)
+     0 input errors, 0 CRC, 0 frame, 0 overrun, 0 ignored
+     0 output errors, 0 collisions, 2 interface resets
+Port-channel1 is up, line protocol is up (connected)
+     0 input errors, 0 CRC, 0 frame, 0 overrun, 0 ignored
+     0 output errors, 0 collisions, 0 interface resets
+Vlan10 is down, line protocol is down
+     0 input errors, 0 CRC, 0 frame, 0 overrun, 0 ignored
+     0 output errors, 0 interface resets
+`;
+
+// IOSv (and other fanless/sensorless platforms) reject `show env all` outright.
+// The monitor still issues the command on classic IOS, so the parser sees this
+// error text and must return an empty environment - never phantom PSUs/fans.
+export const SHOW_ENV_ALL_INVALID_IOS = `show env all
+       ^
+% Invalid input detected at '^' marker.
+
+`;
+
+export const SHOW_CDP_DETAIL_IOSV_MULTI = `-------------------------
+Device ID: SP-ACCESS-B
+Entry address(es):
+Platform: Cisco ,  Capabilities: Router Switch IGMP
+Interface: GigabitEthernet0/1,  Port ID (outgoing port): GigabitEthernet0/1
+Holdtime : 176 sec
+
+Version :
+Cisco IOS Software, vios_l2 Software (vios_l2-ADVENTERPRISEK9-M), Experimental Version 15.2(20200924:215240) [sweickge-sep24-2020-l2iol-release 135]
+Copyright (c) 1986-2020 by Cisco Systems, Inc.
+Compiled Tue 29-Sep-20 11:53 by sweickge
+
+advertisement version: 2
+VTP Management Domain: ''
+Native VLAN: 1
+Duplex: full
+
+-------------------------
+Device ID: SP-ACCESS-B
+Entry address(es):
+Platform: Cisco ,  Capabilities: Router Switch IGMP
+Interface: GigabitEthernet0/0,  Port ID (outgoing port): GigabitEthernet0/0
+Holdtime : 162 sec
+
+Version :
+Cisco IOS Software, vios_l2 Software (vios_l2-ADVENTERPRISEK9-M), Experimental Version 15.2(20200924:215240) [sweickge-sep24-2020-l2iol-release 135]
+Copyright (c) 1986-2020 by Cisco Systems, Inc.
+Compiled Tue 29-Sep-20 11:53 by sweickge
+
+advertisement version: 2
+VTP Management Domain: ''
+Native VLAN: 1
+Duplex: full
+
+-------------------------
+Device ID: SP-ACCESS-B
+Entry address(es):
+Platform: Cisco ,  Capabilities: Router Switch IGMP
+Interface: GigabitEthernet0/2,  Port ID (outgoing port): GigabitEthernet0/2
+Holdtime : 177 sec
+
+Version :
+Cisco IOS Software, vios_l2 Software (vios_l2-ADVENTERPRISEK9-M), Experimental Version 15.2(20200924:215240) [sweickge-sep24-2020-l2iol-release 135]
+Copyright (c) 1986-2020 by Cisco Systems, Inc.
+Compiled Tue 29-Sep-20 11:53 by sweickge
+
+advertisement version: 2
+VTP Management Domain: ''
+Native VLAN: 10
+Duplex: full
+
+
+Total cdp entries displayed : 3
+`;
+
 export const SHOW_ENV_IOSXE = `SW  PID                 Serial#     Status           Sys Pwr  PoE Pwr  Watts
 --  ------------------  ----------  ---------------  -------  -------  -----
 1A  PWR-C1-1100WAC      ABC1234567  OK               Good     Good     1100

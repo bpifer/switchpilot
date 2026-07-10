@@ -2,14 +2,16 @@ import { describe, it, expect } from 'vitest';
 import {
   parseShowVersion, parseInterfacesStatus, parseMacTable, parseCdpNeighborsDetail,
   parseCpu, parseMemory, parseEnvironment, parsePowerInline, parseShowSwitch,
-  parseVlanBrief, expandInterfaceName
+  parseVlanBrief, expandInterfaceName, parseInterfaceErrors
 } from '../src/cisco/parsers.js';
 import { parseLldpNeighborsDetail } from '../src/cisco/parsers.js';
 import { familyForModel } from '../src/cisco/capabilities.js';
 import {
   SHOW_VERSION_IOSV_L2, SHOW_VERSION_IOL_XE, SHOW_INTERFACES_STATUS_IOSV,
   SHOW_VLAN_BRIEF_IOSV, SHOW_PROCESSES_CPU_IOSV, SHOW_PROCESSES_MEMORY_IOSV,
-  SHOW_CDP_DETAIL_IOSV, SHOW_LLDP_DETAIL_IOSV
+  SHOW_CDP_DETAIL_IOSV, SHOW_LLDP_DETAIL_IOSV,
+  SHOW_INTERFACES_STATUS_IOSV_PO, SHOW_MAC_TABLE_IOSV_PO,
+  SHOW_INTERFACES_ERRORS_IOSV, SHOW_ENV_ALL_INVALID_IOS, SHOW_CDP_DETAIL_IOSV_MULTI
 } from './fixtures/cisco.js';
 
 describe('parseShowVersion', () => {
@@ -364,5 +366,60 @@ describe('CML virtual switch captures', () => {
       neighborPort: 'Et0/0'
     });
     expect(n[0].platform).toContain('IOSXE');
+  });
+});
+
+// Captured 2026-07-10 from the rebuilt CML bench: two iosvl2 switches joined
+// by an LACP Po1 (2 members) + an access link. See fixtures for lab details.
+describe('CML captures: port-channel lab (2026-07-10)', () => {
+  it('parses a Port-channel row in show interfaces status (no Type column)', () => {
+    const rows = parseInterfacesStatus(SHOW_INTERFACES_STATUS_IOSV_PO);
+    expect(rows).toHaveLength(5);
+    const po = rows.find(r => r.name === 'Po1')!;
+    expect(po).toMatchObject({ status: 'connected', vlan: 'trunk', duplex: 'a-full', speed: 'auto', type: '' });
+    expect(rows.find(r => r.name === 'Gi0/3')).toMatchObject({ status: 'disabled', vlan: '1' });
+  });
+
+  it('parses MAC entries learned on a port-channel', () => {
+    const macs = parseMacTable(SHOW_MAC_TABLE_IOSV_PO);
+    expect(macs).toHaveLength(3);
+    expect(macs[0]).toEqual({ vlan: 1, mac: '5254.00d0.b84c', type: 'DYNAMIC', port: 'Po1' });
+    expect(macs[2]).toEqual({ vlan: 10, mac: '5254.00b6.b28c', type: 'DYNAMIC', port: 'Gi0/2' });
+  });
+
+  it('parses the filtered interfaces-errors battery incl. Po and SVI sections', () => {
+    const counters = parseInterfaceErrors(SHOW_INTERFACES_ERRORS_IOSV);
+    expect(counters.map(c => c.name)).toEqual([
+      'GigabitEthernet0/0', 'GigabitEthernet0/1', 'GigabitEthernet0/2',
+      'GigabitEthernet0/3', 'Port-channel1', 'Vlan10'
+    ]);
+    for (const c of counters) {
+      expect(c.inputErrors).toBe(0);
+      expect(c.outputErrors).toBe(0);
+      // `| include` filter strips the rate lines -> no bps samples
+      expect(c.inBps).toBeNull();
+    }
+  });
+
+  it('returns an empty environment when the platform rejects `show env all`', () => {
+    // IOSv (and other sensorless platforms) answer with "% Invalid input".
+    // That error text must not produce phantom PSUs, fans, or a temperature.
+    expect(parseEnvironment(SHOW_ENV_ALL_INVALID_IOS)).toEqual({
+      temperatureC: null, psu: [], fans: []
+    });
+  });
+
+  it('parses multiple CDP entries for the same neighbor (one per link)', () => {
+    const n = parseCdpNeighborsDetail(SHOW_CDP_DETAIL_IOSV_MULTI);
+    expect(n).toHaveLength(3);
+    expect(n.map(x => x.localPort)).toEqual(
+      ['GigabitEthernet0/1', 'GigabitEthernet0/0', 'GigabitEthernet0/2']
+    );
+    for (const x of n) {
+      expect(x.neighborName).toBe('SP-ACCESS-B');
+      // IOSv advertises the bare platform "Cisco ," - the cisco-prefix strip
+      // leaves it empty rather than inventing a model name.
+      expect(x.platform).toBe('');
+    }
   });
 });

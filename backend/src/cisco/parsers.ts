@@ -65,8 +65,13 @@ export function parseInterfacesStatus(output: string): InterfaceStatus[] {
   const results: InterfaceStatus[] = [];
   // Strip \r so \r\n SSH output doesn't break end-of-line matching
   for (const line of output.replace(/\r/g, '').split('\n')) {
+    // The description match must be GREEDY: a description containing a status
+    // word ("spare - kept down") would otherwise terminate the field early and
+    // shift every remaining column. Greedy + backtracking anchors the status
+    // group on the LAST keyword followed by valid vlan/duplex/speed columns,
+    // which is the real status column. (Caught by a CML bench capture.)
     const m = line.match(
-      /^(\S+)\s+(.*?)\s+(connected|notconnect|disabled|err-disabled|inactive|monitoring|suspended|sfpAbsent|sfpPresent|xcvrAbsent|xcvrPresent|down|up)\s+(\S+)\s+(\S+)\s+(\S+)\s*(.*)$/
+      /^(\S+)\s+(.*)\s+(connected|notconnect|disabled|err-disabled|inactive|monitoring|suspended|sfpAbsent|sfpPresent|xcvrAbsent|xcvrPresent|down|up)\s+(\S+)\s+(\S+)\s+(\S+)\s*(.*)$/
     );
     if (!m) continue;
     const [, name, description, status, vlan, duplex, speed, type] = m;
