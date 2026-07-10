@@ -121,7 +121,7 @@ export default async function firmwareRoutes(app: FastifyInstance) {
       return reply.code(400).send({
         error: 'PLATFORM_URL is not set in the API environment. Switches download images from ' +
                'PLATFORM_URL/api/firmware/files/<name>, so set it to a URL reachable from the ' +
-               'switch management network (e.g. http://192.168.10.226:8080) and restart the API.'
+               'switch management network (e.g. http://192.168.1.10:8080) and restart the API.'
       });
     }
     const job = await createJob({

@@ -3,12 +3,12 @@
 // exactly the data SwitchPilot's arubaMonitor will use. Run from the backend
 // directory so net-snmp resolves:
 //   node scripts/probe-aruba.mjs <host> <community>
-// Example: node scripts/probe-aruba.mjs 10.4.23.11 switchpilot
+// Example: node scripts/probe-aruba.mjs 192.168.1.50 public
 
 import snmp from 'net-snmp';
 
-const host = process.argv[2] ?? '10.4.23.11';
-const community = process.argv[3] ?? 'switchpilot';
+const host = process.argv[2] ?? '192.168.1.50';
+const community = process.argv[3] ?? 'public';
 
 const OIDS = {
   sysDescr:  '1.3.6.1.2.1.1.1.0',

@@ -98,7 +98,7 @@ Milestones:
 - **Remaining** = #9 firmware (.npk), end-to-end baseline-apply confirmation,
   and MikroTik lifecycle data.
 
-Test box: CRS326-24G-2S+ at 192.168.10.41 (RouterOS 7.12.1), reachable from the
+Test box: CRS326-24G-2S+ at 192.168.1.20 (RouterOS 7.12.1), reachable from the
 dev machine via plink/ssh2.
 
 OUI lookup is already vendor-neutral. Lifecycle data is Cisco-model-prefix

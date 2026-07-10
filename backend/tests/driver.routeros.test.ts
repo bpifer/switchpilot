@@ -47,9 +47,9 @@ describe('routerosDriver', () => {
   });
 
   it('builds a baseline with discovery, remote logging (per-topic rules), and SNMP v2c', () => {
-    const plan = ros.baseline({ snmpVersion: '2c', snmpCommunity: 'mon-RO_1', platformHost: '192.168.10.226' });
+    const plan = ros.baseline({ snmpVersion: '2c', snmpCommunity: 'mon-RO_1', platformHost: '192.168.1.10' });
     expect(plan.lines).toContain('/ip/neighbor/discovery-settings/set discover-interface-list=all');
-    expect(plan.lines.some(l => l.includes('logging/action/find name=switchpilot') && l.includes('remote=192.168.10.226'))).toBe(true);
+    expect(plan.lines.some(l => l.includes('logging/action/find name=switchpilot') && l.includes('remote=192.168.1.10'))).toBe(true);
     expect(plan.lines).toContain('/system/logging/add action=switchpilot topics=info');
     expect(plan.lines).toContain('/system/logging/add action=switchpilot topics=critical');
     expect(plan.lines).toContain('/snmp/community/add name=mon-RO_1 addresses=0.0.0.0/0 read-access=yes');
@@ -135,10 +135,10 @@ describe('driverFor vendor dispatch', () => {
 
 describe('ciscoDriver baseline parity', () => {
   it('produces the same IOS lines the inline plan used to', () => {
-    const plan = ciscoDriver('ios').baseline({ snmpVersion: '2c', snmpCommunity: 'mon-RO_1', platformHost: '192.168.10.226' });
+    const plan = ciscoDriver('ios').baseline({ snmpVersion: '2c', snmpCommunity: 'mon-RO_1', platformHost: '192.168.1.10' });
     expect(plan.lines).toEqual([
       'lldp run',
-      'logging host 192.168.10.226',
+      'logging host 192.168.1.10',
       'logging trap informational',
       'snmp-server community mon-RO_1 RO',
     ]);

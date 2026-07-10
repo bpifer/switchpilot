@@ -25,7 +25,7 @@ SwitchPilot uses for a device - useful if you've lost the switch's own password
 but it is still onboarded:
 
 ```bash
-docker compose exec api npm run show-credential -- 192.168.10.41   # by mgmt IP
+docker compose exec api npm run show-credential -- 192.168.1.20   # by mgmt IP
 docker compose exec api npm run show-credential -- core-switch     # by hostname
 docker compose exec api npm run show-credential                    # list devices
 ```

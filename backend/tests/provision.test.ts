@@ -9,8 +9,8 @@ describe('planFromInputs', () => {
   });
 
   it('adds syslog forwarding when PLATFORM_URL is set, hostname only', () => {
-    const plan = planFromInputs({ platformUrl: 'http://192.168.10.226:8080' });
-    expect(plan.lines).toContain('logging host 192.168.10.226');   // port deliberately dropped
+    const plan = planFromInputs({ platformUrl: 'http://192.168.1.10:8080' });
+    expect(plan.lines).toContain('logging host 192.168.1.10');   // port deliberately dropped
     expect(plan.lines).toContain('logging trap informational');
   });
 

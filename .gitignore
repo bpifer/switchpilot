@@ -7,3 +7,5 @@ dist/
 
 # Local Claude Code session config
 .claude/
+# Local design-hook config (may contain absolute local paths)
+.impeccable/

@@ -1,15 +1,14 @@
 #!/usr/bin/env node
 // Explores what's readable and writable via SNMPv2c on the Aruba Instant On 1930.
-// Read community: switchpilot   Write community: switchpilot-rw
 // Runs safe tests only: SET tests use no-op values (current value back, or on
 // ports already confirmed down so there's no traffic impact).
-//   node scripts/probe-aruba-write.mjs <host>
+//   node scripts/probe-aruba-write.mjs <host> <ro-community> <rw-community>
 
 import snmp from 'net-snmp';
 
-const host = process.argv[2] ?? '10.4.23.11';
-const RO = 'switchpilot';
-const RW = 'switchpilot-rw';
+const host = process.argv[2] ?? '192.168.1.50';
+const RO = process.argv[3] ?? 'public';
+const RW = process.argv[4] ?? 'private';
 
 function sess(community) {
   return snmp.createSession(host, community, { version: snmp.Version2c, timeout: 5000, retries: 1 });
@@ -62,7 +61,7 @@ async function main() {
   console.log(`\n=== Aruba 1930 SNMP write exploration: ${host} ===\n`);
 
   // ── 1. Verify RW community works ────────────────────────────────────────────
-  console.log('--- 1. RW community check (GET sysName via switchpilot-rw) ---');
+  console.log('--- 1. RW community check (GET sysName via the RW community) ---');
   try {
     const r = await get(rw, ['1.3.6.1.2.1.1.5.0']);
     console.log(`  sysName: ${r['1.3.6.1.2.1.1.5.0']?.value}  ✓ RW community accepted`);

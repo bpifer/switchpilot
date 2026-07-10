@@ -187,8 +187,8 @@ export function parseBridgeHosts(terse: string): RosHost[] {
 }
 
 export interface RosIpAddress {
-  address: string;         // with prefix, e.g. 192.168.10.41/24
-  ip: string;              // bare host, e.g. 192.168.10.41
+  address: string;         // with prefix, e.g. 192.168.1.20/24
+  ip: string;              // bare host, e.g. 192.168.1.20
   interface: string;
 }
 

@@ -1,1 +1,1 @@
-0 D address=192.168.10.41/24 network=192.168.10.0 interface=bridgeLocal actual-interface=bridgeLocal
+0 D address=192.168.1.20/24 network=192.168.1.0 interface=bridgeLocal actual-interface=bridgeLocal

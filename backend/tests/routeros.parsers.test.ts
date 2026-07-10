@@ -108,8 +108,8 @@ describe('parseBridgeHosts (MAC table)', () => {
 describe('parseIpAddresses', () => {
   it('splits the management address from its prefix', () => {
     const [a] = parseIpAddresses(fx('ip-terse.txt'));
-    expect(a.ip).toBe('192.168.10.41');
-    expect(a.address).toBe('192.168.10.41/24');
+    expect(a.ip).toBe('192.168.1.20');
+    expect(a.address).toBe('192.168.1.20/24');
     expect(a.interface).toBe('bridgeLocal');
   });
 });

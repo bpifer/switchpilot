@@ -80,12 +80,12 @@ describe('device tools - RouterOS output cleanup (validated against a CRS326)', 
 
   it('collapses a refreshing ip-scan to one frame', () => {
     const raw = [
-      'Columns: ADDRESS, TIME', 'ADDRESS        TIME', '192.168.10.41  1ms', '',
-      'Columns: ADDRESS, TIME', 'ADDRESS        TIME', '192.168.10.41  1ms',
+      'Columns: ADDRESS, TIME', 'ADDRESS        TIME', '192.168.1.20  1ms', '',
+      'Columns: ADDRESS, TIME', 'ADDRESS        TIME', '192.168.1.20  1ms',
     ].join('\n');
     const out = ros.cleanToolOutput!('ip-scan', raw);
     expect((out.match(/^Columns:/gm) || []).length).toBe(1);
-    expect(out).toContain('192.168.10.41');
+    expect(out).toContain('192.168.1.20');
   });
 
   it('passes append-only ping output through untouched', () => {
@@ -108,11 +108,11 @@ describe('NetFlow auto-export - config building', () => {
   });
 
   it('RouterOS pins the export source to the device IP when given (avoids 0.0.0.0 -> dropped)', () => {
-    const lines = routerosDriver().flowExportLines({ host: '192.168.10.226', port: 2055, srcAddress: '192.168.10.41' });
-    expect(lines[1]).toBe('/ip traffic-flow target add dst-address=192.168.10.226 port=2055 version=9 src-address=192.168.10.41');
+    const lines = routerosDriver().flowExportLines({ host: '192.168.1.10', port: 2055, srcAddress: '192.168.1.20' });
+    expect(lines[1]).toBe('/ip traffic-flow target add dst-address=192.168.1.10 port=2055 version=9 src-address=192.168.1.20');
     // a non-IP srcAddress is ignored rather than interpolated into the CLI
-    const noSrc = routerosDriver().flowExportLines({ host: '192.168.10.226', port: 2055, srcAddress: 'garbage; /system reset' });
-    expect(noSrc[1]).toBe('/ip traffic-flow target add dst-address=192.168.10.226 port=2055 version=9');
+    const noSrc = routerosDriver().flowExportLines({ host: '192.168.1.10', port: 2055, srcAddress: 'garbage; /system reset' });
+    expect(noSrc[1]).toBe('/ip traffic-flow target add dst-address=192.168.1.10 port=2055 version=9');
   });
 
   it('RouterOS re-guards the collector host against CLI metacharacters', () => {

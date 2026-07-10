@@ -6,7 +6,7 @@
 //
 // Run where the DB is reachable and CREDENTIAL_KEY is set (e.g. inside the api
 // container, which has both):
-//   docker compose exec api npm run show-credential -- 192.168.10.41
+//   docker compose exec api npm run show-credential -- 192.168.1.20
 //   docker compose exec api npm run show-credential -- core-switch
 // Matches on mgmt IP (exact) or hostname (case-insensitive substring). With no
 // argument, lists the devices that have a credential attached.

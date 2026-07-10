@@ -102,7 +102,7 @@ describe('NetFlow v5 decode', () => {
       v5Record('192.168.1.10', '8.8.8.8', 10, 1500, 12345, 443, 6),
       v5Record('192.168.1.20', '1.1.1.1', 5, 600, 51000, 53, 17),
     ]);
-    const flows = decodeNetflow(pkt, '192.168.10.41', new Map());
+    const flows = decodeNetflow(pkt, '192.168.1.20', new Map());
     expect(flows).toHaveLength(2);
     expect(flows[0]).toEqual({ srcIp: '192.168.1.10', dstIp: '8.8.8.8', srcPort: 12345, dstPort: 443, protocol: 6, bytes: 1500, packets: 10 });
     expect(flows[1]).toMatchObject({ dstPort: 53, protocol: 17, bytes: 600 });
