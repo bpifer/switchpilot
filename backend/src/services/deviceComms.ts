@@ -72,6 +72,9 @@ export async function sshTargetFor(device: DeviceRow): Promise<SshTarget> {
   const driver = driverFor(device);
   return {
     host: device.mgmt_ip,
+    // Non-standard SSH port via capabilities.sshPort (also the injection seam
+    // that lets integration tests point a monitor sweep at a mock device).
+    port: Number((device.capabilities as any)?.sshPort) || undefined,
     username: c.ssh_username,
     password: decryptSecret(c.ssh_password_enc),
     enablePassword: decryptSecret(c.enable_password_enc) || undefined,

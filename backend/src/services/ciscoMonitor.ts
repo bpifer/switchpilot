@@ -32,7 +32,12 @@ export async function refreshCiscoDevice(device: DeviceRow): Promise<void> {
   await withDeviceSession(target, async session => {
     // --- identity ---
     const ver = parseShowVersion(await session.exec('show version'));
-    const caps = ver.model ? resolveCapabilities(ver.model, ver.iosVersion) : device.capabilities;
+    // Re-resolving capabilities from the model must not wipe operator-set
+    // connection overrides (capabilities.sshPort) stored on the same JSONB.
+    const sshPort = (device.capabilities as any)?.sshPort;
+    const caps = ver.model
+      ? { ...resolveCapabilities(ver.model, ver.iosVersion), ...(sshPort ? { sshPort } : {}) }
+      : device.capabilities;
 
     // --- health ---
     const os = (caps as any).os as string;
