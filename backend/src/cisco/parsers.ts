@@ -214,6 +214,14 @@ export function parseEnvironment(output: string): EnvStatus {
       env.psu.push({ id: m[1], status: m[2] });
     }
   }
+  // 2960/3560 built-in PSU table: " 1  Built-in            Good" - status right
+  // after the PID with only whitespace between (no serial on built-in supplies).
+  // Seen live on a 2960X, which matched none of the patterns above.
+  if (env.psu.length === 0) {
+    for (const m of output.matchAll(/^\s*(\d+)\s+(\S+)\s{2,}(Good|Bad|Faulty|Not Present|No Input Power)\s*$/gim)) {
+      env.psu.push({ id: m[1], status: m[3] });
+    }
+  }
 
   // IOS-XE 9k chassis fan table: "  1    1   13760   OK" (Switch FAN Speed State).
   // Anchored on a known state keyword in the 4th column so it can't match an
@@ -221,12 +229,13 @@ export function parseEnvironment(output: string): EnvStatus {
   for (const m of output.matchAll(/^\s*(\d+)\s+(\d+)\s+\d+\s+(OK|Faulty|Fail\w*|Not Present|Absent|Warning)\b/gim)) {
     env.fans.push({ id: `${m[1]}/${m[2]}`, status: m[3] });
   }
-  // IOS fans: "FAN 1 is OK" | "FAN in PS-1 is OK" | "FAN PS-2 is NOT PRESENT".
+  // IOS fans: "FAN 1 is OK" | "FAN in PS-1 is OK" | "FAN PS-2 is NOT PRESENT",
+  // and the 2960's id-less "FAN is OK" (seen live; id defaults to "system").
   // Capture the FULL status to end of line - a bare \S+ truncated "NOT PRESENT"
   // to "NOT", which then read as a failure and raised a false critical alert
   // for an empty PSU slot (seen on a live C9300-24T with one PSU).
-  for (const m of output.matchAll(/FAN(?:\s+in)?\s+([\w-]+)\s+is\s+(.+?)\s*$/gim)) {
-    env.fans.push({ id: m[1], status: m[2].replace(/[.,]$/, '') });
+  for (const m of output.matchAll(/FAN(?:\s+in)?(?:\s+([\w-]+))?\s+is\s+(.+?)\s*$/gim)) {
+    env.fans.push({ id: m[1] ?? 'system', status: m[2].replace(/[.,]$/, '') });
   }
   // NX-OS fans: "Fan1(sys_fan1)   N5K-C5596UP-FAN   --   front-to-back   Ok"
   if (env.fans.length === 0) {

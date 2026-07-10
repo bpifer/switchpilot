@@ -110,15 +110,25 @@ export class CiscoSshSession {
     await this.exec('terminal width 511');
   }
 
-  /** Enter privileged EXEC mode if needed. */
+  /** Enter privileged EXEC mode. Throws when the device refuses elevation -
+   *  a `>` prompt after the attempt means the enable password was wrong or
+   *  missing, and silently continuing at privilege 1 would surface later as
+   *  baffling "% Invalid input" on ordinary reads (seen live on a 2960X whose
+   *  account was priv-1). */
   async enable(): Promise<void> {
     this.buffer = '';
     this.stream.write('enable\n');
-    const out = await this.waitFor(/[Pp]assword:|#\s?$/m);
+    const out = await this.waitFor(/[Pp]assword:|[#>]\s?$/m);
+    if (/#\s?$/m.test(out)) return;   // elevated (or was already privileged)
     if (/[Pp]assword:/.test(out)) {
       this.stream.write((this.target.enablePassword ?? this.target.password) + '\n');
-      await this.waitForPrompt();
+      const res = await this.waitFor(/[Pp]assword:|[#>]\s?$/m);
+      if (/#\s?$/m.test(res)) return;
     }
+    // Re-prompted for a password or dumped back at '>' - elevation failed.
+    throw new Error(
+      'Privilege elevation failed: the switch did not grant enable mode. ' +
+      'Set the correct enable password on the credential profile, or use a privilege-15 account.');
   }
 
   /** Run a single command and return its output (without the echoed command/prompt). */

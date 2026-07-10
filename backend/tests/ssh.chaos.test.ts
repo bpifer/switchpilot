@@ -90,6 +90,18 @@ describe('CiscoSshSession auth + echo variants', () => {
     session.close();
   }, 15000);
 
+  it('throws a clear error when the enable password is wrong instead of silently staying at priv 1', async () => {
+    device = await startMockDevice({ enablePassword: 'secretEnable' });
+    // Target has NO enablePassword, so enable() falls back to the (wrong) login
+    // password. Regression: PROMPT matches '>' too, so a rejected elevation used
+    // to return successfully and every later privileged op failed confusingly
+    // (seen live on a 2960X with a priv-1 account).
+    const session = new CiscoSshSession(target());
+    await session.connect();
+    await expect(session.enable()).rejects.toThrow(/privilege elevation failed/i);
+    session.close();
+  }, 15000);
+
   it('connects straight through when the device grants # without a password (skipEnable)', async () => {
     device = await startMockDevice({ responses: { 'show clock': '12:00:00 UTC' } });
     const session = new CiscoSshSession(target());

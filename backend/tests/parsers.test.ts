@@ -193,6 +193,30 @@ SW  PID                 Serial#     Status           Sys Pwr  PoE Pwr  Watts
     expect(psFan?.status).toBe('NOT PRESENT');   // not truncated to "NOT"
   });
 
+  // Real `show env all` from a live 2960X (IOS 15.2(7)E14): an id-less
+  // "FAN is OK" line and a built-in PSU with no serial column. Regression:
+  // both matched none of the patterns, so a failed fan/PSU on a 2960 was
+  // invisible to health alerting.
+  it('parses a real 2960X environment (id-less fan + built-in PSU)', () => {
+    const env = parseEnvironment(`FAN is OK
+SYSTEM TEMPERATURE is OK
+System Temperature Value: 31 Degree Celsius
+System Temperature State: GREEN
+Yellow Threshold : 58 Degree Celsius
+Red Threshold    : 68 Degree Celsius
+SW  PID                 Serial#     Status           Sys Pwr  PoE Pwr  Watts
+--  ------------------  ----------  ---------------  -------  -------  -----
+ 1  Built-in                                         Good
+
+SW  Status          RPS Name          RPS Serial#  RPS
+--  -------------   ----------------  -----------  ---------
+1   <>              <>`);
+
+    expect(env.temperatureC).toBe(31);
+    expect(env.fans).toEqual([{ id: 'system', status: 'OK' }]);
+    expect(env.psu).toEqual([{ id: '1', status: 'Good' }]);
+  });
+
   it('parses power inline', () => {
     const poe = parsePowerInline(`
 Interface Admin  Oper       Power   Device              Class Max
