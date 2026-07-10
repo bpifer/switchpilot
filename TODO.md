@@ -137,7 +137,8 @@ message needed cleanup.
       (localStorage). MNDP dedup was already covered: `/ip neighbor` merges
       protocols on-device and the graph's edge key + ON CONFLICT dedupe the rest.
       "What's plugged into what" is served by per-port learned MACs + Clients.
-- [ ] **Test the riskiest untested code.** `Medium`. PARTIAL: `jobService` retry/
+- [x] **Test the riskiest untested code.** `Medium`. **DONE 2026-07-09** (see
+      final piece at the end). PARTIAL history: `jobService` retry/
       backoff (`decideJobOutcome`/`backoffMs`) and `monitorService` health-alert
       decisions (`evaluateHealth`) now have unit tests (pure logic extracted).
       2026-07-01: port flap detection extracted pure (`decidePortFlap`, window
@@ -154,10 +155,12 @@ message needed cleanup.
       echo, and --More-- pagination; ssh.chaos covers enable-password, skip-enable
       pass-through, echo-in-separate-chunk stripping, and paging. Auto-remediation
       safety default (off-by-default short-circuit) unit-tested. Devices
-      filter/sort + Alerts ack/resolve/edit page tests added. Still open: the
-      remaining I/O paths of the vendor monitors — a full `refreshCiscoDevice`
-      test needs a session-injection seam (sshTargetFor hard-codes port 22), a
-      hot-path refactor deferred as out of scope for a test-only change.
+      filter/sort + Alerts ack/resolve/edit page tests added. Final piece
+      (2026-07-09, commit e8e0f3d): `sshTargetFor` honors `capabilities.sshPort`
+      (a real non-standard-port feature doubling as the injection seam) and a
+      full `refreshCiscoDevice` integration test drives the entire read path —
+      real SSH pool + parsers + capability gating — against mockCiscoDevice,
+      asserting pooled-session reuse across sweeps.
 
 ## P3 - Nice to have
 
@@ -191,7 +194,12 @@ message needed cleanup.
       Pi-hole and correlate to clients. SKIPPED for now (user call, 2026-07-09).
 - [ ] **Credential presets (reusable, admin-restricted).** `Medium`. Reusable
       credential sets to speed onboarding / bulk-add; restrict presets to admins.
-- [ ] **Shared toast / mutation hook (frontend).** `Medium`. PARTIAL: a shared
+- [x] **Shared toast / mutation hook (frontend).** `Medium`. **DONE 2026-07-09.**
+      The last five toast-style pages (Devices, Firmware, Users, Integrations,
+      Lifecycle) migrated to `useAction` with per-row busy keys (commit 20a7841).
+      Remaining `.catch(toast.error)` spots (Alerts, Jobs, Topology, HistoryTab)
+      already surface errors + manage busy state locally, and the output-pane
+      tabs keep their inline pattern by design. Earlier history: a shared
       toast store (`components/Toast`, `toast.error/success/info` + `<Toaster/>`)
       now exists and all 22 browser `alert()` calls across 10 files were migrated
       to it (consistent, non-blocking error/success UX; 409s now surface as a
@@ -202,11 +210,7 @@ message needed cleanup.
       This also fixed real bugs: BackupsTab restore/diff and Templates delete
       had NO error handling (a failed restore rejected silently - no toast, no
       busy state); restore now also refetches so the pre-restore snapshot
-      appears. Still open: the tabs that surface errors inline in an output
-      pane by design (PortsTab, ConfigTab, ToolsTab) don't fit the toast hook -
-      they keep their local pattern; migrate the remaining toast-style pages
-      (Devices, Firmware, Users, Integrations, Lifecycle) opportunistically.
-      (External review.)
+      appears. (External review.)
 
 ## P4 - Later (large, risky, or niche)
 
