@@ -40,8 +40,9 @@ function ifIndexOf(portName: string): number {
 }
 
 /** Q-BRIDGE bitmap: MSB-first, bit 0 of byte 0 = bridge port 1.
- *  bridge port N → byte floor((N-1)/8), mask 0x80 >> ((N-1) % 8). */
-function portBit(bridgePort: number): { byteIdx: number; mask: number } {
+ *  bridge port N → byte floor((N-1)/8), mask 0x80 >> ((N-1) % 8).
+ *  Exported for tests: an off-by-one here silently puts VLANs on the wrong port. */
+export function portBit(bridgePort: number): { byteIdx: number; mask: number } {
   return {
     byteIdx: Math.floor((bridgePort - 1) / 8),
     mask: 0x80 >> ((bridgePort - 1) % 8),
@@ -49,8 +50,9 @@ function portBit(bridgePort: number): { byteIdx: number; mask: number } {
 }
 
 /** Return a copy of buf with the given bridge port bit set or cleared.
- *  Grows the buffer if the port falls beyond the current length. */
-function bitmapSet(buf: Buffer, bridgePort: number, on: boolean): Buffer {
+ *  Grows the buffer if the port falls beyond the current length.
+ *  Exported for tests. */
+export function bitmapSet(buf: Buffer, bridgePort: number, on: boolean): Buffer {
   const { byteIdx, mask } = portBit(bridgePort);
   const out = Buffer.alloc(Math.max(buf.length, byteIdx + 1));
   buf.copy(out);

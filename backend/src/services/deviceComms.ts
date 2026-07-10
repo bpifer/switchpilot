@@ -213,8 +213,12 @@ export async function bouncePort(deviceId: string, portName: string, force = fal
 
 /** Power-cycle a PoE port: cut power, pause, restore. Reboots a powered device
  *  (AP/camera/phone) without yanking the cable. */
-export async function poeCyclePort(deviceId: string, portName: string): Promise<string> {
+export async function poeCyclePort(deviceId: string, portName: string, force = false): Promise<string> {
   const device = await getDevice(deviceId);
+  // Same guard as bounce: cutting PoE on an uplink that powers a downstream
+  // switch/AP drops it for ~4s - and if that path carries management, the
+  // restore half may never arrive.
+  await assertNotUplink(device, portName, force);
   const { off, on } = driverFor(device).poeCycleLines(portName);
   const target = await sshTargetFor(device);
   return withDeviceSession(target, async session => {

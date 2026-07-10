@@ -499,7 +499,8 @@ function PortDetail({ deviceId, port, canOperate, onChanged, isAruba }: {
             {!isAruba && port.poe_watts != null && (
               <Button variant="secondary" disabled={!!busy}
                       onClick={() => confirmAction('poe', `PoE-cycle ${port.name}? This power-cycles the attached device (AP / camera / phone).`,
-                        () => api(`/api/devices/${deviceId}/ports/${portPath}/poe-cycle`, { method: 'POST' }))}>
+                        withUplinkOverride(force =>
+                          api(`/api/devices/${deviceId}/ports/${portPath}/poe-cycle`, { method: 'POST', body: { force } })))}>
                 {busy === 'poe' ? 'Power-cycling…' : 'PoE cycle'}
               </Button>
             )}

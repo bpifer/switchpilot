@@ -211,15 +211,25 @@ export default async function portRoutes(app: FastifyInstance) {
       return { present: /temperature|transceiver|optic/i.test(raw), raw };
     });
 
-  // PoE power-cycle (reboot a powered AP/camera without unplugging it)
-  app.post('/api/devices/:id/ports/:port/poe-cycle', { preHandler: requireRole('helpdesk'), schema: { tags: ['ports'] } },
-    async (req) => {
-      const { id, port } = req.params as any;
-      const me = req.user as any;
-      await poeCyclePort(id, port);
-      await audit(me.username, 'port.poecycle', `${id}/${port}`, {}, req.ip);
-      return { ok: true };
-    });
+  // PoE power-cycle (reboot a powered AP/camera without unplugging it).
+  // Uplink-guarded like bounce: cutting PoE on a powered uplink drops whatever
+  // is behind it for the full off/on window.
+  app.post('/api/devices/:id/ports/:port/poe-cycle', {
+    preHandler: requireRole('helpdesk'),
+    schema: { tags: ['ports'], body: { type: 'object', properties: { force: { type: 'boolean', default: false } } } }
+  }, async (req, reply) => {
+    const { id, port } = req.params as any;
+    const force = (req.body as any)?.force ?? false;
+    const me = req.user as any;
+    try {
+      await poeCyclePort(id, port, force);
+    } catch (err: any) {
+      if (err.statusCode === 409) return reply.code(409).send({ error: err.message, detail: err.detail });
+      throw err;
+    }
+    await audit(me.username, 'port.poecycle', `${id}/${port}`, force ? { forcedUplinkGuard: true } : {}, req.ip);
+    return { ok: true };
+  });
 
   // TDR cable test
   app.post('/api/devices/:id/ports/:port/cable-test', { preHandler: requireRole('helpdesk'), schema: { tags: ['ports'] } },
