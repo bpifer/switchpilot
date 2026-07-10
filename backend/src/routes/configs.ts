@@ -11,7 +11,7 @@ import { isMikrotik } from '../services/routerosMonitor.js';
 // A RouterOS /export is not replayable line-by-line (section headers + `add`
 // lines need /import), so block restore/rollback rather than half-apply it.
 const ROUTEROS_RESTORE_MSG = 'Config restore/rollback is not supported on RouterOS yet: a /export cannot be replayed line by line. Use /import on the device.';
-import { backupDevice, driftRemediationPreview, replayableLines } from '../services/configService.js';
+import { backupDevice, driftRemediationPreview, replayableLines, liveConfigText } from '../services/configService.js';
 import { gitLog, gitShow, gitDiff } from '../services/configVersioning.js';
 import { previewConfigLines, detectMgmtLockout } from '../services/configPreview.js';
 
@@ -23,8 +23,14 @@ async function replayConfig(opts: {
   deviceId: string; content: string; username: string; ip: string;
   preReason: string; auditAction: string; auditDetail: Record<string, unknown>;
 }): Promise<string> {
-  if (isMikrotik(await getDevice(opts.deviceId))) {
+  const device = await getDevice(opts.deviceId);
+  if (isMikrotik(device)) {
     throw Object.assign(new Error(ROUTEROS_RESTORE_MSG), { statusCode: 400 });
+  }
+  if (device.vendor === 'aruba') {
+    throw Object.assign(
+      new Error('Config restore is not supported on Aruba Instant On: the snapshot is read-only SNMP state, not a pushable CLI config.'),
+      { statusCode: 400 });
   }
   await backupDevice(opts.deviceId, opts.username, { reason: opts.preReason });
   const output = await devicePushConfig(opts.deviceId, replayableLines(opts.content), true);
@@ -98,9 +104,18 @@ export default async function configRoutes(app: FastifyInstance) {
         properties: { id: { type: 'string' }, kind: { type: 'string', enum: ['running', 'startup'] } }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const { id, kind } = req.params as any;
-    const drv = driverFor(await getDevice(id));
+    const device = await getDevice(id);
+    // Aruba is SNMP-only: its "running config" is the synthetic snapshot of the
+    // last-polled state, and there is no startup config at all.
+    if (device.vendor === 'aruba') {
+      if (kind === 'startup') {
+        return reply.code(400).send({ error: 'Aruba Instant On has no startup config (SNMP-managed).' });
+      }
+      return { kind, content: await liveConfigText(id) };
+    }
+    const drv = driverFor(device);
     // RouterOS has no separate startup config; its export is the live config.
     const cmd = (kind === 'startup' && drv.os !== 'routeros') ? 'show startup-config' : drv.configCommand;
     const out = await deviceExec(id, [cmd]);
@@ -183,8 +198,7 @@ export default async function configRoutes(app: FastifyInstance) {
 
     let bContent: string, bLabel: string;
     if (!to || to === 'live') {
-      const out = await deviceExec(id, [driverFor(await getDevice(id)).configCommand]);
-      bContent = Object.values(out)[0] ?? '';
+      bContent = await liveConfigText(id);   // vendor-aware (Aruba: synthetic snapshot)
       bLabel = 'live running-config';
     } else {
       const b = await query('SELECT content, created_at FROM config_backups WHERE id=$1 AND device_id=$2', [to, id]);

@@ -27,12 +27,15 @@ export default function BackupsTab({ deviceId, canOperate, canConfig, vendor }: 
   // Drift detection works on RouterOS, but a /export cannot be replayed, so
   // restore-from-baseline (and its dry run / auto-remediate) is Cisco-only.
   const isRos = vendor === 'mikrotik';
+  // Aruba snapshots are read-only SNMP state: history/diff/baseline-drift work,
+  // but nothing can be pushed back, so every restore-shaped action is hidden.
+  const isAruba = vendor === 'aruba';
 
   const setBaseline = (backupId: string) => run(async () => {
     await api(`/api/devices/${deviceId}/baseline`, {
       method: 'PUT',
       // re-pointing the baseline keeps the existing auto-remediate choice
-      body: { backupId, autoRemediate: (baseline?.auto_remediate ?? false) && !isRos }
+      body: { backupId, autoRemediate: (baseline?.auto_remediate ?? false) && !isRos && !isAruba }
     });
     refetchBaseline();
   }, { key: `baseline:${backupId}`, success: 'Baseline set. Drift sweeps now compare against this backup.' });
@@ -109,7 +112,7 @@ export default function BackupsTab({ deviceId, canOperate, canConfig, vendor }: 
                       {isBusy(`baseline:${b.id}`) ? 'setting…' : 'set baseline'}
                     </button>
                   )}
-                  {canConfig && (
+                  {canConfig && !isAruba && (
                     <button className="text-xs text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
                             disabled={busy} onClick={() => restore(b.id)}>
                       {isBusy(`restore:${b.id}`) ? 'restoring…' : 'restore'}
@@ -151,7 +154,14 @@ export default function BackupsTab({ deviceId, canOperate, canConfig, vendor }: 
                 set by {baseline.set_by} on {new Date(baseline.set_at).toLocaleDateString()}
               </span>
             </p>
-            {isRos ? (
+            {isAruba ? (
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                Drift detection is active: each sweep compares the latest SNMP state snapshot
+                against this baseline and raises an alert when they diverge. Restore and
+                auto-remediation don't apply — the snapshot is read-only state, so reconcile
+                changes from the Ports tab or the Instant On app.
+              </p>
+            ) : isRos ? (
               <p className="text-xs text-slate-400 dark:text-slate-500">
                 Drift detection is active. Restore/auto-remediation is unavailable on RouterOS
                 (an /export cannot be replayed line by line) — reconcile drift on the device.

@@ -36,6 +36,16 @@ async function syntheticArubaConfig(
     ports.rows, links.rows);
 }
 
+/** The device's current config text for diff/drift: an SSH running-config read
+ *  for CLI vendors, the synthetic SNMP snapshot for Aruba (its "live config" IS
+ *  the last-polled state). Empty string when an Aruba device has never polled. */
+export async function liveConfigText(deviceId: string): Promise<string> {
+  const device = await getDevice(deviceId);
+  if (device.vendor === 'aruba') return (await syntheticArubaConfig(deviceId, device)) ?? '';
+  const out = await deviceExec(deviceId, [driverFor(device).configCommand]);
+  return Object.values(out)[0] ?? '';
+}
+
 export interface BackupOptions {
   reason?: string;   // why this backup was taken (free text)
   ticket?: string;   // change ticket reference
@@ -114,17 +124,18 @@ export async function checkDrift(deviceId: string): Promise<boolean> {
   const baseline = await baselineFor(deviceId);
   if (!baseline) return false;
 
-  const driver = driverFor(await getDevice(deviceId));
-  const out = await deviceExec(deviceId, [driver.configCommand]);
-  const current = Object.values(out)[0] ?? '';
+  const device = await getDevice(deviceId);
+  const current = await liveConfigText(deviceId);
+  if (!current) return false;   // Aruba pre-first-poll: nothing to compare yet
   if (sha256(normalizeConfig(current)) === sha256(normalizeConfig(baseline.content))) return false;
 
   await raiseAlert(deviceId, 'config_drift', 'warning',
     'Running configuration has drifted from the assigned baseline');
 
   // A RouterOS /export is not replayable line-by-line (restore/rollback block
-  // it at the route); never auto-push it here even if the flag was set.
-  if (baseline.auto_remediate && driver.os !== 'routeros') {
+  // it at the route); never auto-push it here even if the flag was set. Aruba
+  // is SNMP-only - there is no config push path at all.
+  if (baseline.auto_remediate && device.vendor !== 'aruba' && driverFor(device).os !== 'routeros') {
     await devicePushConfig(deviceId, replayableLines(baseline.content), true);
     await raiseAlert(deviceId, 'config_drift', 'info', 'Baseline configuration automatically restored');
   }

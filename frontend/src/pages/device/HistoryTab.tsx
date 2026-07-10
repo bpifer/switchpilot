@@ -4,7 +4,12 @@ import { toast } from '../../components/Toast';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import { Card, Button, Modal } from '../../components/ui';
 
-export default function HistoryTab({ deviceId, canConfig }: { deviceId: string; canConfig: boolean }) {
+export default function HistoryTab({ deviceId, canConfig, vendor }: {
+  deviceId: string; canConfig: boolean; vendor?: string;
+}) {
+  // Rollback pushes CLI lines: impossible on SNMP-only Aruba (and blocked
+  // server-side); history view + diffs still work on its snapshots.
+  const canRollback = canConfig && vendor !== 'aruba';
   const { data: log = [], isLoading } = useApiQuery<any[]>(`/api/devices/${deviceId}/config/git-log`);
   const [sel, setSel] = useState<string[]>([]);   // up to 2 selected SHAs for diff
   const [diff, setDiff] = useState('');
@@ -72,7 +77,7 @@ export default function HistoryTab({ deviceId, canConfig }: { deviceId: string; 
                       {e.reason && <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">{e.reason}</span>}
                       {e.ticket && <span className="rounded bg-violet-50 px-1.5 py-0.5 font-mono text-violet-700">{e.ticket}</span>}
                       <button className="ml-auto text-brand-600 hover:underline dark:text-brand-400" onClick={() => view(e.sha)}>view</button>
-                      {canConfig && (
+                      {canRollback && (
                         <button className="text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
                                 disabled={rollingBack === e.sha} onClick={() => rollback(e.sha)}>
                           {rollingBack === e.sha ? 'rolling back…' : 'rollback'}

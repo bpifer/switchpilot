@@ -3,7 +3,12 @@ import { api, ApiError } from '../../api';
 import { Card, Button } from '../../components/ui';
 import ConfigPreviewModal, { type PreviewData } from '../../components/ConfigPreviewModal';
 
-export default function ConfigTab({ deviceId, canConfig }: { deviceId: string; canConfig: boolean }) {
+export default function ConfigTab({ deviceId, canConfig, vendor }: {
+  deviceId: string; canConfig: boolean; vendor?: string;
+}) {
+  // Aruba Instant On is SNMP-managed: the "config" is a read-only snapshot of
+  // polled state - no startup config, no CLI push.
+  const isAruba = vendor === 'aruba';
   const [kind, setKind] = useState<'running' | 'startup'>('running');
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
@@ -82,19 +87,25 @@ export default function ConfigTab({ deviceId, canConfig }: { deviceId: string; c
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Card title="Device configuration">
+      <Card title={isAruba ? 'Device state snapshot' : 'Device configuration'}>
         <div className="mb-2 flex gap-2">
-          {(['running', 'startup'] as const).map(k => (
+          {!isAruba && (['running', 'startup'] as const).map(k => (
             <Button key={k} variant={kind === k ? 'primary' : 'secondary'} onClick={() => setKind(k)}>{k}-config</Button>
           ))}
           <Button variant="secondary" onClick={load}>↻</Button>
           <Button variant="secondary" onClick={downloadConfig} disabled={!content || loading}>Download</Button>
         </div>
+        {isAruba && (
+          <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+            Rendered from the switch's SNMP state at the last poll (hostname, ports, VLANs,
+            LLDP neighbors). Instant On has no CLI config to read or push.
+          </p>
+        )}
         <pre className="max-h-[32rem] overflow-auto rounded bg-gray-900 p-3 text-xs text-gray-100">
           {loading ? 'Loading from device…' : content}
         </pre>
       </Card>
-      {canConfig && (
+      {canConfig && !isAruba && (
         <Card title="Push configuration">
           <textarea className="h-64 w-full rounded border border-slate-300 bg-white p-2 font-mono text-xs text-slate-900 placeholder:text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
                     placeholder={'interface GigabitEthernet1/0/10\n description Printer\n switchport access vlan 20'}
