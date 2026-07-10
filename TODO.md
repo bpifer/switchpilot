@@ -35,10 +35,13 @@ subsystems. Best value-per-effort next, in order:
    walks PVIDs into `ports.vlan`, backups render a synthetic snapshot from
    SNMP state (config history + diffs for CLI-less devices), and migration
    032 seeds 5 vendor=aruba rules (VLAN-1 exposure, port descriptions,
-   default hostname, LLDP visibility, firmware identified). REMAINING (needs
-   the live 1930 reachable from the LXC): CPU/mem/temp vendor OIDs, PVID walk
-   + synthetic backup + rule scoring against real state, onboarding wizard
-   end-to-end via the new probe-aruba step.
+   default hostname, LLDP visibility, firmware identified). CPU/mem/temp
+   RESOLVED 2026-07-10: probed the live 1930 - it exposes NO health OIDs
+   (ENTITY-SENSOR, HOST-RESOURCES, and ProCurve CPU/mem/temp trees all
+   empty), so the gauges are permanently n/a; the device page now says "not
+   reported by this platform" instead of hiding the row. REMAINING (needs
+   the live 1930): PVID walk + synthetic backup + rule scoring against real
+   state, onboarding wizard end-to-end via the new probe-aruba step.
 
 Lower value / defer: remaining `useAction` page migrations (cosmetic, ~½ day),
 NX-OS Flexible NetFlow (niche, no hw), manual topology link-drawing (~2 days),

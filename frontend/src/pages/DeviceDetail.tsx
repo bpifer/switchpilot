@@ -134,12 +134,25 @@ export default function DeviceDetail({ me }: { me: Me }) {
           </div>
 
           <div className="mt-3.5 flex flex-wrap items-center gap-x-7 gap-y-3 border-t border-slate-100 pt-3.5 dark:border-slate-800">
-            <Gauge label="CPU" pct={device.cpu_pct} />
-            <Gauge label="Memory" pct={device.mem_pct} />
-            <Meta label="Temp" value={device.temperature_c != null ? `${device.temperature_c}°C` : null}
-                  tone={device.temperature_c >= 55 ? 'warn' : undefined} />
-            <HardwareHealth label="PSU" items={psu} />
-            <HardwareHealth label="Fans" items={fans} />
+            {device.vendor === 'aruba' ? (
+              /* Confirmed by probing a live 1930: Instant On exposes no CPU,
+                 memory, or temperature OIDs, so say so instead of showing an
+                 empty row that looks like a polling failure. */
+              <span
+                className="cursor-help text-sm text-slate-400 dark:text-slate-500"
+                title="Aruba Instant On switches don't expose CPU, memory, or temperature over SNMP. Health monitoring for this device covers reachability, port state, and traffic.">
+                CPU / memory / temp: not reported by this platform ⓘ
+              </span>
+            ) : (
+              <>
+                <Gauge label="CPU" pct={device.cpu_pct} />
+                <Gauge label="Memory" pct={device.mem_pct} />
+                <Meta label="Temp" value={device.temperature_c != null ? `${device.temperature_c}°C` : null}
+                      tone={device.temperature_c >= 55 ? 'warn' : undefined} />
+                <HardwareHealth label="PSU" items={psu} />
+                <HardwareHealth label="Fans" items={fans} />
+              </>
+            )}
           </div>
 
           {device.notes && (

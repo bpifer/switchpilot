@@ -55,8 +55,10 @@ export async function refreshArubaDevice(deviceId: string): Promise<void> {
      JSON.stringify({ ...(device.capabilities as any ?? {}), os: 'aos-instanton', transport: 'snmp' }),
      deviceId]);
 
-  // CPU/memory/temperature: the 1930's vendor OIDs are unconfirmed until the
-  // hardware session - nulls keep the metrics series honest instead of fake 0s.
+  // CPU/memory/temperature: confirmed absent on the 1930 (2026-07-10 probe -
+  // no ENTITY-SENSOR, HOST-RESOURCES, or ProCurve health OIDs answer; the HP
+  // enterprise tree exposes no health tables). Permanent nulls keep the
+  // metrics series honest, and the UI explains the platform limitation.
   await query(
     `INSERT INTO device_metrics (device_id, cpu_pct, mem_pct, temperature_c, poe_watts_used, poe_watts_capacity)
      VALUES ($1,NULL,NULL,NULL,NULL,NULL)`, [deviceId]);
