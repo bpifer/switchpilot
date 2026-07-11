@@ -178,7 +178,7 @@ function RuleModal({ rule, onClose }: { rule?: any; onClose: () => void }) {
       <Field label="Name"><input className={inputCls} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></Field>
       <Field label="Trigger">
         <select className={inputCls} value={form.trigger} onChange={e => setForm({ ...form, trigger: e.target.value })}>
-          {['port_down', 'device_offline', 'cpu_high', 'config_drift', 'temp_high', 'psu_fail', 'fan_fail', 'port_flapping'].map(t => <option key={t}>{t}</option>)}
+          {['port_down', 'device_offline', 'cpu_high', 'config_drift', 'temp_high', 'psu_fail', 'fan_fail', 'port_flapping', 'compliance_fail'].map(t => <option key={t}>{t}</option>)}
         </select>
       </Field>
       <Field label="Action">
@@ -186,9 +186,18 @@ function RuleModal({ rule, onClose }: { rule?: any; onClose: () => void }) {
           {['notify', 'restore_baseline', 'run_template', 'disable_port'].map(a => <option key={a}>{a}</option>)}
         </select>
       </Field>
-      <Field label="Threshold (optional, for cpu/temp triggers)">
-        <input className={inputCls} value={form.threshold} onChange={e => setForm({ ...form, threshold: e.target.value })} placeholder="90" />
-      </Field>
+      {(form.trigger === 'cpu_high' || form.trigger === 'temp_high') && (
+        <Field label={`Threshold (${form.trigger === 'cpu_high' ? '%' : '°C'})`}>
+          <input type="number" min={0} max={form.trigger === 'cpu_high' ? 100 : 120}
+            className={inputCls} value={form.threshold}
+            onChange={e => setForm({ ...form, threshold: e.target.value })}
+            placeholder={form.trigger === 'cpu_high' ? '90' : '55'} />
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Fires when {form.trigger === 'cpu_high' ? 'CPU usage' : 'temperature'} exceeds this{' '}
+            {form.trigger === 'cpu_high' ? 'percentage' : 'value in °C'}.
+          </p>
+        </Field>
+      )}
       <Field label="Custom message (optional, {{hostname}}/{{port}} placeholders)">
         <input className={inputCls} value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} />
       </Field>

@@ -11,6 +11,7 @@ export default function Integrations() {
       <PageHeader title="Integrations" />
       <div className="space-y-4 p-6">
         <Webhooks />
+        <NotifierTest />
         <ApiKeys />
       </div>
     </div>
@@ -73,6 +74,47 @@ function Webhooks() {
       </table>
       </div>
       {editing && <WebhookModal hook={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refetch(); }} />}
+    </Card>
+  );
+}
+
+function NotifierTest() {
+  const { run, isBusy } = useAction();
+  const [results, setResults] = useState<{ channel: string; ok: boolean; detail: string }[] | null>(null);
+
+  const test = () => run(async () => {
+    const r = await api<{ results: { channel: string; ok: boolean; detail: string }[] }>(
+      '/api/integrations/test-notifier', { method: 'POST' });
+    setResults(r.results);
+    if (r.results.length === 0) toast.info('No channels configured — set env vars like DISCORD_WEBHOOK_URL, SLACK_WEBHOOK_URL, NTFY_URL…');
+  }, { key: 'test-notifier' });
+
+  return (
+    <Card title="Notification channels">
+      <p className="mb-3 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
+        Send a test to every channel configured by environment variable (Slack,
+        Teams, Discord, ntfy, Gotify, Telegram, Pushover, Email). A Discord or
+        Slack URL belongs here as its own env var — not as a generic webhook
+        above, which sends SwitchPilot's own JSON that chat services reject with
+        a 400.
+      </p>
+      <Button onClick={test} disabled={isBusy('test-notifier')}>
+        {isBusy('test-notifier') ? 'Sending…' : 'Send test to all channels'}
+      </Button>
+      {results && results.length > 0 && (
+        <ul className="mt-3 space-y-1 text-sm">
+          {results.map(r => (
+            <li key={r.channel} className="flex items-center gap-2">
+              <span className={r.ok ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>{r.ok ? '✓' : '✗'}</span>
+              <span className="font-medium text-slate-700 dark:text-slate-300">{r.channel}</span>
+              <span className="text-slate-500 dark:text-slate-400">{r.detail}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {results && results.length === 0 && (
+        <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">No channels are configured.</p>
+      )}
     </Card>
   );
 }

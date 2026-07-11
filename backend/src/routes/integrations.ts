@@ -4,7 +4,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { requireRole } from '../auth/rbac.js';
-import { fireWebhooks, invalidateWebhookCache } from '../services/alertService.js';
+import { fireWebhooks, invalidateWebhookCache, testNotifiers } from '../services/alertService.js';
 
 export default async function integrationRoutes(app: FastifyInstance) {
   // ----- Webhook subscriptions -----
@@ -94,6 +94,22 @@ export default async function integrationRoutes(app: FastifyInstance) {
       const after = await query('SELECT last_status FROM webhook_subscriptions WHERE id=$1', [(req.params as any).id]);
       return { ok: true, lastStatus: after.rows[0].last_status };
     });
+
+  // Fire a test through every configured env-var notifier (Slack/Teams/Discord/
+  // ntfy/Gotify/Telegram/Pushover/Email) so operators can verify wiring without
+  // waiting for a real alert. Returns a per-channel result.
+  app.post('/api/integrations/test-notifier', {
+    preHandler: requireRole('netadmin'),
+    schema: { tags: ['integrations'], response: { 200: {
+      type: 'object', additionalProperties: true,
+      properties: { results: { type: 'array', items: { type: 'object', additionalProperties: true } } },
+    } } },
+  }, async (req) => {
+    const results = await testNotifiers();
+    const me = req.user as any;
+    await audit(me.username, 'notifier.test', 'platform', { channels: results.map(r => `${r.channel}:${r.ok ? 'ok' : 'fail'}`) }, req.ip);
+    return { results };
+  });
 
   // ----- API keys -----
   app.get('/api/keys', { preHandler: requireRole('superadmin'), schema: { tags: ['integrations'] } },

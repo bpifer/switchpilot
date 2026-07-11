@@ -7,6 +7,7 @@ import { devicePushConfig } from './deviceComms.js';
 import { backupDevice } from './configService.js';
 import { previewConfigLines } from './configPreview.js';
 import { inMaintenanceWindow } from './alertService.js';
+import { runAutomationTrigger } from './automationService.js';
 import { forEachLimit } from '../util/concurrency.js';
 
 export interface ComplianceRule {
@@ -95,10 +96,21 @@ export async function evaluateDevice(deviceId: string): Promise<{ evaluated: num
     `SELECT * FROM compliance_rules WHERE enabled AND vendor=$2 AND (site_id IS NULL OR site_id=$1)`,
     [siteId, vendor]);
 
+  // Prior pass/fail per rule, so the compliance_fail automation trigger fires
+  // only on a real pass->fail transition — not for every failing rule on the
+  // first-ever evaluation (which would storm on setup).
+  const { rows: prior } = await query<{ rule_id: string; passed: boolean }>(
+    'SELECT rule_id, passed FROM compliance_results WHERE device_id=$1', [deviceId]);
+  const wasPassing = new Map(prior.map(p => [p.rule_id, p.passed]));
+
   let passedCount = 0;
   for (const rule of rules) {
     const { passed, detail } = evaluateRule(rule, config);
     if (passed) passedCount++;
+    if (!passed && wasPassing.get(rule.id) === true) {
+      await runAutomationTrigger('compliance_fail',
+        { deviceId, rule: rule.name, ruleId: rule.id, severity: rule.severity }).catch(() => {});
+    }
     await query(
       `INSERT INTO compliance_results (device_id, rule_id, passed, detail, checked_at)
        VALUES ($1,$2,$3,$4,now())

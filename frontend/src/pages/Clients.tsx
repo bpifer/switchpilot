@@ -1,6 +1,7 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { useSiteScope } from '../context/SiteContext';
 import { PageHeader, Card } from '../components/ui';
 
@@ -21,32 +22,33 @@ const EMPTY: ClientsResponse = { endpoints: [], switches: [], neighbors: [] };
 
 export default function Clients() {
   const [query, setQuery] = useState('');
+  const [debounced, setDebounced] = useState('');
   const [activeOnly, setActiveOnly] = useState(false);
-  const [data, setData] = useState<ClientsResponse>(EMPTY);
-  const [loading, setLoading] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [vlanFilter, setVlanFilter] = useState('');
   const { siteId } = useSiteScope();
 
-  function search(q: string, active: boolean) {
-    setLoading(true);
-    const params = new URLSearchParams({ limit: '500' });
-    if (q.trim()) params.set('q', q.trim());
-    if (active) params.set('active', 'true');
-    if (siteId) params.set('siteId', siteId);
-    api<ClientsResponse>(`/api/clients?${params}`)
-      .then(d => setData(d ?? EMPTY))
-      .catch(() => setData(EMPTY))
-      .finally(() => setLoading(false));
-  }
-
+  // Debounce the text input into the query path so keystrokes don't each fire a
+  // request; the query itself now shares react-query's cache + WS invalidation.
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => search(query, activeOnly), 300);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query, activeOnly, siteId]);
+    const t = setTimeout(() => setDebounced(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
 
-  const { endpoints: results, switches, neighbors } = data;
-  const hasInfra = !!query.trim() && (switches.length > 0 || neighbors.length > 0);
+  const params = new URLSearchParams({ limit: '500' });
+  if (debounced) params.set('q', debounced);
+  if (activeOnly) params.set('active', 'true');
+  if (siteId) params.set('siteId', siteId);
+  const { data = EMPTY, isFetching } = useApiQuery<ClientsResponse>(`/api/clients?${params}`);
+
+  const { endpoints: allResults, switches, neighbors } = data;
+  // VLAN filter is client-side over the fetched endpoints; the dropdown lists
+  // the distinct VLANs actually present in the current result set.
+  const vlans = useMemo(
+    () => [...new Set(allResults.map(r => String(r.vlan ?? '')).filter(v => v !== ''))]
+      .sort((a, b) => Number(a) - Number(b)),
+    [allResults]);
+  const results = vlanFilter ? allResults.filter(r => String(r.vlan ?? '') === vlanFilter) : allResults;
+  const hasInfra = !!debounced && (switches.length > 0 || neighbors.length > 0);
 
   const isRecent = (ts: string) =>
     Date.now() - new Date(ts).getTime() < 24 * 3600 * 1000;
@@ -93,7 +95,17 @@ export default function Clients() {
             />
             Active only (24h)
           </label>
-          {loading && <span className="text-xs text-slate-400 dark:text-slate-500">Searching…</span>}
+          {vlans.length > 0 && (
+            <select
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              value={vlanFilter}
+              onChange={e => setVlanFilter(e.target.value)}
+            >
+              <option value="">All VLANs</option>
+              {vlans.map(v => <option key={v} value={v}>VLAN {v}</option>)}
+            </select>
+          )}
+          {isFetching && <span className="text-xs text-slate-400 dark:text-slate-500">Searching…</span>}
           {results.length > 0 && (
             <button
               onClick={exportCsv}
@@ -208,7 +220,7 @@ export default function Clients() {
                     </td>
                   </tr>
                 ))}
-                {results.length === 0 && !loading && (
+                {results.length === 0 && !isFetching && (
                   <tr>
                     <td colSpan={9} className="py-12 text-center text-slate-400 dark:text-slate-500">
                       <div className="flex flex-col items-center gap-1">

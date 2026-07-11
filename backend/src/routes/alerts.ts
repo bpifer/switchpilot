@@ -67,7 +67,7 @@ export default async function alertRoutes(app: FastifyInstance) {
           name: { type: 'string' },
           trigger: {
             type: 'string',
-            enum: ['port_down', 'device_offline', 'cpu_high', 'config_drift', 'temp_high', 'psu_fail', 'fan_fail', 'port_flapping']
+            enum: ['port_down', 'device_offline', 'cpu_high', 'config_drift', 'temp_high', 'psu_fail', 'fan_fail', 'port_flapping', 'compliance_fail']
           },
           condition: { type: 'object' },
           action: { type: 'string', enum: ['notify', 'restore_baseline', 'run_template', 'disable_port'] },
@@ -98,7 +98,7 @@ export default async function alertRoutes(app: FastifyInstance) {
           name: { type: 'string' },
           trigger: {
             type: 'string',
-            enum: ['port_down', 'device_offline', 'cpu_high', 'config_drift', 'temp_high', 'psu_fail', 'fan_fail', 'port_flapping']
+            enum: ['port_down', 'device_offline', 'cpu_high', 'config_drift', 'temp_high', 'psu_fail', 'fan_fail', 'port_flapping', 'compliance_fail']
           },
           condition: { type: 'object' },
           action: { type: 'string', enum: ['notify', 'restore_baseline', 'run_template', 'disable_port'] },

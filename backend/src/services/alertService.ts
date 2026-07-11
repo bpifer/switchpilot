@@ -3,7 +3,7 @@ import { createHmac } from 'node:crypto';
 import { query } from '../db.js';
 import { config } from '../config.js';
 import { publishEvent } from '../redis.js';
-import { dispatchNotifications } from './notifiers.js';
+import { dispatchNotifications, buildDiscord, buildNtfy, buildGotify, buildTelegram, buildPushover, type NotifyRequest } from './notifiers.js';
 import { fetchWithRetry } from '../util/httpRetry.js';
 
 export type Severity = 'info' | 'warning' | 'critical';
@@ -134,6 +134,44 @@ export async function fireWebhooks(payload: {
         'UPDATE webhook_subscriptions SET last_fired_at=now(), last_status=$1 WHERE id=$2',
         [status, s.id]).catch(() => {});
     }));
+}
+
+const jsonReq = (body: unknown): RequestInit => ({
+  method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
+});
+
+/** Fire a test message through every CONFIGURED channel and return a per-channel
+ *  result, so an operator can verify wiring at setup time instead of waiting for
+ *  a real 2am alert. Unconfigured channels are omitted; each is a single attempt
+ *  (no retry) so a bad URL fails fast. This is the only way to test the env-var
+ *  notifiers (Discord/ntfy/…), which — unlike generic webhooks — send each
+ *  service's native payload (a Discord webhook needs {content}, which is why
+ *  pointing a *generic* webhook at Discord returns 400). */
+export async function testNotifiers(): Promise<{ channel: string; ok: boolean; detail: string }[]> {
+  const title = '[SwitchPilot] Test notification';
+  const text = 'This is a test from SwitchPilot. If you can read this, the channel is wired up correctly.';
+  const out: { channel: string; ok: boolean; detail: string }[] = [];
+
+  const fire = async (channel: string, req: NotifyRequest | null) => {
+    if (!req) return;   // channel not configured
+    const r = await fetchWithRetry(req.url, req.init, { maxAttempts: 1 });
+    out.push({ channel, ok: r.ok, detail: r.status });
+  };
+
+  if (config.slackWebhook) await fire('Slack', { url: config.slackWebhook, init: jsonReq({ text: `*${title}*\n${text}` }) });
+  if (config.teamsWebhook) await fire('Teams', { url: config.teamsWebhook, init: jsonReq({
+    '@type': 'MessageCard', '@context': 'https://schema.org/extensions',
+    themeColor: '0078D7', summary: title, title, text }) });
+  await fire('Discord', buildDiscord(title, text));
+  await fire('ntfy', buildNtfy(title, text, 'info'));
+  await fire('Gotify', buildGotify(title, text, 'info'));
+  await fire('Telegram', buildTelegram(title, text));
+  await fire('Pushover', buildPushover(title, text, 'info'));
+  if (config.smtp.host) {
+    try { await sendEmail(title, text); out.push({ channel: 'Email', ok: true, detail: 'sent' }); }
+    catch (e) { out.push({ channel: 'Email', ok: false, detail: (e as Error).message.slice(0, 120) }); }
+  }
+  return out;
 }
 
 /** Resolve any open alert of a kind for a device (e.g. device came back online). */

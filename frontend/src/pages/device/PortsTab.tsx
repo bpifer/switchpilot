@@ -40,11 +40,17 @@ export default function PortsTab({ deviceId, ports, canOperate, onChanged, vendo
   // Filter the grid by name/description/VLAN so a "where's the AP on vlan 100"
   // question is a quick type, not a scan of 48 ports.
   const q = filter.trim().toLowerCase();
+  // A plain number is almost always a VLAN lookup, so match the VLAN exactly —
+  // otherwise "1" matches VLAN 1, 10, 11, 100… on a 48-port switch. Name and
+  // description still match as substrings.
+  const numericVlan = /^\d+$/.test(q);
   const shown = q
     ? ports.filter(p =>
         p.name.toLowerCase().includes(q) ||
         (p.description ?? '').toLowerCase().includes(q) ||
-        String(p.vlan ?? '').toLowerCase().includes(q))
+        (numericVlan
+          ? String(p.vlan ?? '') === q
+          : String(p.vlan ?? '').toLowerCase().includes(q)))
     : ports;
 
   return (

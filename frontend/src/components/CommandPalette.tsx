@@ -1,4 +1,5 @@
-// Cmd+K / Ctrl+K global search across devices, ports, alerts, and logs.
+// Cmd+K / Ctrl+K global search across devices, ports, alerts, logs, config
+// content, and failing compliance rules.
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
@@ -8,9 +9,11 @@ interface Results {
   ports: { device_id: string; name: string; description: string; vlan: string; hostname: string }[];
   alerts: { id: string; device_id: string | null; severity: string; kind: string; message: string; hostname: string | null }[];
   logs: { id: string; device_id: string | null; message: string; severity: number | null; hostname: string | null }[];
+  configs: { device_id: string; hostname: string; created_at: string }[];
+  compliance: { device_id: string; hostname: string; rule_id: string; name: string; severity: string }[];
 }
 
-const EMPTY: Results = { devices: [], ports: [], alerts: [], logs: [] };
+const EMPTY: Results = { devices: [], ports: [], alerts: [], logs: [], configs: [], compliance: [] };
 
 export default function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -66,6 +69,16 @@ export default function CommandPalette() {
     ...results.logs.map(l => ({
       label: l.message.slice(0, 70), sub: `${l.hostname ?? 'syslog'}`, tag: 'log',
       go: () => navigate(l.device_id ? `/devices/${l.device_id}` : '/logs')
+    })),
+    // `?? []` keeps a newer frontend resilient against an older backend that
+    // doesn't yet return these keys (e.g. mid-deploy).
+    ...(results.configs ?? []).map(c => ({
+      label: `${c.hostname} · config`, sub: 'match in latest config backup', tag: 'config',
+      go: () => navigate(`/devices/${c.device_id}?tab=config`)
+    })),
+    ...(results.compliance ?? []).map(c => ({
+      label: c.name, sub: `${c.hostname} · failing rule`, tag: c.severity,
+      go: () => navigate('/compliance')
     }))
   ];
 
@@ -86,7 +99,7 @@ export default function CommandPalette() {
           value={q}
           onChange={e => setQ(e.target.value)}
           onKeyDown={onInputKey}
-          placeholder="Search devices, ports, alerts, logs…"
+          placeholder="Search devices, ports, config, compliance, alerts, logs…"
           className="w-full border-b border-slate-100 px-5 py-4 text-sm outline-none placeholder:text-slate-400 dark:border-slate-800 dark:placeholder:text-slate-500"
         />
         <div className="max-h-[50vh] overflow-auto">

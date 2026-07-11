@@ -8,22 +8,41 @@ automatically when the API starts. Take a database backup first
 
 ## [Unreleased]
 
+### Added
+- **Notification channel test** — an Integrations-page button (and
+  `POST /api/integrations/test-notifier`) fires a test through every configured
+  env-var notifier (Slack/Teams/Discord/ntfy/Gotify/Telegram/Pushover/Email)
+  and reports per-channel success, so you can verify wiring at setup instead of
+  waiting for a real alert. (Note: chat services like Discord need their own
+  env var, not the generic signed-webhook integration, which they reject with a
+  400.)
+- **`compliance_fail` automation trigger** — fires the first time a device
+  transitions a rule from pass to fail, so you can be notified on the failure
+  rather than on the next dashboard visit.
+- **Global search** now covers config-backup content and failing compliance
+  rules, and the Clients page gained a VLAN filter.
+
 ### Changed
+- Automation rule threshold is now a typed number input with `%`/`°C` units,
+  shown only for the CPU/temperature triggers that use it.
+- Clients page migrated to the shared query hook (was the last page on manual
+  fetch, which swallowed errors silently).
+- Port filter matches a plain-number query as an exact VLAN (so "1" no longer
+  matches VLAN 10/11/100).
 - **API response schemas** on the hot computed endpoints (`/api/health`,
   `/api/summary`, `/api/compliance/summary`, `/api/poe/energy`) — documented
   shapes in `/docs` and faster serialization, with `additionalProperties: true`
   guaranteeing no field is ever stripped.
-- **Frontend on React 19 + Vite 8** (with recharts 3).
+- **Frontend on React 19 + Vite 8** (with recharts 3) — no behavior change; the
+  app already used `createRoot`, so it was isolated to recharts' stricter
+  tooltip types and React 19's dropped global `JSX` namespace. Verified live.
 
 ### Fixed
 - **Multi-replica SSH safety.** The per-device session pool now takes a
   cross-replica Redis lock (degrading to a no-op without Redis), so under
   horizontally-scaled `api` replicas a UI-triggered write on one replica can no
   longer open a second concurrent SSH session to a device another replica is
-  sweeping. Single-node behavior is unchanged. No behavior change; the
-  app already used `createRoot` and modern patterns, so the migration was
-  isolated to recharts' stricter tooltip types and React 19's dropped global
-  `JSX` namespace. Verified live: charts render, zero console errors.
+  sweeping. Single-node behavior is unchanged.
 
 ### Security
 - **Immediate session revocation** — disabling a user, changing their role, or
