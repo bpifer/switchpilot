@@ -16,6 +16,10 @@ import { loadOuiCache, syncOuiDatabase } from './services/ouiService.js';
 async function main() {
   await migrate();
   await seedAdmin();
+  if (config.demoMode) {
+    const { seedDemoFleet } = await import('./services/demoSeed.js');
+    await seedDemoFleet().catch(err => console.warn(`demo seed failed: ${err.message}`));
+  }
   const app = await buildApp();
 
   await redis.connect().catch(err => app.log.warn(`redis unavailable: ${err.message}`));

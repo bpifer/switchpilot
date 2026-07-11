@@ -64,7 +64,18 @@ export async function getDevice(deviceId: string): Promise<DeviceRow> {
   return rows[0];
 }
 
+/** Demo devices (DEMO_MODE seed) have no real address behind them — refuse
+ *  fast with a clear message instead of an 8s connect timeout. */
+function assertNotDemo(device: DeviceRow): void {
+  if ((device.capabilities as any)?.demo) {
+    throw Object.assign(
+      new Error('This is a demo device — live device actions are disabled in demo mode'),
+      { statusCode: 400 });
+  }
+}
+
 export async function sshTargetFor(device: DeviceRow): Promise<SshTarget> {
+  assertNotDemo(device);
   if (!device.credential_id) throw Object.assign(new Error('Device has no credential profile assigned'), { statusCode: 400 });
   const { rows } = await query('SELECT * FROM credentials WHERE id=$1', [device.credential_id]);
   const c = rows[0];
@@ -91,6 +102,7 @@ export async function sshTargetFor(device: DeviceRow): Promise<SshTarget> {
 }
 
 export async function snmpTargetFor(device: DeviceRow): Promise<SnmpTarget | null> {
+  if ((device.capabilities as any)?.demo) return null;  // demo devices have no real address
   if (!device.credential_id) return null;
   const { rows } = await query('SELECT * FROM credentials WHERE id=$1', [device.credential_id]);
   const c = rows[0];

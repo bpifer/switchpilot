@@ -119,6 +119,12 @@ Or build from source: `docker compose up -d --build`.
 Open **http://localhost:8080**. Default login `admin` / `ChangeMe123!` — you are
 prompted to change it on first login. API docs at `/docs`.
 
+**No switches yet?** Set `DEMO_MODE=true` in `.env` and restart the API — it
+seeds a small fake fleet (Cisco 9300 + 2960X, MikroTik CRS326, Aruba Instant On
+1930) with ports, PoE, endpoints, topology, metrics history, alerts, and config
+diffs so you can explore every page. Demo devices are never polled and refuse
+live actions; delete them from the Devices page when your real hardware arrives.
+
 Upgrading: back up the database first (Users page → Database backup), bump
 `SWITCHPILOT_VERSION`, `docker compose -f docker-compose.release.yml pull`,
 then `up -d` — migrations apply automatically. Release notes live in

@@ -16,6 +16,9 @@ export const config = {
   // Optional bearer token guarding GET /metrics. Unset = open (scrape on a trusted
   // network); set it and Prometheus must send `Authorization: Bearer <token>`.
   metricsToken: process.env.METRICS_TOKEN ?? '',
+  // Seed a fake demo fleet at startup so the app can be evaluated without any
+  // real switches. Demo devices are never polled and refuse live actions.
+  demoMode: process.env.DEMO_MODE === 'true',
   db: {
     host: process.env.POSTGRES_HOST ?? 'localhost',
     port: parseInt(process.env.POSTGRES_PORT ?? '5432', 10),

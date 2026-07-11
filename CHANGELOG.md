@@ -8,6 +8,20 @@ automatically when the API starts. Take a database backup first
 
 ## [Unreleased]
 
+### Added
+- **Demo mode** — `DEMO_MODE=true` seeds a fake 4-device fleet (Cisco 9300 +
+  2960X, MikroTik CRS326, Aruba Instant On 1930) with ports, PoE, endpoints,
+  topology, 48h of metrics history, alerts, and config diffs, so the app can
+  be evaluated with zero hardware. Demo devices are never polled and refuse
+  live actions.
+
+### Fixed
+- `show interfaces status` rows whose port description contains a status word
+  ("kept down") no longer misparse into the wrong state/VLAN columns.
+- Aruba Instant On device pages now say CPU/memory/temperature are "not
+  reported by this platform" (confirmed by probing a live 1930 — it exposes
+  no health OIDs) instead of hiding the row like a polling failure.
+
 ## [1.0.0] - 2026-07-10
 
 First tagged release. Highlights of what the platform does at 1.0:
