@@ -25,8 +25,9 @@ export default async function wsRoutes(app: FastifyInstance) {
     }
   };
 
-  app.get('/ws', { websocket: true, preHandler: authenticate }, (connection) => {
-    const ws = connection.socket;
+  // @fastify/websocket v11 (Fastify 5) hands the WebSocket to the handler
+  // directly - there is no `{ socket }` wrapper any more.
+  app.get('/ws', { websocket: true, preHandler: authenticate }, (ws) => {
     // publishEvent serialises events to JSON before publishing; relay the raw JSON string directly.
     const unsub = onEvent(json => {
       if (ws.readyState === 1 /* OPEN */) ws.send(json);
@@ -38,8 +39,7 @@ export default async function wsRoutes(app: FastifyInstance) {
   // Interactive SSH terminal. Auth + RBAC are checked inside the handler (the
   // role isn't in the ws nonce, so it's looked up from the DB). netadmin+ only;
   // every session is audited open/close. The shell streams raw both ways.
-  app.get('/ws/terminal', { websocket: true }, async (connection, req: FastifyRequest) => {
-    const ws = connection.socket;
+  app.get('/ws/terminal', { websocket: true }, async (ws, req: FastifyRequest) => {
     const q = req.query as any;
     const send = (s: string) => { if (ws.readyState === 1) ws.send(s); };
 

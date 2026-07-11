@@ -8,7 +8,20 @@ automatically when the API starts. Take a database backup first
 
 ## [Unreleased]
 
+### Security
+- **Fastify 5 migration** — clears a critical `fast-jwt` advisory chain
+  (including a JWT auth-bypass variant) and high-severity `fast-uri` issues in
+  Fastify core; also bumps `nodemailer` past several SMTP-injection advisories
+  and `node-cron`/`uuid`. `npm audit --omit=dev` is now clean.
+- The API now refuses to start in production with the `.env.example`
+  placeholder `JWT_SECRET` (or any value under 16 chars), and with a
+  `CREDENTIAL_KEY` that isn't 64 hex chars — a copied example file can no
+  longer ship forgeable logins.
+
 ### Added
+- `npm run reset-password -- <user> [--clear-mfa]` — audited break-glass
+  recovery for a locked-out account (one-time password, forced change at
+  next login).
 - **Demo mode** — `DEMO_MODE=true` seeds a fake 4-device fleet (Cisco 9300 +
   2960X, MikroTik CRS326, Aruba Instant On 1930) with ports, PoE, endpoints,
   topology, 48h of metrics history, alerts, and config diffs, so the app can
