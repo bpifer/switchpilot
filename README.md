@@ -90,7 +90,11 @@ the config-history git repo for DR.
 RBAC (Super Admin / Network Admin / Help Desk / Read Only), local + LDAP auth,
 TOTP MFA with single-use recovery codes, and an AES-256-GCM credential vault
 with key rotation (`npm run rotate-key`) and owner password recovery
-(`npm run show-credential`).
+(`npm run show-credential`). Locked out entirely? `docker compose exec api
+npm run reset-password -- <user> [--clear-mfa]` issues an audited one-time
+password. The API refuses to start in production with a placeholder or weak
+`JWT_SECRET` / `CREDENTIAL_KEY`, so a copied `.env.example` can't silently
+ship forgeable logins.
 
 SSH host-key pinning works on trust-on-first-use: a changed key is refused before
 authentication happens, so credentials are never sent to an impersonated switch.

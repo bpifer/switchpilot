@@ -66,20 +66,29 @@ export async function buildApp(): Promise<FastifyInstance> {
   // (Keep the API itself off the public internet; only the proxy should reach it.)
   const app = Fastify({ logger: true, bodyLimit: 10 * 1024 * 1024, trustProxy: true });
 
-  // Built-in development secrets are fatal in production and a loud warning
-  // everywhere else, so a non-production deployment can't silently ship with
-  // dev-only-secret / the all-zero credential key.
-  const usingDevJwt = config.jwtSecret === 'dev-only-secret';
-  const usingDevKey = config.credentialKey === '00'.repeat(32);
+  // Guessable secrets are fatal in production and a loud warning everywhere
+  // else. This must catch more than the built-in fallbacks: the realistic
+  // failure is someone copying .env.example verbatim, which would otherwise
+  // run with a JWT secret that is public on GitHub - i.e. anyone can forge an
+  // admin token. Also validate CREDENTIAL_KEY's shape here so a malformed key
+  // fails at boot with a clear message, not at the first credential write.
+  const badJwt =
+    ['dev-only-secret', 'change-me-jwt-secret'].includes(config.jwtSecret) ? 'a publicly-known placeholder'
+    : config.jwtSecret.length < 16 ? 'shorter than 16 characters'
+    : null;
+  const badKey =
+    config.credentialKey === '00'.repeat(32) ? 'the all-zero placeholder'
+    : !/^[0-9a-f]{64}$/i.test(config.credentialKey) ? 'not 64 hex characters (openssl rand -hex 32)'
+    : null;
   if (config.nodeEnv === 'production') {
-    if (usingDevJwt) throw new Error('JWT_SECRET must be set in production');
-    if (usingDevKey) throw new Error('CREDENTIAL_KEY must be set in production');
-  } else if (usingDevJwt || usingDevKey) {
+    if (badJwt) throw new Error(`JWT_SECRET is ${badJwt} - set a strong unique value in production`);
+    if (badKey) throw new Error(`CREDENTIAL_KEY is ${badKey} - set a real key in production`);
+  } else if (badJwt || badKey) {
     app.log.warn(
       `INSECURE DEFAULTS IN USE (NODE_ENV=${config.nodeEnv}): ` +
-      `${usingDevJwt ? 'JWT_SECRET=dev-only-secret ' : ''}${usingDevKey ? 'CREDENTIAL_KEY=all-zero ' : ''}` +
-      `- set these before exposing this instance to a real network. ` +
-      `Stored device credentials encrypted with the all-zero key are NOT protected.`);
+      `${badJwt ? `JWT_SECRET is ${badJwt}. ` : ''}${badKey ? `CREDENTIAL_KEY is ${badKey}. ` : ''}` +
+      `Set these before exposing this instance to a real network - ` +
+      `tokens can be forged and stored device credentials are NOT protected.`);
   }
 
   // Security headers. CSP is disabled here because the API serves JSON + the
