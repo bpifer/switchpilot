@@ -13,7 +13,14 @@ automatically when the API starts. Take a database backup first
   `/api/summary`, `/api/compliance/summary`, `/api/poe/energy`) — documented
   shapes in `/docs` and faster serialization, with `additionalProperties: true`
   guaranteeing no field is ever stripped.
-- **Frontend on React 19 + Vite 8** (with recharts 3). No behavior change; the
+- **Frontend on React 19 + Vite 8** (with recharts 3).
+
+### Fixed
+- **Multi-replica SSH safety.** The per-device session pool now takes a
+  cross-replica Redis lock (degrading to a no-op without Redis), so under
+  horizontally-scaled `api` replicas a UI-triggered write on one replica can no
+  longer open a second concurrent SSH session to a device another replica is
+  sweeping. Single-node behavior is unchanged. No behavior change; the
   app already used `createRoot` and modern patterns, so the migration was
   isolated to recharts' stricter tooltip types and React 19's dropped global
   `JSX` namespace. Verified live: charts render, zero console errors.

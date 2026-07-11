@@ -67,7 +67,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata: { name: api, labels: { app: api } }
 spec:
-  replicas: 2   # scaling needs RWX storage for firmware + config-history (see the PVCs below); cron sweeps are already guarded by a Postgres advisory lock (leader election)
+  replicas: 2   # scaling needs RWX storage for firmware + config-history (see the PVCs below). Cron sweeps run only on the leader (Postgres advisory lock), and per-device SSH access is serialized cluster-wide by a Redis lock in the session pool, so a UI write on one replica can't race a sweep on another.
   selector: { matchLabels: { app: api } }
   template:
     metadata: { labels: { app: api } }
