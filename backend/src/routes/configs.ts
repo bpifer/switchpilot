@@ -321,7 +321,9 @@ export default async function configRoutes(app: FastifyInstance) {
     await backupDevice(id, `${me.username} (pre-change)`);
 
     // Commit-confirm: apply under an auto-revert net that restores the device if
-    // the platform can no longer reach it afterward (RouterOS only; Cisco -> 501).
+    // the platform can no longer reach it afterward. Supported on both Cisco
+    // (session-level `reload in N` / `reload cancel`) and RouterOS (scheduler +
+    // backup); pushConfigWithRevert 501s only for a driver without the feature.
     if (confirm) {
       const res = await pushConfigWithRevert(device, lines, confirmSeconds ?? 120,
         { manualConfirm: confirmMode === 'manual' });
