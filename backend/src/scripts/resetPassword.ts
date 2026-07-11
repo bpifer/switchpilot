@@ -54,7 +54,8 @@ async function main(): Promise<void> {
     const hash = await bcrypt.hash(oneTime, 12);
 
     await pool.query(
-      `UPDATE users SET password_hash = $1, must_change_password = TRUE, enabled = TRUE
+      `UPDATE users SET password_hash = $1, must_change_password = TRUE, enabled = TRUE,
+              token_valid_after = now()
        WHERE id = $2`, [hash, rows[0].id]);
     if (clearMfa) {
       await pool.query(`UPDATE users SET mfa_secret = NULL, mfa_enabled = FALSE WHERE id = $1`, [rows[0].id]);

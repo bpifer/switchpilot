@@ -9,6 +9,11 @@ automatically when the API starts. Take a database backup first
 ## [Unreleased]
 
 ### Security
+- **Immediate session revocation** — disabling a user, changing their role, or
+  resetting/changing a password now cuts outstanding sessions at once (tokens
+  carry an issue-time cutoff re-checked on every request) instead of waiting
+  out the 8-hour token expiry. Role changes apply live: the database role wins
+  over the token claim.
 - **Fastify 5 migration** — clears a critical `fast-jwt` advisory chain
   (including a JWT auth-bypass variant) and high-severity `fast-uri` issues in
   Fastify core; also bumps `nodemailer` past several SMTP-injection advisories

@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { query } from '../db.js';
 import { audit } from '../audit.js';
-import { requireRole } from '../auth/rbac.js';
+import { requireRole, bustAuthCache } from '../auth/rbac.js';
 import { assertPasswordAllowed } from '../auth/securityPolicy.js';
 
 export default async function userRoutes(app: FastifyInstance) {
@@ -77,6 +77,13 @@ export default async function userRoutes(app: FastifyInstance) {
       const hash = await bcrypt.hash(b.password, 12);
       await query(`UPDATE users SET password_hash=$1, must_change_password=TRUE, password_changed_at=now() WHERE id=$2 AND auth_source='local'`, [hash, id]);
     }
+    // Security-relevant changes take effect NOW, not when the target's 8h
+    // token expires: outstanding sessions are revoked (password/disable) or
+    // re-read the live role on their next request.
+    if (b.role !== undefined || b.enabled === false || b.password) {
+      await query('UPDATE users SET token_valid_after=now() WHERE id=$1', [id]);
+    }
+    bustAuthCache(id);
     await audit(me.username, 'user.update', id, b.password ? { ...b, password: '***' } : b, req.ip);
     return { ok: true };
   });

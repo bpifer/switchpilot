@@ -6,7 +6,7 @@ import { query } from '../db.js';
 import { audit } from '../audit.js';
 import { encryptSecret, decryptSecret } from '../crypto/secrets.js';
 import { ldapAuthenticate, ldapEnabled } from '../auth/ldap.js';
-import { requireRole } from '../auth/rbac.js';
+import { requireRole, bustAuthCache } from '../auth/rbac.js';
 import { getPolicy, roleRequiresMfa, passwordExpired, assertPasswordAllowed } from '../auth/securityPolicy.js';
 
 /** Try to redeem a single-use MFA backup code. Returns true (and burns the code) on match. */
@@ -147,10 +147,15 @@ export default async function authRoutes(app: FastifyInstance) {
     catch (err: any) { return reply.code(400).send({ error: err.message }); }
     const hash = await bcrypt.hash(newPassword, 12);
     await query(
-      'UPDATE users SET password_hash=$1, must_change_password=FALSE, password_changed_at=now() WHERE id=$2',
+      `UPDATE users SET password_hash=$1, must_change_password=FALSE, password_changed_at=now(),
+              token_valid_after=now() WHERE id=$2`,
       [hash, me.sub]);
+    bustAuthCache(me.sub);
     await audit(me.username, 'password.change', '', {}, req.ip);
-    return { ok: true };
+    // Changing the password revokes every outstanding session for this account
+    // (the point: a stolen token dies with the old password). The response
+    // carries a fresh token so the session that made the change survives.
+    return { ok: true, token: app.jwt.sign({ sub: me.sub, username: me.username, role: user.role }) };
   });
 
   // MFA enrollment: generate secret, user confirms with a valid code

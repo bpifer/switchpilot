@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api } from '../api';
+import { api, setToken } from '../api';
 import type { Me } from '../App';
 
 /**
@@ -49,7 +49,11 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
     if (next !== confirm) { setError('New passwords do not match'); return; }
     setBusy(true);
     try {
-      await api('/api/auth/change-password', { method: 'POST', body: { currentPassword: current, newPassword: next } });
+      // Changing the password revokes every other session; the response's
+      // fresh token keeps THIS session alive across the revocation.
+      const res = await api<{ token?: string }>('/api/auth/change-password',
+        { method: 'POST', body: { currentPassword: current, newPassword: next } });
+      if (res.token) setToken(res.token);
       onDone();
     } catch (err: any) { setError(err.message ?? 'Could not change password'); }
     finally { setBusy(false); }
