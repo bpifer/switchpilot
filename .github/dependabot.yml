@@ -3,9 +3,14 @@ updates:
   - package-ecosystem: npm
     directory: /backend
     schedule: { interval: weekly }
+    # Two PRs max per week (minors bundle, majors bundle) instead of one email
+    # per dependency.
     groups:
       backend-minor:
         update-types: [minor, patch]
+      backend-major:
+        patterns: ["*"]
+        update-types: [major]
     # Fastify-v5-only plugin majors are deferred until we migrate Fastify
     # itself (one deliberate migration, not piecemeal bot bumps).
     ignore:
@@ -19,6 +24,9 @@ updates:
     groups:
       frontend-minor:
         update-types: [minor, patch]
+      frontend-major:
+        patterns: ["*"]
+        update-types: [major]
     # React 19 / Vite 8 wave is deferred to a deliberate migration; the bot
     # PRs fail frontend build/tests today.
     ignore:
@@ -37,6 +45,9 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
+    groups:
+      actions:
+        patterns: ["*"]
   - package-ecosystem: docker
     directory: /backend
     schedule: { interval: weekly }

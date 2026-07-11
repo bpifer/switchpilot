@@ -16,9 +16,12 @@ import { backupDevice, checkDrift } from './configService.js';
 import { renderTemplate } from './templateService.js';
 import { upgradeFirmware } from './firmwareService.js';
 
-// cron-parser is CJS; use createRequire for ESM compatibility
+// cron-parser is CJS; use createRequire for ESM compatibility. v5 renamed
+// parseExpression -> CronExpressionParser.parse.
 const require = createRequire(import.meta.url);
-const cronParser = require('cron-parser') as { parseExpression: (expr: string) => { next(): { toDate(): Date } } };
+const { CronExpressionParser } = require('cron-parser') as {
+  CronExpressionParser: { parse: (expr: string) => { next(): { toDate(): Date } } };
+};
 
 // Unique id for this process, so claimed/locked jobs are attributable.
 const WORKER_ID = `${osHostname()}:${process.pid}`;
@@ -29,7 +32,7 @@ const STALE_MS = 2 * 60_000;
 const HEARTBEAT_MS = 30_000;
 
 function nextCronDate(expr: string): Date {
-  return cronParser.parseExpression(expr).next().toDate();
+  return CronExpressionParser.parse(expr).next().toDate();
 }
 
 /** Exponential backoff (capped) between retry attempts. Exported for tests. */
