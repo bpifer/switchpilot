@@ -1,8 +1,8 @@
 # SwitchPilot TODO
 
-Open work first (P1 = do next), then blocked/declined, then a condensed record
-of shipped work. Effort tags: **Easy** ~½ day, **Medium** 1–2 days, **Hard**
-multi-day / risky. Priority weighs value × effort × risk. Multi-vendor
+Open work first (grouped by readiness — start with "Ready now"), then
+blocked/declined, then a condensed record of shipped work. Effort tags:
+**Easy** ~½ day, **Medium** 1–2 days, **Hard** multi-day / risky. Multi-vendor
 architecture detail lives in [docs/PLAN-multi-vendor.md](docs/PLAN-multi-vendor.md).
 
 The app is mature and production-deployed (Proxmox LXC). What remains is polish,
@@ -10,69 +10,72 @@ niche subsystems, dependency modernization, and hardware-gated validation.
 
 ---
 
-## Open — prioritized
+## Open
 
-### P1 — highest value next
+The high-value backlog is done. What's left is one substantive unblocked task,
+hardware-gated validation, and deliberately-deferred subsystems — so this is
+ordered by **readiness** (can it be picked up now?) rather than stale P-tiers.
 
-- [~] **Response schemas on the remaining routes.** `Medium`. The hot
-      fixed-shape/computed endpoints now have 200 schemas (2026-07-11):
-      `/api/health`, `/api/summary`, `/api/compliance/summary`,
-      `/api/poe/energy` (plus the Traffic API earlier), all with
-      `additionalProperties: true` — proven anti-strip via the real serializer.
-      REMAINING is only the `SELECT *` list endpoints (devices/alerts/etc., ~36
-      mixed nullable cols): high tedium, and with additionalProperties:true they
-      gain only `/docs` documentation, no perf/anti-strip benefit. Low priority
-      — do opportunistically if `/docs` completeness matters.
-### P2 — high value, situational
+### Ready now — no hardware, no blockers
 
-- [ ] **Aruba Instant On 1930 — live validation.** `Medium`. BLOCKED on the 1930
-      being reachable from the LXC (it has been offline / off-subnet). Code is
-      built + unit-tested; when it's online, validate against real state: PVID
-      walk populates `ports.vlan`, a synthetic backup lands in `config_backups` +
-      git, the 5 seeded compliance rules score sensibly, and onboarding e2e via
-      the `probe-aruba` wizard step. (Health gauges are permanently N/A —
-      confirmed 2026-07-10 the 1930 exposes no CPU/mem/temp OIDs.)
-- [ ] **Commit-confirm armed badge (UI) + manual-mode e2e.** `Easy`. The backend
-      is fully validated (Cisco classic-IOS + IOS-XE + RouterOS). What's left is
-      visual: push in manual/test mode, watch the amber "auto-revert armed until
-      HH:MM" badge appear and clear on accept, and exercise the revert-timeout
-      path — needs a human watching the frontend.
+- [ ] **Tailwind 4 migration (frontend).** `Medium`. The single substantive
+      unblocked task and the last frontend major (React 19 + Vite 8 + recharts 3
+      shipped 2026-07-11). New CSS-first engine + config format; pinned out in
+      dependabot until done. Do via `npx @tailwindcss/upgrade`, then verify the
+      build + tests AND eyeball the UI — a Tailwind major's real risk is visual
+      regressions (spacing/shadow/utility renames), so it wants a human at the
+      screen or reliable screenshots, not just green tests.
+- [ ] **Commit-confirm armed badge (UI) + manual-mode e2e.** `Easy`. Backend is
+      fully validated (Cisco classic-IOS + IOS-XE + RouterOS). Only the visual
+      remains: push in manual/test mode, watch the amber "auto-revert armed until
+      HH:MM" badge appear and clear on accept, exercise the revert-timeout path.
+      Needs a human watching the frontend.
+- [ ] **`SELECT *` list-endpoint response schemas.** `Low`/tedious. The hot
+      computed endpoints are done (health/summary/compliance/poe/traffic). Only
+      the raw list endpoints (devices/alerts, ~36 mixed nullable cols) remain,
+      and with `additionalProperties: true` they gain only `/docs` docs — no
+      perf/anti-strip benefit. Opportunistic; do only if `/docs` completeness
+      matters.
 
-### P3 — nice to have
+### Blocked on hardware
 
-- [ ] **Tailwind 4 migration (frontend).** `Medium`. New engine + config format;
-      pinned out in dependabot until done deliberately. The last frontend major
-      (React 19 + Vite 8 + recharts 3 shipped 2026-07-11).
+- [ ] **Aruba Instant On 1930 — live validation.** `Medium`. Highest latent
+      value here, but BLOCKED until the 1930 is reachable from the LXC (offline /
+      off-subnet). Code is built + unit-tested; when it's online, validate real
+      state: PVID walk populates `ports.vlan`, a synthetic backup lands in
+      `config_backups` + git, the 5 seeded compliance rules score sensibly, and
+      onboarding e2e via the `probe-aruba` wizard step. (Health gauges are
+      permanently N/A — the 1930 exposes no CPU/mem/temp OIDs.)
+- [ ] **NX-OS Flexible NetFlow + Cisco→collector delivery.** `Medium`, niche.
+      NX-OS FNF auto-config still 501s (no NX-OS gear to validate). Cisco→collector
+      NetFlow delivery is untested only because the lab C9300 was on a different
+      subnet from the collector; the config path itself is validated.
+
+### Deferred by design
+
 - [ ] **`driver.readCommands` / parser-pair abstraction.** `Hard` (architecture).
-      The monitor split is done (`ciscoMonitor` / `routerosMonitor` / `arubaMonitor`
-      + shared `monitorShared`), but each vendor still needs its own monitor
-      module. Abstracting the read path so a 4th vendor plugs in without one has
-      no payoff until that vendor actually appears — defer until then
-      (PLAN-multi-vendor #4).
-- [ ] **NX-OS Flexible NetFlow + Cisco collector delivery.** `Medium`, niche.
-      NX-OS FNF auto-config still returns 501 (no NX-OS hardware to validate).
-      Cisco→collector NetFlow delivery is untested only because the lab C9300 was
-      on a different subnet from the collector; the config path is validated.
+      Monitor split is done (`ciscoMonitor` / `routerosMonitor` / `arubaMonitor`
+      + shared `monitorShared`), but each vendor still needs its own module.
+      Abstracting the read path has no payoff until a 4th vendor actually appears
+      — defer until then (PLAN-multi-vendor #4).
 - [ ] **DHCP/IPAM correlation.** `Medium`. Pull leases from MikroTik/pfSense/
-      Pi-hole and correlate to clients. SKIPPED by user call (2026-07-09); the
-      vendor-neutral read-only slice only.
-
-### P4 — large / risky / niche
-
-- [ ] **Golden config inheritance.** `Hard`. Hierarchy/inheritance over templates
-      + baseline (which already cover most of this).
-- [ ] **GitOps / intent-based config.** `Hard`. Declare desired VLANs/port
-      profiles in YAML, reconcile against live. New subsystem on top of the drift
-      engine.
-- [ ] **Device Tools: packet capture + bandwidth test.** `Hard`. Binary `.pcap`
-      retrieval (MikroTik `/tool sniffer`, Cisco `monitor capture` + export);
-      bandwidth test is intrusive (needs a target server).
-- [ ] **Niche / high-effort.** `Hard`. 802.1X user tracking for endpoints, offline
-      config "digital twin" simulation, AI-assisted config analysis.
+      Pi-hole and correlate to clients. SKIPPED by user call (2026-07-09).
 - [ ] **JWT in localStorage → httpOnly cookie.** `Medium`, acknowledged tradeoff.
       Chosen to sidestep CSRF, matching the security audit; no XSS vector known,
       but if one appeared token theft would be total and silent. Revisit only if
       the CSRF tradeoff changes.
+
+### Large / new subsystems (someday)
+
+- [ ] **Golden config inheritance.** `Hard`. Hierarchy/inheritance over templates
+      + baseline (which already cover most of this).
+- [ ] **GitOps / intent-based config.** `Hard`. Declare desired VLANs/port
+      profiles in YAML, reconcile against live. New subsystem on top of drift.
+- [ ] **Device Tools: packet capture + bandwidth test.** `Hard`. Binary `.pcap`
+      retrieval (MikroTik `/tool sniffer`, Cisco `monitor capture` + export);
+      bandwidth test is intrusive (needs a target server).
+- [ ] **Niche / high-effort.** `Hard`. 802.1X endpoint user tracking, offline
+      config "digital twin" simulation, AI-assisted config analysis.
 
 ---
 
