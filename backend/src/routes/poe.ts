@@ -74,7 +74,18 @@ export default async function poeRoutes(app: FastifyInstance) {
   // PoE energy + estimated cost over a window, from the poe_watts_used series.
   app.get<{ Querystring: { range?: string; siteId?: string } }>('/api/poe/energy', {
     preHandler: requireRole('readonly'),
-    schema: { tags: ['poe'], querystring: { type: 'object', properties: { range: { type: 'string' }, siteId: { type: 'string' } } } }
+    schema: {
+      tags: ['poe'],
+      querystring: { type: 'object', properties: { range: { type: 'string' }, siteId: { type: 'string' } } },
+      response: { 200: {
+        type: 'object', additionalProperties: true,
+        properties: {
+          range: { type: 'string' }, hours: { type: 'integer' }, rate: { type: 'number' },
+          devices: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          total: { type: 'object', additionalProperties: true },
+        },
+      } },
+    }
   }, async (req) => {
     const range = req.query.range ?? '7d';
     const hours = range === '24h' ? 24 : range === '30d' ? 720 : 168;   // default 7d

@@ -106,7 +106,20 @@ export default async function complianceRoutes(app: FastifyInstance) {
   // ----- Fleet summary: overall score, per-rule rollup, per-device rollup -----
   app.get('/api/compliance/summary', {
     preHandler: requireRole('readonly'),
-    schema: { tags: ['compliance'], querystring: { type: 'object', properties: { siteId: { type: 'string' } } } }
+    schema: {
+      tags: ['compliance'],
+      querystring: { type: 'object', properties: { siteId: { type: 'string' } } },
+      // additionalProperties: true keeps every field (declared or not) so the
+      // schema documents the shape without risking a stripped column.
+      response: { 200: {
+        type: 'object', additionalProperties: true,
+        properties: {
+          score: { type: ['integer', 'null'] }, passed: { type: 'integer' }, total: { type: 'integer' },
+          rules: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          devices: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        },
+      } },
+    }
   },
     async (req) => {
       const sf = siteFilter((req.query as any).siteId, 'd');

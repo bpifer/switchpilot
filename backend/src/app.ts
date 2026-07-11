@@ -146,7 +146,33 @@ export async function buildApp(): Promise<FastifyInstance> {
     return registry.metrics();
   });
 
-  app.get('/api/health', { schema: { tags: ['system'] } }, async (_req, reply) => {
+  app.get('/api/health', {
+    schema: {
+      tags: ['system'],
+      // additionalProperties: true on every object schema below is deliberate:
+      // it documents the shape for /docs and lets fast-json-stringify fast-path
+      // the declared fields, while guaranteeing no field is ever stripped if a
+      // handler grows a new one (the anti-strip footgun that kept these off).
+      response: {
+        // Same shape for healthy (200) and degraded (503) so the typed reply
+        // accepts both code branches.
+        200: {
+          type: 'object', additionalProperties: true,
+          properties: {
+            status: { type: 'string' }, db: { type: 'string' },
+            redis: { type: 'string' }, time: { type: 'string', format: 'date-time' },
+          },
+        },
+        503: {
+          type: 'object', additionalProperties: true,
+          properties: {
+            status: { type: 'string' }, db: { type: 'string' },
+            redis: { type: 'string' }, time: { type: 'string', format: 'date-time' },
+          },
+        },
+      },
+    },
+  }, async (_req, reply) => {
     let db = 'ok';
     try { await query('SELECT 1'); } catch { db = 'down'; }
     const status = db === 'ok' ? 'ok' : 'degraded';
@@ -157,7 +183,26 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   app.get('/api/summary', {
     preHandler: requireRole('readonly'),
-    schema: { tags: ['system'], querystring: { type: 'object', properties: { siteId: { type: 'string' } } } }
+    schema: {
+      tags: ['system'],
+      querystring: { type: 'object', properties: { siteId: { type: 'string' } } },
+      response: { 200: {
+        type: 'object', additionalProperties: true,
+        properties: {
+          // status→count and severity→count maps (dynamic keys, integer values)
+          devices: { type: 'object', additionalProperties: { type: 'integer' } },
+          openAlerts: { type: 'object', additionalProperties: { type: 'integer' } },
+          recentJobs: { type: 'object', additionalProperties: { type: 'integer' } },
+          health: {
+            type: 'object', additionalProperties: true,
+            properties: {
+              score: { type: 'integer' }, grade: { type: 'string' },
+              components: { type: 'object', additionalProperties: true },
+            },
+          },
+        },
+      } },
+    }
   }, async (req) => {
     const sf = siteFilter((req.query as any).siteId, 'd');
     const [devices, alerts, jobs, compliance] = await Promise.all([
