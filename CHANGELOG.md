@@ -9,6 +9,10 @@ automatically when the API starts. Take a database backup first
 ## [Unreleased]
 
 ### Changed
+- **API response schemas** on the hot computed endpoints (`/api/health`,
+  `/api/summary`, `/api/compliance/summary`, `/api/poe/energy`) — documented
+  shapes in `/docs` and faster serialization, with `additionalProperties: true`
+  guaranteeing no field is ever stripped.
 - **Frontend on React 19 + Vite 8** (with recharts 3). No behavior change; the
   app already used `createRoot` and modern patterns, so the migration was
   isolated to recharts' stricter tooltip types and React 19's dropped global

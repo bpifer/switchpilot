@@ -14,14 +14,15 @@ niche subsystems, dependency modernization, and hardware-gated validation.
 
 ### P1 — highest value next
 
-- [ ] **Response schemas on the remaining hot routes.** `Medium`. Only the
-      Traffic API declares 200 schemas today; the other ~27 route files don't,
-      so `/docs` shows empty response objects and responses skip the faster
-      schema serializer. Deferred historically because it needs the running
-      stack to verify (fast-json-stringify strips undeclared props, and most
-      handlers return `SELECT *` with many nullable cols) — but the stack is now
-      reachable on the LXC, so this is unblocked. Do per-route against live
-      responses, using `additionalProperties: true` to stay safe.
+- [~] **Response schemas on the remaining routes.** `Medium`. The hot
+      fixed-shape/computed endpoints now have 200 schemas (2026-07-11):
+      `/api/health`, `/api/summary`, `/api/compliance/summary`,
+      `/api/poe/energy` (plus the Traffic API earlier), all with
+      `additionalProperties: true` — proven anti-strip via the real serializer.
+      REMAINING is only the `SELECT *` list endpoints (devices/alerts/etc., ~36
+      mixed nullable cols): high tedium, and with additionalProperties:true they
+      gain only `/docs` documentation, no perf/anti-strip benefit. Low priority
+      — do opportunistically if `/docs` completeness matters.
 ### P2 — high value, situational
 
 - [ ] **Aruba Instant On 1930 — live validation.** `Medium`. BLOCKED on the 1930
