@@ -8,6 +8,12 @@ automatically when the API starts. Take a database backup first
 
 ## [Unreleased]
 
+### Changed
+- **Frontend on React 19 + Vite 8** (with recharts 3). No behavior change; the
+  app already used `createRoot` and modern patterns, so the migration was
+  isolated to recharts' stricter tooltip types and React 19's dropped global
+  `JSX` namespace. Verified live: charts render, zero console errors.
+
 ### Security
 - **Immediate session revocation** — disabling a user, changing their role, or
   resetting/changing a password now cuts outstanding sessions at once (tokens

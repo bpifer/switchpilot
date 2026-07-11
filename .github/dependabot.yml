@@ -32,20 +32,11 @@ updates:
       frontend-major:
         patterns: ["*"]
         update-types: [major]
-    # React 19 / Vite 8 wave is deferred to a deliberate migration; the bot
-    # PRs fail frontend build/tests today.
+    # React 19 + Vite 8 + recharts 3 migration DONE 2026-07-11, so those major
+    # ignores are lifted. Tailwind 4 (new engine/config) is still deferred to a
+    # deliberate migration.
     ignore:
-      - dependency-name: react
-        update-types: [version-update:semver-major]
-      - dependency-name: react-dom
-        update-types: [version-update:semver-major]
-      - dependency-name: "@types/react"
-        update-types: [version-update:semver-major]
-      - dependency-name: "@types/react-dom"
-        update-types: [version-update:semver-major]
-      - dependency-name: vite
-        update-types: [version-update:semver-major]
-      - dependency-name: "@vitejs/plugin-react"
+      - dependency-name: tailwindcss
         update-types: [version-update:semver-major]
   - package-ecosystem: github-actions
     directory: /

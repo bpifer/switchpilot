@@ -22,12 +22,6 @@ niche subsystems, dependency modernization, and hardware-gated validation.
       handlers return `SELECT *` with many nullable cols) — but the stack is now
       reachable on the LXC, so this is unblocked. Do per-route against live
       responses, using `additionalProperties: true` to stay safe.
-- [ ] **React 19 + Vite 8 migration (frontend).** `Medium`/`Hard`. The last big
-      dependency modernization; currently pinned out in dependabot
-      (`react`, `react-dom`, `@types/react*`, `vite`, `@vitejs/plugin-react`,
-      plus `recharts` 3 which rides the same wave). Do as one deliberate
-      migration with the frontend test suite as the gate, then drop the ignores.
-
 ### P2 — high value, situational
 
 - [ ] **Aruba Instant On 1930 — live validation.** `Medium`. BLOCKED on the 1930
@@ -46,7 +40,8 @@ niche subsystems, dependency modernization, and hardware-gated validation.
 ### P3 — nice to have
 
 - [ ] **Tailwind 4 migration (frontend).** `Medium`. New engine + config format;
-      pinned out in dependabot until done deliberately.
+      pinned out in dependabot until done deliberately. The last frontend major
+      (React 19 + Vite 8 + recharts 3 shipped 2026-07-11).
 - [ ] **`driver.readCommands` / parser-pair abstraction.** `Hard` (architecture).
       The monitor split is done (`ciscoMonitor` / `routerosMonitor` / `arubaMonitor`
       + shared `monitorShared`), but each vendor still needs its own monitor
@@ -119,8 +114,10 @@ niche subsystems, dependency modernization, and hardware-gated validation.
 - **Dependency modernization** — merged 11 Dependabot PRs (GitHub Actions,
   Node 20→26 images, nginx 1.31, minor groups, `diff` 9, react-router 7,
   bcryptjs 3, TypeScript 7, `@types/*`); manually took vitest 4 + cron-parser 5.
-  Dependabot majors now grouped (≤2 PRs/tree/week); Fastify-5-only, React-19/
-  Vite-8, Tailwind-4, otplib-13 majors ignored pending deliberate migrations.
+  Dependabot majors now grouped (≤2 PRs/tree/week). **React 19 + Vite 8 +
+  recharts 3** migrated 2026-07-11 (build + 62 tests + live chart render
+  verified). Tailwind-4 and otplib-13 majors still ignored pending deliberate
+  migrations.
 
 ### Live hardware validation (2026-07-11, via the API on the LXC)
 - **2960 (SW-ACCESS-01, classic IOS 15.2):** TDR cable test, config preview
