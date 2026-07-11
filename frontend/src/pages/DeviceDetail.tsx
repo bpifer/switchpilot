@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAction } from '../hooks/useAction';
 import { useApiQuery } from '../hooks/useApiQuery';
@@ -34,7 +34,7 @@ export default function DeviceDetail({ me }: { me: Me }) {
   const canConfig = me.role === 'superadmin' || me.role === 'netadmin';
   const { run, busy, isBusy } = useAction();
 
-  const { data: device, refetch: refetchDevice } = useApiQuery<any>(`/api/devices/${id}`, { refetchInterval: 60000 });
+  const { data: device, refetch: refetchDevice, isLoading: deviceLoading } = useApiQuery<any>(`/api/devices/${id}`, { refetchInterval: 60000 });
   const { data: sites = [] } = useApiQuery<{ id: string; name: string }[]>('/api/sites');
   const { data: ports = [], refetch: refetchPorts } = useApiQuery<Port[]>(`/api/devices/${id}/ports`, { refetchInterval: 60000 });
   const { data: avail } = useApiQuery<{ pct: number | null }>(`/api/analytics/device/${id}/availability?days=30`, { refetchInterval: 300000 });
@@ -52,7 +52,20 @@ export default function DeviceDetail({ me }: { me: Me }) {
     refetchDevice();
   }, { key: 'accept', success: 'Change accepted — revert timer cancelled and config saved.' });
 
-  if (!device) return <div className="p-6 text-gray-400 dark:text-slate-500">Loading…</div>;
+  if (!device) {
+    // Skeleton during the initial fetch; once it settles without a device the
+    // id is bad or the device was removed, so show a way back instead of a
+    // spinner that never resolves.
+    if (deviceLoading) return <DeviceBandSkeleton />;
+    return (
+      <div className="p-6">
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          Couldn't load this device — it may have been removed.{' '}
+          <Link to="/devices" className="font-medium text-brand-700 underline dark:text-brand-400">Back to devices</Link>
+        </p>
+      </div>
+    );
+  }
 
   const psu = (device.psu_status ?? []) as { id: string; status: string }[];
   const fans = (device.fan_status ?? []) as { id: string; status: string }[];
@@ -384,6 +397,31 @@ function certLabel(iso: string): string {
 }
 function certTone(iso: string): 'warn' | undefined {
   return (new Date(iso).getTime() - Date.now()) / 86_400_000 <= 30 ? 'warn' : undefined;
+}
+
+// Loading placeholder that mirrors the device band (title + status, meta row,
+// gauge row) so the page doesn't jump from bare text to the full layout.
+function DeviceBandSkeleton() {
+  return (
+    <div className="animate-pulse p-4 sm:p-6" aria-busy="true" aria-label="Loading device">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+        <div className="flex items-center gap-3">
+          <div className="h-6 w-48 rounded bg-slate-200 dark:bg-slate-700" />
+          <div className="h-5 w-16 rounded-full bg-slate-200 dark:bg-slate-700" />
+        </div>
+        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-3">
+          {[64, 96, 80, 72, 88, 60, 100, 76].map((w, i) => (
+            <div key={i} className="h-4 rounded bg-slate-200 dark:bg-slate-700" style={{ width: w }} />
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-x-7 gap-y-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+          {[112, 112, 96, 80].map((w, i) => (
+            <div key={i} className="h-4 rounded bg-slate-200 dark:bg-slate-700" style={{ width: w }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function Meta({ label, value, mono = false, tone }: {
