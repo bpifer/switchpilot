@@ -126,7 +126,7 @@ export default function Traffic({ me }: { me: Me }) {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                   <XAxis dataKey="bucket" tickFormatter={ts => fmtTime(ts, range)} tick={{ fontSize: 11, fill: '#94a3b8' }} />
                   <YAxis tickFormatter={v => fmtBytes(v)} tick={{ fontSize: 11, fill: '#94a3b8' }} width={64} />
-                  <Tooltip labelFormatter={ts => fmtTime(String(ts), range)} formatter={(v: number) => [fmtBytes(v), 'Bytes']} />
+                  <Tooltip labelFormatter={ts => fmtTime(String(ts), range)} formatter={(v) => [fmtBytes(Number(v)), 'Bytes']} />
                   <Area type="monotone" dataKey="bytes" stroke="#0a6650" strokeWidth={2} fill="url(#trafficFill)" />
                 </AreaChart>
               </ResponsiveContainer>

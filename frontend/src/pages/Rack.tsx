@@ -65,7 +65,7 @@ function RackColumn({ name, devs }: { name: string; devs: Dev[] }) {
     for (let u = base; u < base + d.rack_height; u++) spanned.add(u);
   }
 
-  const rows: JSX.Element[] = [];
+  const rows: React.JSX.Element[] = [];
   for (let u = maxU; u >= 1; u--) {
     const d = startAt.get(u);
     if (d) {

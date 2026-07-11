@@ -74,7 +74,9 @@ export default function Analytics() {
     `/api/analytics/port/${deviceId}/${encodeURIComponent(portName)}?range=${range}`,
     { enabled: !!deviceId && !!portName });
 
-  function chartFmt(ts: string) { return fmtBucket(ts, range); }
+  // Accepts recharts' widened tick/label type (ReactNode | value); coerced to
+  // the string bucket key the data actually carries.
+  function chartFmt(ts: unknown) { return fmtBucket(String(ts ?? ''), range); }
 
   const cpuMemMerged = (() => {
     const map = new Map<string, any>();
@@ -155,7 +157,7 @@ export default function Analytics() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="bucket" tickFormatter={chartFmt} tick={{ fontSize: 11, fill: '#94a3b8' }} />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#94a3b8' }} unit="%" />
-                <Tooltip labelFormatter={chartFmt} formatter={(v: number) => [`${v}%`]} />
+                <Tooltip labelFormatter={chartFmt} formatter={(v) => [`${Number(v)}%`]} />
                 <Legend />
                 <Line type="monotone" dataKey="cpu" name="CPU"    stroke={CHART_COLORS.cpu}    dot={false} strokeWidth={2} />
                 <Line type="monotone" dataKey="mem" name="Memory" stroke={CHART_COLORS.memory} dot={false} strokeWidth={2} />
@@ -172,7 +174,7 @@ export default function Analytics() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="bucket" tickFormatter={chartFmt} tick={{ fontSize: 11, fill: '#94a3b8' }} />
                 <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} unit="°C" />
-                <Tooltip labelFormatter={chartFmt} formatter={(v: number) => [`${v}°C`]} />
+                <Tooltip labelFormatter={chartFmt} formatter={(v) => [`${Number(v)}°C`]} />
                 <Line type="monotone" dataKey="value" name="Temp" stroke={CHART_COLORS.temp} dot={false} strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
@@ -195,7 +197,7 @@ export default function Analytics() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="bucket" tickFormatter={chartFmt} tick={{ fontSize: 11, fill: '#94a3b8' }} />
                 <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} unit=" W" />
-                <Tooltip labelFormatter={chartFmt} formatter={(v: number) => [`${v} W`]} />
+                <Tooltip labelFormatter={chartFmt} formatter={(v) => [`${Number(v)} W`]} />
                 <Line type="monotone" dataKey="value" name="PoE used" stroke={CHART_COLORS.poe} dot={false} strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
@@ -228,7 +230,7 @@ export default function Analytics() {
                     <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }}
                            tickFormatter={v => fmtBps(v)} />
                     <Tooltip labelFormatter={chartFmt}
-                             formatter={(v: number) => [fmtBps(v)]} />
+                             formatter={(v) => [fmtBps(Number(v))]} />
                     <Legend />
                     <Line type="monotone" dataKey="in_bps"  name="In"  stroke={CHART_COLORS.in}  dot={false} strokeWidth={2} />
                     <Line type="monotone" dataKey="out_bps" name="Out" stroke={CHART_COLORS.out} dot={false} strokeWidth={2} />

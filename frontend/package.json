@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "license": "AGPL-3.0-or-later",
-  "repository": { "type": "git", "url": "https://github.com/bpifer/switchpilot" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bpifer/switchpilot"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,17 +16,17 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",
-    "recharts": "^2.12.7"
+    "recharts": "^3.9.2"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.5.2",
     "jsdom": "^29.1.1",
