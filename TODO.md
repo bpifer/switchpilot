@@ -18,6 +18,12 @@ ordered by **readiness** (can it be picked up now?) rather than stale P-tiers.
 
 ### Ready now — no hardware, no blockers
 
+- [ ] **Split `PortsTab.tsx` (929 lines, ~9 inline components).** `Medium`,
+      hygiene only (the file works; its tests pass as behavioral tests through
+      the parent). Extract `BulkConfigPanel`, `LagPanel`, `PortDetail`,
+      `PortConfigModal`, `ArubaPortConfigModal`, etc. into `device/ports/` for
+      findability + independent testing. Deferred as non-urgent churn on the
+      most complex device-UI file; do when it's being actively worked on anyway.
 - [ ] **Tailwind 4 migration (frontend).** `Medium`. The single substantive
       unblocked task and the last frontend major (React 19 + Vite 8 + recharts 3
       shipped 2026-07-11). New CSS-first engine + config format; pinned out in
@@ -100,6 +106,18 @@ ordered by **readiness** (can it be picked up now?) rather than stale P-tiers.
 ---
 
 ## Shipped
+
+### Review follow-ups (2026-07-11)
+- **Multi-replica SSH safety** — per-device Redis lock in the session pool so a
+  UI write on one replica can't race a sweep on another (k8s `replicas: 2`);
+  degrades to a no-op without Redis. Tested; single-node unchanged.
+- **DeviceDetail loading/empty state** — skeleton during fetch + a real
+  "couldn't load" state for a missing device (was an infinite spinner).
+- A code review's other findings were verified and **not** actioned because the
+  code already covers them: Aruba state-derivation is extracted to `aruba/snmp.ts`
+  and tested (`aruba.snmp.test.ts`, `aruba.compliance.test.ts`); `renderArubaConfig`
+  has a dedicated test block; `flow_records` prune uses `flow_records_bucket_idx`
+  (not a full scan).
 
 ### Security & dependencies (2026-07-10 → 07-11)
 - **Fastify 5 migration** — clears a critical `fast-jwt` advisory chain (incl. a
