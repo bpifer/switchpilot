@@ -18,6 +18,11 @@ updates:
         update-types: [version-update:semver-major]
       - dependency-name: "@fastify/*"
         update-types: [version-update:semver-major]
+      # otplib 13 is a ground-up rewrite of the TOTP API. MFA verification is
+      # not a bot-bump; migrate deliberately with lockout testing, or not at
+      # all (v12 is advisory-free).
+      - dependency-name: otplib
+        update-types: [version-update:semver-major]
   - package-ecosystem: npm
     directory: /frontend
     schedule: { interval: weekly }
